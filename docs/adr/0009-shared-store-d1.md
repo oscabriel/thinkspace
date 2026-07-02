@@ -5,6 +5,7 @@
 PlanetScale Postgres + Hyperdrive (2025–2026, incl. post-cutoff changelogs).
 
 ## Context
+
 Proposal on the table: drop D1 entirely; use **PlanetScale Postgres via Cloudflare
 Hyperdrive** for app/auth/shared data, individual DOs for agent state, R2 for blobs —
 motivated by "use DOs as much as we can."
@@ -20,20 +21,24 @@ blobs. The auth/tenant graph **must** be an external shared DB regardless. The o
 choice is **which** external DB. It does not change how DO-centric the rest of the system is.
 
 ## "No D1 at all" is a real, fully-supported story (considered, not chosen)
+
 - PlanetScale Postgres GA Oct 2025; Hyperdrive **officially** supports it.
 - better-auth's **Postgres adapter is first-class / more battle-tested** than its v1.5 D1 path,
   with **real interactive transactions** (vs D1's `batch()` workaround).
 - better-auth + Hyperdrive + Postgres is proven (`zpg6/better-auth-cloudflare`,
-  **Drizzle + postgres.js**) — *if* you avoid the Kysely dialect (sign-in hang, better-auth
+  **Drizzle + postgres.js**) — _if_ you avoid the Kysely dialect (sign-in hang, better-auth
   issue #2274), use a small pool (`max: 5`), and create the client in-handler.
 
 ## Decision
+
 Use **D1** as the single shared/relational store for v1 (better-auth tables + our domain
 tables foreign-keyed into them, same D1, partitioned by `workspace_id` per ADR 0001).
 
 ## Rationale (workload fit)
+
 The shared/auth layer = small relational metadata, **read on the hot path of ~every request**
 (authz/session/membership), globally distributed B2B tenants, modest writes.
+
 - **Postgres-via-Hyperdrive is weak for exactly this:** single-origin-region → uncached reads
   pay geographic RTT (and authz reads are the hottest); Hyperdrive's cache is **TTL-only, no
   write-invalidation** → unsafe for authz, and session-expiry queries use STABLE functions
@@ -45,12 +50,14 @@ The shared/auth layer = small relational metadata, **read on the hot path of ~ev
   data is in DO-SQLite + R2, so the 10 GB ceiling is moot.
 
 ## Consequences / constraints
+
 - No interactive transactions → multi-statement atomicity via D1 `batch()` (our writes too).
 - Single shared D1, `workspace_id`-partitioned; per-tenant D1 remains an escape hatch via the
   data-access layer if a residency/isolation customer ever appears.
 - Reads can use the Sessions API (bookmarks) for read-your-writes when needed.
 
 ## Reopen conditions (would flip to PlanetScale Postgres)
+
 1. Tenants cluster in a **single region** (D1's edge-replication edge evaporates).
 2. **Heavy cross-tenant relational/analytical** workloads (reporting, billing analytics) emerge.
 3. Strategic: deep **Postgres affinity**, desire for **branching**-based safer migrations, or a

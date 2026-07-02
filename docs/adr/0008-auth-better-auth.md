@@ -4,9 +4,11 @@
 **Source-grounded:** verified against local clone `github.com/better-auth` (v1.6.x)
 
 ## Context
+
 Auth/identity is 100% ours to build (the Cloudflare Agents SDK validates nothing).
 Candidates were better-auth (self-hosted, in-stack) and WorkOS (hosted IdP). Verified
 in source:
+
 - **better-auth**: native Cloudflare Workers support (smoke-tested fixture rejecting
   `node:` API leakage), native **D1** (v1.5+), an **organization plugin** providing
   `organization`/`member`/`invitation`/role tables, **SSO (SAML/OIDC) + SCIM** plugins,
@@ -16,9 +18,11 @@ in source:
   Node-based example apps (no edge-native path).
 
 ## Decision
+
 Use **better-auth**, self-hosted in our Worker against our D1.
 
 ## Consequences
+
 - better-auth's **organization plugin owns the tenant graph**: its `organization` **is**
   our **Workspace**, its `member` **is** our **Member**, and we adopt its **role** model
   (owner/admin/member + dynamic roles). Invitations come from its `invitation` table.

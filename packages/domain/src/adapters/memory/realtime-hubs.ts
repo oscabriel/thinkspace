@@ -94,7 +94,7 @@ export const createMemoryWorkspaceHub = (
       }),
     publishActivity: async (event) => {
       activityEvents.push(event);
-      return ok(undefined);
+      return ok();
     },
   };
 };
@@ -146,7 +146,7 @@ export const createMemoryChannelHub = (
     getPresence: async () => ok(config.presence ?? []),
     publishEvent: async (event) => {
       events.push(event);
-      return ok(undefined);
+      return ok();
     },
   };
 };

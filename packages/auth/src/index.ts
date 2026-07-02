@@ -4,28 +4,10 @@ import { env } from "@thinkspace/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
-export function createAuth() {
+export const createAuth = () => {
   const db = createDb();
 
   return betterAuth({
-    database: drizzleAdapter(db, {
-      provider: "sqlite",
-
-      schema,
-    }),
-    trustedOrigins: [env.CORS_ORIGIN],
-    emailAndPassword: {
-      enabled: true,
-    },
-    // uncomment cookieCache setting when ready to deploy to Cloudflare using *.workers.dev domains
-    // session: {
-    //   cookieCache: {
-    //     enabled: true,
-    //     maxAge: 60,
-    //   },
-    // },
-    secret: env.BETTER_AUTH_SECRET,
-    baseURL: env.BETTER_AUTH_URL,
     advanced: {
       defaultCookieAttributes: {
         httpOnly: true,
@@ -39,5 +21,23 @@ export function createAuth() {
       //   domain: "<your-workers-subdomain>",
       // },
     },
+    baseURL: env.BETTER_AUTH_URL,
+    database: drizzleAdapter(db, {
+      provider: "sqlite",
+
+      schema,
+    }),
+    emailAndPassword: {
+      enabled: true,
+    },
+    secret: env.BETTER_AUTH_SECRET,
+    // uncomment cookieCache setting when ready to deploy to Cloudflare using *.workers.dev domains
+    // session: {
+    //   cookieCache: {
+    //     enabled: true,
+    //     maxAge: 60,
+    //   },
+    // },
+    trustedOrigins: [env.CORS_ORIGIN],
   });
-}
+};

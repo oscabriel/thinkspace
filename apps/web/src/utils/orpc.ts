@@ -7,8 +7,8 @@ import type { AppRouter } from "@thinkspace/api/routers/index";
 import { env } from "@thinkspace/env/web";
 import { toast } from "sonner";
 
-export function createQueryClient() {
-  return new QueryClient({
+export const createQueryClient = () =>
+  new QueryClient({
     defaultOptions: { queries: { staleTime: 60 * 1000 } },
     queryCache: new QueryCache({
       onError: (error, query) => {
@@ -23,7 +23,6 @@ export function createQueryClient() {
       },
     }),
   });
-}
 
 const link = new RPCLink({
   fetch(url, options) {
@@ -35,9 +34,7 @@ const link = new RPCLink({
   url: `${env.VITE_SERVER_URL}/rpc`,
 });
 
-const getORPCClient = () => 
-  createORPCClient(link) as RouterClient<AppRouter>
-;
+const getORPCClient = () => createORPCClient(link) as RouterClient<AppRouter>;
 
 export const client: RouterClient<AppRouter> = getORPCClient();
 

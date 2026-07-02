@@ -20,13 +20,8 @@ import type { Thread } from "../../thread";
 import type { WorkspaceToolDisable } from "../../tool";
 import type { Unread } from "../../unread";
 import type { Member, Workspace } from "../../workspace";
-import {
-  hasSameId,
-  idKey,
-  isInTenant,
-  tenantGuardViolation,
-  type TenantScoped,
-} from "./helpers";
+import { hasSameId, idKey, isInTenant, tenantGuardViolation } from "./helpers";
+import type { TenantScoped } from "./helpers";
 
 export interface MemoryTenantDataAccessConfig {
   readonly artifacts?: readonly Artifact[];
@@ -123,47 +118,52 @@ const validateScopedValue = (
     ? null
     : tenantGuardViolation(context, value.workspaceId);
 
+type CommandOfKind<Kind extends TenantWriteCommand["kind"]> = Extract<
+  TenantWriteCommand,
+  { kind: Kind }
+>;
+
+const scopedValueByKind: {
+  [Kind in TenantWriteCommand["kind"]]: (
+    command: CommandOfKind<Kind>,
+    state: MemoryTenantDataAccessState
+  ) => TenantScoped | null;
+} = {
+  delete_channel_favorite: (command, state) =>
+    state.channelFavorites.get(channelFavoriteKey(command)) ?? null,
+  delete_mcp_host_approval: (command, state) =>
+    state.mcpHostApprovals.get(idKey(command.host)) ?? null,
+  delete_schedule: (command, state) =>
+    state.schedules.get(idKey(command.scheduleId)) ?? null,
+  delete_skill: (command, state) =>
+    state.skills.get(idKey(command.skillId)) ?? null,
+  delete_unread: (command, state) =>
+    state.unread.get(unreadKey(command)) ?? null,
+  delete_workspace_tool_disable: (command, state) =>
+    state.workspaceToolDisables.get(idKey(command.toolId)) ?? null,
+  put_artifact_index: (command) => command.artifact,
+  put_channel: (command) => command.channel,
+  put_channel_favorite: (command) => command.favorite,
+  put_mcp_host_approval: (command) => command.hostApproval,
+  put_mcp_server: (command) => command.mcpServer,
+  put_schedule: (command) => command.schedule,
+  put_shape: (command) => command.shape,
+  put_skill: (command) => command.skill,
+  put_thread_index: (command) => command.thread,
+  put_unread: (command) => command.unread,
+  put_workspace_tool_disable: (command) => command.toolDisable,
+};
+
 const commandScopedValue = (
   command: TenantWriteCommand,
   state: MemoryTenantDataAccessState
-): TenantScoped | null => {
-  switch (command.kind) {
-    case "delete_channel_favorite":
-      return state.channelFavorites.get(channelFavoriteKey(command)) ?? null;
-    case "delete_mcp_host_approval":
-      return state.mcpHostApprovals.get(idKey(command.host)) ?? null;
-    case "delete_schedule":
-      return state.schedules.get(idKey(command.scheduleId)) ?? null;
-    case "delete_skill":
-      return state.skills.get(idKey(command.skillId)) ?? null;
-    case "delete_unread":
-      return state.unread.get(unreadKey(command)) ?? null;
-    case "delete_workspace_tool_disable":
-      return state.workspaceToolDisables.get(idKey(command.toolId)) ?? null;
-    case "put_artifact_index":
-      return command.artifact;
-    case "put_channel":
-      return command.channel;
-    case "put_channel_favorite":
-      return command.favorite;
-    case "put_mcp_host_approval":
-      return command.hostApproval;
-    case "put_mcp_server":
-      return command.mcpServer;
-    case "put_schedule":
-      return command.schedule;
-    case "put_shape":
-      return command.shape;
-    case "put_skill":
-      return command.skill;
-    case "put_thread_index":
-      return command.thread;
-    case "put_unread":
-      return command.unread;
-    case "put_workspace_tool_disable":
-      return command.toolDisable;
-  }
-};
+): TenantScoped | null =>
+  (
+    scopedValueByKind[command.kind] as (
+      command: TenantWriteCommand,
+      state: MemoryTenantDataAccessState
+    ) => TenantScoped | null
+  )(command, state);
 
 /** ADR 0030: a Shape row is only ever written alongside / on behalf of its one channel. */
 const validateShapeOwnership = (
@@ -220,72 +220,84 @@ const validateShapeOwnership = (
   return null;
 };
 
+const applyCommandByKind: {
+  [Kind in TenantWriteCommand["kind"]]: (
+    command: CommandOfKind<Kind>,
+    state: MemoryTenantDataAccessState
+  ) => void;
+} = {
+  delete_channel_favorite: (command, state) => {
+    state.channelFavorites.delete(channelFavoriteKey(command));
+  },
+  delete_mcp_host_approval: (command, state) => {
+    state.mcpHostApprovals.delete(idKey(command.host));
+  },
+  delete_schedule: (command, state) => {
+    state.schedules.delete(idKey(command.scheduleId));
+  },
+  delete_skill: (command, state) => {
+    state.skills.delete(idKey(command.skillId));
+  },
+  delete_unread: (command, state) => {
+    state.unread.delete(unreadKey(command));
+  },
+  delete_workspace_tool_disable: (command, state) => {
+    state.workspaceToolDisables.delete(idKey(command.toolId));
+  },
+  put_artifact_index: (command, state) => {
+    state.artifacts.set(idKey(command.artifact.id), command.artifact);
+  },
+  put_channel: (command, state) => {
+    state.channels.set(idKey(command.channel.id), command.channel);
+  },
+  put_channel_favorite: (command, state) => {
+    state.channelFavorites.set(
+      channelFavoriteKey(command.favorite),
+      command.favorite
+    );
+  },
+  put_mcp_host_approval: (command, state) => {
+    state.mcpHostApprovals.set(
+      idKey(command.hostApproval.host),
+      command.hostApproval
+    );
+  },
+  put_mcp_server: (command, state) => {
+    state.mcpServers.set(idKey(command.mcpServer.id), command.mcpServer);
+  },
+  put_schedule: (command, state) => {
+    state.schedules.set(idKey(command.schedule.id), command.schedule);
+  },
+  put_shape: (command, state) => {
+    state.shapes.set(idKey(command.shape.id), command.shape);
+  },
+  put_skill: (command, state) => {
+    state.skills.set(idKey(command.skill.id), command.skill);
+  },
+  put_thread_index: (command, state) => {
+    state.threads.set(idKey(command.thread.id), command.thread);
+  },
+  put_unread: (command, state) => {
+    state.unread.set(unreadKey(command.unread), command.unread);
+  },
+  put_workspace_tool_disable: (command, state) => {
+    state.workspaceToolDisables.set(
+      idKey(command.toolDisable.toolId),
+      command.toolDisable
+    );
+  },
+};
+
 const applyCommand = (
   command: TenantWriteCommand,
   state: MemoryTenantDataAccessState
 ): void => {
-  switch (command.kind) {
-    case "delete_channel_favorite":
-      state.channelFavorites.delete(channelFavoriteKey(command));
-      return;
-    case "delete_mcp_host_approval":
-      state.mcpHostApprovals.delete(idKey(command.host));
-      return;
-    case "delete_schedule":
-      state.schedules.delete(idKey(command.scheduleId));
-      return;
-    case "delete_skill":
-      state.skills.delete(idKey(command.skillId));
-      return;
-    case "delete_unread":
-      state.unread.delete(unreadKey(command));
-      return;
-    case "delete_workspace_tool_disable":
-      state.workspaceToolDisables.delete(idKey(command.toolId));
-      return;
-    case "put_artifact_index":
-      state.artifacts.set(idKey(command.artifact.id), command.artifact);
-      return;
-    case "put_channel":
-      state.channels.set(idKey(command.channel.id), command.channel);
-      return;
-    case "put_channel_favorite":
-      state.channelFavorites.set(
-        channelFavoriteKey(command.favorite),
-        command.favorite
-      );
-      return;
-    case "put_mcp_host_approval":
-      state.mcpHostApprovals.set(
-        idKey(command.hostApproval.host),
-        command.hostApproval
-      );
-      return;
-    case "put_mcp_server":
-      state.mcpServers.set(idKey(command.mcpServer.id), command.mcpServer);
-      return;
-    case "put_schedule":
-      state.schedules.set(idKey(command.schedule.id), command.schedule);
-      return;
-    case "put_shape":
-      state.shapes.set(idKey(command.shape.id), command.shape);
-      return;
-    case "put_skill":
-      state.skills.set(idKey(command.skill.id), command.skill);
-      return;
-    case "put_thread_index":
-      state.threads.set(idKey(command.thread.id), command.thread);
-      return;
-    case "put_unread":
-      state.unread.set(unreadKey(command.unread), command.unread);
-      return;
-    case "put_workspace_tool_disable":
-      state.workspaceToolDisables.set(
-        idKey(command.toolDisable.toolId),
-        command.toolDisable
-      );
-      return;
-  }
+  (
+    applyCommandByKind[command.kind] as (
+      command: TenantWriteCommand,
+      state: MemoryTenantDataAccessState
+    ) => void
+  )(command, state);
 };
 
 const getTenantScoped = async <Value extends TenantScoped>(
@@ -431,15 +443,6 @@ export const createMemoryTenantDataAccess = (
             hasSameId(favorite.memberId, input.memberId)
         )
       ),
-    listChannels: async (input) =>
-      ok({
-        entries: [...state.channels.values()]
-          .filter((channel) => isInTenant(config.context, channel))
-          .filter((channel) => isVisibleToMember(config.context, channel))
-          .filter((channel) => matchesListingRequest(input, channel))
-          .map(toDirectoryEntry),
-        workspaceId: config.context.workspaceId,
-      }),
     listChannelThreads: async (input) =>
       ok({
         channelId: input.channelId,
@@ -448,6 +451,15 @@ export const createMemoryTenantDataAccess = (
             isInTenant(config.context, thread) &&
             hasSameId(thread.channelId, input.channelId)
         ),
+        workspaceId: config.context.workspaceId,
+      }),
+    listChannels: async (input) =>
+      ok({
+        entries: [...state.channels.values()]
+          .filter((channel) => isInTenant(config.context, channel))
+          .filter((channel) => isVisibleToMember(config.context, channel))
+          .filter((channel) => matchesListingRequest(input, channel))
+          .map(toDirectoryEntry),
         workspaceId: config.context.workspaceId,
       }),
     listMemberUnread: async (input) =>
@@ -475,7 +487,7 @@ export const createMemoryTenantDataAccess = (
             input.before === null ||
             thread.lastActivityAt.getTime() < input.before.getTime()
         )
-        .sort(
+        .toSorted(
           (left, right) =>
             right.lastActivityAt.getTime() - left.lastActivityAt.getTime()
         )

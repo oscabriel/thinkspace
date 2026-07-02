@@ -41,15 +41,18 @@ import {
   MessageCircleDashedIcon,
   RotateCwIcon,
 } from "lucide-react";
-import { useState } from 'react';
-import type { FormEvent, KeyboardEvent } from 'react';
+import { useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import { Streamdown } from "streamdown";
 
-export const Route = createFileRoute("/ai")({
-  component: RouteComponent,
-});
+const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    e.currentTarget.form?.requestSubmit();
+  }
+};
 
-function RouteComponent() {
+const RouteComponent = () => {
   const [input, setInput] = useState("");
   const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({
@@ -61,16 +64,11 @@ function RouteComponent() {
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || isSending) {return;}
+    if (!text || isSending) {
+      return;
+    }
     sendMessage({ text });
     setInput("");
-  };
-
-  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      e.currentTarget.form?.requestSubmit();
-    }
   };
 
   const resetConversation = () => {
@@ -231,4 +229,8 @@ function RouteComponent() {
       </div>
     </MessageScrollerProvider>
   );
-}
+};
+
+export const Route = createFileRoute("/ai")({
+  component: RouteComponent,
+});

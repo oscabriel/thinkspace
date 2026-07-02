@@ -3,6 +3,7 @@
 **Status:** accepted (2026-06-28)
 
 ## Context
+
 MCP is the most paved part of the Cloudflare Agents stack
 (`this.addMcpServer(name, url)` persists + auto-restores), which makes it the
 easiest exfiltration foot-gun. Under the B2B trust model (ADR 0001), the blast
@@ -16,12 +17,14 @@ Stances considered: **open** (any URL — a model-(c) posture in disguise),
 workspace's allowlist).
 
 ## Decision
+
 **Allowlist-per-workspace, owner-approved hosts.** An admin may reference any MCP
 server when building a shape, but the target **host** must be approved into that
 workspace's egress allowlist by a workspace **owner** before the agent can reach
 it. Egress from agents is restricted to approved hosts.
 
 ## Consequences
+
 - Need a `workspace_mcp_allowlist` concept (host + who approved + when) in D1.
 - Adding egress becomes a deliberate, auditable owner action — not a one-line
   accident or a prompt-injection payload.
@@ -37,5 +40,6 @@ it. Egress from agents is restricted to approved hosts.
   registry-only and gate custom hosts behind verification/payment.
 
 ## Open
+
 - Granularity of approval: host vs full URL vs OAuth-app identity. (Lean host.)
 - Does an approved host imply all paths on it? (Lean yes for v1; revisit.)

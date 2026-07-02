@@ -10,7 +10,7 @@ All `file:line` references below are paths inside the clone at that commit.
 
 The **matched set is confirmed at this commit**: `agents@0.17.1`, `@cloudflare/think@0.11.1`,
 `@cloudflare/shell@0.4.1`. All five ADR 0015 §3 gotchas are **real, load-bearing behaviors**
-at this commit — and two of them are *sharper* than the ADR text assumes:
+at this commit — and two of them are _sharper_ than the ADR text assumes:
 
 1. **MCP persist/restore bypasses add-time gates.** The hibernation-restore path reconnects
    straight from the persisted SQLite row and never re-runs `addMcpServer`, `registerServer`,
@@ -40,7 +40,7 @@ Persisted as opaque JSON under key `_think_config` in DO-SQLite table `think_con
 (DDL `think.ts:3587`); survives hibernation; in-memory cached.
 
 **Caveat:** the SDK never reads model/tools/prompt out of the config. Behavior is driven by
-the overridden sync accessors — the adapter must call `getConfig()` *inside*
+the overridden sync accessors — the adapter must call `getConfig()` _inside_
 `getModel()/getTools()/getSystemPrompt()` to make the shape snapshot data-driven. ADR 0007's
 "structure frozen, content live" split is SDK-supported but adapter-enforced.
 
@@ -51,6 +51,7 @@ getModel(): LanguageModel   // think.ts:3628 — throws if not overridden
 getSystemPrompt(): string   // think.ts:3636
 getTools(): ToolSet         // think.ts:3647
 ```
+
 All three synchronous; called sync in the turn path (`think.ts:4968/5011/5026`). By contrast
 `getActions()` and `configureSession()` MAY return promises.
 
@@ -59,11 +60,12 @@ All three synchronous; called sync in the turn path (`think.ts:4968/5011/5026`).
 ```ts
 beforeTurn(ctx: TurnContext): TurnConfig | void | Promise<TurnConfig | void>  // think.ts:4394
 ```
+
 `TurnContext = { system, messages, tools, model, continuation, body? }` (`think.ts:1888`).
 The merge is an object spread — `{ ...tools, ...config.tools }` (`think.ts:5058`): add or
 same-name override only, **never remove**. Narrowing goes through `TurnConfig.activeTools:
 string[]` / `toolChoice` (AI SDK), which restrict callability without deleting. True removal
-exists only in the channel-definition `tools(tools)` transformer, applied *before* beforeTurn
+exists only in the channel-definition `tools(tools)` transformer, applied _before_ beforeTurn
 (`think.ts:5000`).
 
 ### Runs are "submissions" — naming map
@@ -71,15 +73,15 @@ exists only in the channel-definition `tools(tools)` transformer, applied *befor
 The SDK has no "run" primitive; the durable-queued turn is a **submission**
 (table `cf_think_submissions`, DDL `think.ts:8691`).
 
-| Domain seam (`seams/thread-agent.ts`) | SDK |
-|---|---|
-| `run(RunTrigger)` | `submitMessages(messages, {submissionId, idempotencyKey, metadata})` — `think.ts:9302` |
-| `getRun({runId})` | `inspectSubmission(submissionId)` — `think.ts:9157` |
-| `listRuns()` | `listSubmissions(options?)` — `think.ts:9164` |
-| `RunId` | `submissionId` |
-| `Run.status` | `ThinkSubmissionStatus = "pending"\|"running"\|"completed"\|"aborted"\|"skipped"\|"error"` — `think.ts:1701` |
-| `SubAgentActivity` | table `cf_agent_tool_child_runs` (DDL `think.ts:6897`); child DOs via `subAgent(cls, runId)` |
-| `appendComment` | `addMessages(messages, {parentId?, mode?})` — `think.ts:9864` — appends to the Session message tree **without** enqueuing a turn; idempotent by message id |
+| Domain seam (`seams/thread-agent.ts`) | SDK                                                                                                                                                        |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run(RunTrigger)`                     | `submitMessages(messages, {submissionId, idempotencyKey, metadata})` — `think.ts:9302`                                                                     |
+| `getRun({runId})`                     | `inspectSubmission(submissionId)` — `think.ts:9157`                                                                                                        |
+| `listRuns()`                          | `listSubmissions(options?)` — `think.ts:9164`                                                                                                              |
+| `RunId`                               | `submissionId`                                                                                                                                             |
+| `Run.status`                          | `ThinkSubmissionStatus = "pending"\|"running"\|"completed"\|"aborted"\|"skipped"\|"error"` — `think.ts:1701`                                               |
+| `SubAgentActivity`                    | table `cf_agent_tool_child_runs` (DDL `think.ts:6897`); child DOs via `subAgent(cls, runId)`                                                               |
+| `appendComment`                       | `addMessages(messages, {parentId?, mode?})` — `think.ts:9864` — appends to the Session message tree **without** enqueuing a turn; idempotent by message id |
 
 The Session message tree is branched by `parentId` — it directly models the ADR 0016/0025
 comment tree (ancestors + subtree loads walk this tree). `saveMessages` (`think.ts:9824`)
@@ -91,7 +93,7 @@ Think's `Session` (from `agents/experimental/memory/session`, wired via
 `configureSession()` — `think.ts:4268`) is **one transcript tree per DO instance**. There is
 no per-member session multiplexer and no `startSession()` API. The `CuratorAgent` seam's
 per-member isolation (ADR 0026) must be realized as **one curator DO instance per
-member+workspace** — `CuratorSessionId` maps to a DO *name*, not an SDK session handle.
+member+workspace** — `CuratorSessionId` maps to a DO _name_, not an SDK session handle.
 `send()` maps to `submitMessages`/`runTurn` on that DO.
 
 ---
@@ -108,6 +110,7 @@ getScheduleById(id): Promise<Schedule<unknown> | undefined>   // index.ts:4569 (
 listSchedules(criteria?): Promise<Schedule<unknown>[]>        // index.ts:4606 (preferred; getSchedules deprecated)
 cancelSchedule(id): Promise<boolean>                          // index.ts:4630
 ```
+
 Kind is discriminated by the **runtime type of `when`**: `Date` → `scheduled`, `number` →
 `delayed`, `string` → `cron`. Persisted in DO-SQLite `cf_agents_schedules`
 (DDL `index.ts:1930`); a single DO alarm drives firing; callback invoked as
@@ -115,17 +118,17 @@ Kind is discriminated by the **runtime type of `when`**: `Date` → `scheduled`,
 (DO alarm max). Payload is `JSON.stringify`-round-tripped — **`Date` does not survive**.
 
 **Naming trap:** `agents` exports the runtime `Schedule` type (`index.ts:549`);
-`agents/schedule` exports a *different* `Schedule` — a Zod schema for LLM natural-language
+`agents/schedule` exports a _different_ `Schedule` — a Zod schema for LLM natural-language
 schedule parsing (`schedule.ts:134`). Import from `"agents"` only.
 
 ### Domain `Schedule` vs SDK — NOT ISOMORPHIC
 
-| Domain field (`run.ts`) | SDK | Verdict |
-|---|---|---|
-| `id: ScheduleId` (caller-minted) | nanoid(9) generated at insert | mismatch — external id map needed |
-| `recurrence: RecurrenceRule` | cron string only | mappable iff recurrence is plain cron |
-| `active: boolean` | none | mismatch — pause = cancel; resume = re-create (new SDK id) |
-| `createdAt`, `createdByMemberId`, tenant ids | none | carry in payload (as ISO string) or own store |
+| Domain field (`run.ts`)                      | SDK                           | Verdict                                                    |
+| -------------------------------------------- | ----------------------------- | ---------------------------------------------------------- |
+| `id: ScheduleId` (caller-minted)             | nanoid(9) generated at insert | mismatch — external id map needed                          |
+| `recurrence: RecurrenceRule`                 | cron string only              | mappable iff recurrence is plain cron                      |
+| `active: boolean`                            | none                          | mismatch — pause = cancel; resume = re-create (new SDK id) |
+| `createdAt`, `createdByMemberId`, tenant ids | none                          | carry in payload (as ISO string) or own store              |
 
 **Adapter pattern:** the domain store is the source of truth; the SDK is purely the alarm
 mechanism. The seam's `schedule(input) => AsyncResult<Schedule, …>` echoes back the domain
@@ -138,7 +141,7 @@ Schedule it was given — never surface the SDK-generated id as `ScheduleId`.
 ### Surface — VERIFIED
 
 Paved entry is **`Agent.addMcpServer`** (`index.ts:12140` RPC overload, `:12154` HTTP
-overload) — *not* a method on `this.mcp`. The manager `MCPClientManager`
+overload) — _not_ a method on `this.mcp`. The manager `MCPClientManager`
 (`agents/src/mcp/client.ts:332`, constructed in the Agent ctor at `index.ts:2253`) exposes
 `registerServer(id, options)` (`client.ts:1176`) + `connectToServer(id)` (`client.ts:1231`)
 (+ deprecated `connect`). Transport: streamable-http/SSE/RPC, `type: "auto"` default; bearer
@@ -247,12 +250,12 @@ Three distinct FS-shaped surfaces in `@cloudflare/shell` — do not conflate:
 
 ### `ArtifactStore` mapping
 
-| Seam op | Primitive | Status |
-|---|---|---|
-| `put` | `Workspace.writeFileBytes(path, data, mimeType)` (`filesystem.ts:611`) or raw R2 | implementable |
-| `get` | `Workspace.readFileBytes` (null on miss) | implementable |
-| `search` lexical | `StateBackend.searchText/searchFiles` = content-scan **grep**, not an index | gap — adapter builds its own index or accepts grep |
-| `search` metadata | nothing — `Workspace` has no metadata columns beyond `mimeType`/`size` | gap — adapter-owned D1 index (as ADR 0006 assumed) |
+| Seam op           | Primitive                                                                        | Status                                             |
+| ----------------- | -------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `put`             | `Workspace.writeFileBytes(path, data, mimeType)` (`filesystem.ts:611`) or raw R2 | implementable                                      |
+| `get`             | `Workspace.readFileBytes` (null on miss)                                         | implementable                                      |
+| `search` lexical  | `StateBackend.searchText/searchFiles` = content-scan **grep**, not an index      | gap — adapter builds its own index or accepts grep |
+| `search` metadata | nothing — `Workspace` has no metadata columns beyond `mimeType`/`size`           | gap — adapter-owned D1 index (as ADR 0006 assumed) |
 
 All rich `Artifact` fields (`homeChannelId`, `mediaKind`, `origin`, `r2Key`, …) are
 adapter-owned records; shell is only the blob layer.

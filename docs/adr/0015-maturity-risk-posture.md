@@ -3,6 +3,7 @@
 **Status:** accepted (2026-06-29)
 
 ## Context
+
 The architecture rests on `@cloudflare/agents` (0.17.1), `think` (0.11.1), `@cloudflare/shell`
 (0.4.1) — all **pre-1.0, `@experimental`, repo not accepting external PRs**. Risks: (1) API
 churn with no semver protection, (2) bugs unfixable upstream, (3) abandonment/pivot risk.
@@ -11,6 +12,7 @@ Blast radius already reduced by prior decisions: **Code Mode deferred** (ADR 000
 exposure = 3 packages used in their most-paved capacities (config-as-data, MCP, virtual FS).
 
 ## Decision — Medium mitigation posture
+
 1. **Pin exact versions** of agents/think/shell as a **matched set** (no `^` ranges); upgrades
    are deliberate + manual, never automatic.
 2. **Thin anti-corruption layer** around only the load-bearing touchpoints — the `BespokeAgent`
@@ -27,12 +29,14 @@ exposure = 3 packages used in their most-paved capacities (config-as-data, MCP, 
 Rejected: **Light** (breakage scatters), **Heavy** (over-abstracts before churn is located).
 
 ## Strategic acceptance
+
 The engine choice bets the product on an experimental, un-upstreamable Cloudflare stack. The
 user **consciously accepts this risk** — actively interested in exploring these technologies —
-with Medium making the bet *survivable*, not risk-free. Engine choice is **not** reopened (the
+with Medium making the bet _survivable_, not risk-free. Engine choice is **not** reopened (the
 per-thread-DO economics justify it).
 
 ## Consequences
+
 - Establishes a versioning + upgrade discipline and a contract-test suite as CI gates.
 - The anti-corruption layer is a real v1 build item, not optional.
 - Per-version clones are part of the repo hygiene / runbook.

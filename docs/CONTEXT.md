@@ -117,6 +117,7 @@ _Avoid_: preset, blueprint.
 _Avoid_: fork, duplicate, copy.
 
 ### Assets & surfaces
+
 **Artifact**: A durable workspace asset produced by an agent or uploaded by a member — **any**
 media (markdown, image, video, HTML, …), not only text. Channel-homed (provenance) but
 workspace-aggregated; **survives its origin channel's deletion** (ADR 0018). Full-text/lexical
@@ -144,6 +145,7 @@ output), plus co-participant activity — not a human-message counter (ADR 0017)
 _Avoid_: notifications, badge.
 
 ### Channel attributes & access
+
 **Owner**: The member who created a channel; holds shape-edit rights alongside admins (ADR 0019).
 
 **Visibility**: A channel is **Shared** (workspace-visible, default) or **Private** (owner-only)
@@ -188,7 +190,7 @@ _(ADRs land in `docs/adr/`; this table is the running index.)_
 | 0021 | Authoring = conversational "curation agent" (primary, populates shape responsibly + sharpens goal) + manual form (full control, source of truth) + clone-archived; templates optional (handoff Q-F)                                                     | accepted             |
 | 0022 | Delegation = internal sub-agent fan-out within a channel allowed + VISIBLE in tree (facets of the one agent identity), gated by onBeforeSubAgent+allowlists; cross-channel handoff = v2 seam (handoff Q-G)                                              | accepted             |
 | 0023 | Discovery = minimal searchable shared-channel directory (goal/owner/status) in v1; full workspace activity feed deferred (handoff Q-H)                                                                                                                  | accepted             |
-| 0024 | Artifacts = any media (renames/broadens "Document"); lexical search only for text-extractable, others by metadata; no RAG (amends 0006, 0014)                                                                                                          | accepted             |
+| 0024 | Artifacts = any media (renames/broadens "Document"); lexical search only for text-extractable, others by metadata; no RAG (amends 0006, 0014)                                                                                                           | accepted             |
 | 0025 | Branch context window = ancestor path + subtree (amends 0016)                                                                                                                                                                                           | accepted             |
 | 0026 | Curator = stateful per-member sessions; draft = goal + shape (refines 0021)                                                                                                                                                                             | accepted             |
 | 0027 | Home feed = paginated TenantDataAccess read; unread cleared via delete_unread; unread recipients = thread participants (refines 0017, 0020)                                                                                                             | accepted             |

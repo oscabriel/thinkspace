@@ -1,7 +1,6 @@
 import { createNotImplementedError } from "../../errors";
 import type { ModelId } from "../../ids";
-import type { ModelProvider } from "../../model";
-import type { Model } from "../../model";
+import type { Model, ModelProvider } from "../../model";
 import type { SecretAlias } from "../../primitives";
 import { err, ok } from "../../result";
 import type { ModelRoute, ModelRouter } from "../../seams/model-routing";

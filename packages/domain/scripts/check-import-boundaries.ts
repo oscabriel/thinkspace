@@ -1,6 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 import { dependencyRules } from "../src/dependency-rules";
 
@@ -15,9 +14,9 @@ interface BoundaryViolation {
   readonly specifier: string;
 }
 
-const scriptDirectory = fileURLToPath(new URL(".", import.meta.url));
-const packageDirectory = join(scriptDirectory, "..");
-const sourceDirectory = join(packageDirectory, "src");
+const scriptDirectory = import.meta.dirname;
+const packageDirectory = path.join(scriptDirectory, "..");
+const sourceDirectory = path.join(packageDirectory, "src");
 
 const getRule = (layer: string) => {
   const rule = dependencyRules.find((candidate) => candidate.layer === layer);
@@ -35,16 +34,16 @@ const listTypeScriptFiles = (directory: string): readonly string[] => {
   const files: string[] = [];
 
   for (const entry of readdirSync(directory)) {
-    const path = join(directory, entry);
-    const stat = statSync(path);
+    const entryPath = path.join(directory, entry);
+    const stat = statSync(entryPath);
 
     if (stat.isDirectory()) {
-      files.push(...listTypeScriptFiles(path));
+      files.push(...listTypeScriptFiles(entryPath));
       continue;
     }
 
     if (entry.endsWith(".ts")) {
-      files.push(path);
+      files.push(entryPath);
     }
   }
 
@@ -52,21 +51,22 @@ const listTypeScriptFiles = (directory: string): readonly string[] => {
 };
 
 const importSpecifiers = (file: string): readonly ImportUse[] => {
-  const source = readFileSync(file, "utf8");
+  const source = readFileSync(file, "utf-8");
   const imports: ImportUse[] = [];
   const staticImportPattern =
-    /\b(?:import|export)\s+(?:type\s+)?(?:[^"']*?\sfrom\s*)?["']([^"']+)["']/g;
-  const dynamicImportPattern = /\bimport\(\s*["']([^"']+)["']\s*\)/g;
+    /\b(?:import|export)\s+(?:type\s+)?(?:[^"']*?\sfrom\s*)?["'](?<specifier>[^"']+)["']/gu;
+  const dynamicImportPattern =
+    /\bimport\(\s*["'](?<specifier>[^"']+)["']\s*\)/gu;
 
   for (const match of source.matchAll(staticImportPattern)) {
-    const specifier = match[1];
+    const specifier = match.groups?.specifier;
     if (specifier !== undefined) {
       imports.push({ file, specifier });
     }
   }
 
   for (const match of source.matchAll(dynamicImportPattern)) {
-    const specifier = match[1];
+    const specifier = match.groups?.specifier;
     if (specifier !== undefined) {
       imports.push({ file, specifier });
     }
@@ -76,7 +76,7 @@ const importSpecifiers = (file: string): readonly ImportUse[] => {
 };
 
 const relativeSourcePath = (file: string): string =>
-  relative(sourceDirectory, file).split(sep).join("/");
+  path.relative(sourceDirectory, file).split(path.sep).join("/");
 
 const isNodeBuiltin = (specifier: string): boolean =>
   specifier.startsWith("node:");
@@ -96,13 +96,17 @@ const isAdapterLayerFile = (file: string): boolean =>
   relativeSourcePath(file).startsWith("adapters/");
 
 const isTransportLayerFile = (file: string): boolean => {
-  const path = relativeSourcePath(file);
-  return path.startsWith("edges/") || path.startsWith("transport/");
+  const sourcePath = relativeSourcePath(file);
+  return sourcePath.startsWith("edges/") || sourcePath.startsWith("transport/");
 };
 
 const relativeTargetPath = (use: ImportUse): string =>
-  relative(sourceDirectory, resolve(dirname(use.file), use.specifier))
-    .split(sep)
+  path
+    .relative(
+      sourceDirectory,
+      path.resolve(path.dirname(use.file), use.specifier)
+    )
+    .split(path.sep)
     .join("/");
 
 const isAdapterTarget = (use: ImportUse): boolean => {
@@ -207,7 +211,7 @@ const violations = listTypeScriptFiles(sourceDirectory).flatMap((file) =>
 if (violations.length > 0) {
   for (const violation of violations) {
     console.error(
-      `${relative(packageDirectory, violation.file)} imports ${violation.specifier}: ${violation.message}`
+      `${path.relative(packageDirectory, violation.file)} imports ${violation.specifier}: ${violation.message}`
     );
   }
 

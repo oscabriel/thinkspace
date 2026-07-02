@@ -10,6 +10,7 @@ ubiquitous-language term is now **Artifact** (ADR 0006/0014 retain the old word 
 record).
 
 ## Consequence
+
 - ADR 0006's **lexical/full-text search** only applies to **text-extractable** artifacts. Non-text
   artifacts (images, video, binaries) are discoverable by **metadata** (name, type, provenance,
   tags), not full-text. Still **no RAG** (ADR 0006 holds).

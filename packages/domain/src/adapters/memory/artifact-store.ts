@@ -1,5 +1,6 @@
 import type { Artifact } from "../../artifact";
-import { artifactIdSchema, type ThreadId } from "../../ids";
+import { artifactIdSchema } from "../../ids";
+import type { ThreadId } from "../../ids";
 import { r2KeySchema } from "../../primitives";
 import { err, ok } from "../../result";
 import type { ArtifactBlob, ArtifactStore } from "../../seams/artifact-store";

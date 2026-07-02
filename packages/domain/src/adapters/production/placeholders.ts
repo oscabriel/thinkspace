@@ -43,10 +43,10 @@ export const createD1TenantDataAccessPlaceholder = (
   listArtifacts: async () => notImplemented("D1TenantDataAccess.listArtifacts"),
   listChannelFavorites: async (_input) =>
     notImplemented("D1TenantDataAccess.listChannelFavorites"),
-  listChannels: async (_input) =>
-    notImplemented("D1TenantDataAccess.listChannels"),
   listChannelThreads: async (_input) =>
     notImplemented("D1TenantDataAccess.listChannelThreads"),
+  listChannels: async (_input) =>
+    notImplemented("D1TenantDataAccess.listChannels"),
   listMemberUnread: async (_input) =>
     notImplemented("D1TenantDataAccess.listMemberUnread"),
   listRecentThreads: async (_input) =>

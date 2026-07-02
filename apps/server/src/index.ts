@@ -37,6 +37,7 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => createAuth().handler(c.req.raw));
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
   interceptors: [
+    // oxlint-disable-next-line promise/prefer-await-to-callbacks -- orpc's interceptor API is callback-based
     onError((error) => {
       console.error(error);
     }),
@@ -50,6 +51,7 @@ export const apiHandler = new OpenAPIHandler(appRouter, {
 
 export const rpcHandler = new RPCHandler(appRouter, {
   interceptors: [
+    // oxlint-disable-next-line promise/prefer-await-to-callbacks -- orpc's interceptor API is callback-based
     onError((error) => {
       console.error(error);
     }),
@@ -60,7 +62,7 @@ app.use("/*", async (c, next) => {
   const context = await createContext({ context: c });
 
   const rpcResult = await rpcHandler.handle(c.req.raw, {
-    context: context,
+    context,
     prefix: "/rpc",
   });
 
@@ -69,7 +71,7 @@ app.use("/*", async (c, next) => {
   }
 
   const apiResult = await apiHandler.handle(c.req.raw, {
-    context: context,
+    context,
     prefix: "/api-reference",
   });
 
@@ -77,7 +79,7 @@ app.use("/*", async (c, next) => {
     return c.newResponse(apiResult.response.body, apiResult.response);
   }
 
-  await next();
+  return next();
 });
 
 app.post("/ai", async (c) => {
@@ -100,8 +102,6 @@ app.post("/ai", async (c) => {
   });
 });
 
-app.get("/", (c) => 
-  c.text("OK")
-);
+app.get("/", (c) => c.text("OK"));
 
 export default app;

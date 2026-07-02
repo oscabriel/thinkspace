@@ -6,12 +6,14 @@ predictable action only), grounded in Think sub-agent routing (`design/sub-agent
 @ clone 2351e5c)
 
 ## Context
+
 Think provides first-class sub-agents: child DOs via `parent.subAgent(Cls, name)`, isolated
 SQLite, colocation, an `onBeforeSubAgent` permission gate, a parent-owned registry, and child
 schedules stored in the parent's scheduler. The question (handoff Q-G) is how delegation fits the
 one-agent-per-channel invariant and the explicit/predictable tenet.
 
 ## Decision
+
 - **Internal sub-agent delegation within a channel is allowed (v1).** A channel's agent, within an
   explicitly-dispatched run, MAY fan out to Think sub-agents to do scoped/parallel exploration and
   fold results back into the dispatched branch.
@@ -22,7 +24,7 @@ one-agent-per-channel invariant and the explicit/predictable tenet.
   This reinforces the explicit/predictable tenet (ADR 0017): transparency over hidden magic. (This
   is the one amendment to the original "defer user-facing fan-out" recommendation — fan-out is
   surfaced, not deferred.)
-- **Triggering stays explicit.** Sub-agents are *how* an explicitly-dispatched run does its work,
+- **Triggering stays explicit.** Sub-agents are _how_ an explicitly-dispatched run does its work,
   not new autonomous actors; results surface predictably back into the tree.
 - **Gating:** sub-agent creation/addressing is gated via `onBeforeSubAgent` plus the workspace
   tool/MCP allowlists (ADR 0002/0004). External sub-agent addressability stays locked down.
@@ -32,6 +34,7 @@ one-agent-per-channel invariant and the explicit/predictable tenet.
   it silently break the invariant.
 
 ## Consequences
+
 - The thread/tree data model and renderer must represent **sub-agent runs as nested nodes** with
   their own status (running/complete) that bump the thread on completion (ADR 0017).
 - Sub-agent schedules ride the parent ThreadAgent's scheduler (per Think) — no independent alarm
@@ -40,5 +43,6 @@ one-agent-per-channel invariant and the explicit/predictable tenet.
   cross-DO reference even though it is unused in v1.
 
 ## Reopen conditions
+
 - If visible sub-agent activity overwhelms the tree UI, add collapse/summarize affordances rather
   than hiding delegation outright.

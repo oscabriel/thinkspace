@@ -5,12 +5,14 @@
 workspace-aggregated), ADR 0007 (archive over hard-delete)
 
 ## Context
+
 ADR 0016 made channels **goal-scoped and ephemeral** — expected to be turned over when their goal
 is complete. Ephemeral channels are only viable if **closing one is safe and lossless**. Three
 things have a stake in a channel's death: its **threads** (work history), its **shape** (the
 bespoke agent config), and its **documents** (channel-homed + workspace-aggregated, ADR 0014).
 
 ## Decision
+
 - **Archive-by-default; hard-delete is a separate, explicit action.** "Completing" a channel
   **archives** it (consistent with ADR 0007's archive-over-delete lean). Hard-delete is a
   distinct, deliberate action — not the default completion path.
@@ -26,6 +28,7 @@ bespoke agent config), and its **documents** (channel-homed + workspace-aggregat
   reference is acceptable).
 
 ## Consequences
+
 - **Document lifetime is fully independent of channel lifetime.** The workspace library is the
   durable home; channels are disposable producers. This is core to the "agents produce durable
   value" story and is what makes turning channels over **safe**.
@@ -37,5 +40,6 @@ bespoke agent config), and its **documents** (channel-homed + workspace-aggregat
 - Channel "complete/archive/delete" needs explicit lifecycle affordances in the shell.
 
 ## Reopen conditions
+
 - If orphaned-provenance references prove confusing, add a "channel deleted" tombstone record
   rather than a raw dangling id.

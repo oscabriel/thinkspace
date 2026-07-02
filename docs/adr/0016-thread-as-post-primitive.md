@@ -4,6 +4,7 @@
 **Amends:** ADR 0013 (participation model), ADR 0010 (thread list semantics)
 
 ## Context
+
 Round-2 product-shape grill opened with a vision rant (Slack-is-for-sending, Facebook-Workplace
 posts > Slack messages, bump-to-top recency, infinite sane nesting, agents in the same control
 plane, Slack-Connect cross-company federation, a prioritization layer). Rather than adopt the
@@ -13,9 +14,10 @@ The load-bearing reframe: the messaging-app failure mode is that **threads are f
 (pinned to their position in a flat message list). We want threads to behave like **posts**.
 
 ## Decision
+
 - **No new layer.** Hierarchy stays **Channel → Thread**. We do **not** introduce a separate
   "Post" primitive between channel and thread. Instead, **Thread absorbs post semantics.**
-- **Threads are recency-ordered, not time-frozen.** Any activity in a thread (human *or agent*)
+- **Threads are recency-ordered, not time-frozen.** Any activity in a thread (human _or agent_)
   **bumps it to the top** of its channel's thread list. This is the rant's core ask
   ("why don't threads work that way in anything else?").
 - **Threads contain nested comments.** Within a thread, conversation is a **nested tree**
@@ -28,7 +30,7 @@ The load-bearing reframe: the messaging-app failure mode is that **threads are f
   channel lifecycle assumed in ADR 0010/0007.)
 - **Multiplayer human conversation is a v1 consideration (amends ADR 0013).** Multiple humans
   conversing **within a channel/thread** in a way that **informs the channel's agent** is now
-  in-scope for v1 — *not* deferred. The single-agent-per-channel invariant is unchanged; what
+  in-scope for v1 — _not_ deferred. The single-agent-per-channel invariant is unchanged; what
   changes is that humans (plural) may participate around that agent. (How exactly humans vs the
   agent sit in the nested tree, and how human talk "informs" the agent as context, is the next
   open question.)
@@ -36,6 +38,7 @@ The load-bearing reframe: the messaging-app failure mode is that **threads are f
   v1 concern.** Consistent with ADR 0001's trust boundary (model b now; model c reachable).
 
 ## Consequences
+
 - The thread list (ADR 0010) is a **recency-sorted feed**, not a creation-ordered list. Unread/
   notify semantics (Round-2 Q-C) now hang off "thread bumped by new activity."
 - ADR 0013's "single-player threads / no multiplayer in v1" is **partially superseded**: humans
@@ -47,7 +50,8 @@ The load-bearing reframe: the messaging-app failure mode is that **threads are f
   messages need parent/child structure, not a flat sequence.
 
 ## Resolved follow-ups
-- **Internal thread structure (Model α):** the agent is one voice *in* the single nested tree;
+
+- **Internal thread structure (Model α):** the agent is one voice _in_ the single nested tree;
   a dispatched branch's **subtree is the agent's context window** (ADR 0017).
 - **One conversation surface:** humans and the agent are co-authors of the **single thread tree**.
   There is **no separate channel-level human chat**. "Informing the agent" is implicit — it is
@@ -55,8 +59,10 @@ The load-bearing reframe: the messaging-app failure mode is that **threads are f
   human-only side channel (keeps ADR 0013's "no human-only social surfaces" instinct intact).
 
 ## Open (next grill questions)
+
 - **Channel turn-over mechanics:** archive vs delete; what happens to produced documents.
 
 ## Reopen conditions
+
 - If multiplayer-in-thread proves too costly for v1, fall back toward ADR 0013's single-player
   focus with multiplayer as the deferred seam (the seam is preserved either way).

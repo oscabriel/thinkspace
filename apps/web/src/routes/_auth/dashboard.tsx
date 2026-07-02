@@ -1,14 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
 import { orpc } from "@/utils/orpc";
 
-export const Route = createFileRoute("/_auth/dashboard")({
-  component: RouteComponent,
-});
+const routeApi = getRouteApi("/_auth/dashboard");
 
-function RouteComponent() {
-  const { session } = Route.useRouteContext();
+const RouteComponent = () => {
+  const { session } = routeApi.useRouteContext();
 
   const privateData = useQuery(orpc.privateData.queryOptions());
 
@@ -19,4 +17,8 @@ function RouteComponent() {
       <p>API: {privateData.data?.message}</p>
     </div>
   );
-}
+};
+
+export const Route = createFileRoute("/_auth/dashboard")({
+  component: RouteComponent,
+});
