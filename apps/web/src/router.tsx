@@ -9,17 +9,17 @@ export const getRouter = () => {
   const queryClient = createQueryClient();
 
   const router = createTanStackRouter({
+    context: { orpc, queryClient },
+    defaultNotFoundComponent: () => <div>Not Found</div>,
+    defaultPendingComponent: () => <Loader />,
+    defaultPreloadStaleTime: 0,
     routeTree,
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
-    context: { orpc, queryClient },
-    defaultPendingComponent: () => <Loader />,
-    defaultNotFoundComponent: () => <div>Not Found</div>,
   });
 
   setupRouterSsrQueryIntegration({
-    router,
     queryClient,
+    router,
   });
 
   return router;

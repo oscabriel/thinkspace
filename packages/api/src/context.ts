@@ -1,9 +1,9 @@
 import { createAuth } from "@thinkspace/auth";
 import type { Context as HonoContext } from "hono";
 
-export type CreateContextOptions = {
+export interface CreateContextOptions {
   context: HonoContext;
-};
+}
 
 export async function createContext({ context }: CreateContextOptions) {
   const session = await createAuth().api.getSession({

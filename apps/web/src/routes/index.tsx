@@ -39,9 +39,9 @@ function HomeComponent() {
             <span className="text-muted-foreground text-sm">
               {healthCheck.isLoading
                 ? "Checking..."
-                : healthCheck.data
+                : (healthCheck.data
                   ? "Connected"
-                  : "Disconnected"}
+                  : "Disconnected")}
             </span>
           </div>
         </section>

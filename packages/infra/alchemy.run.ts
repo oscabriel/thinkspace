@@ -15,32 +15,34 @@ const db = await D1Database("database", {
 });
 
 export const server = await Worker("server", {
-  cwd: "../../apps/server",
-  entrypoint: "src/index.ts",
-  compatibility: "node",
-  url: true,
   bindings: {
-    DB: db,
-    CORS_ORIGIN: alchemy.env.CORS_ORIGIN!,
     BETTER_AUTH_SECRET: alchemy.secret.env.BETTER_AUTH_SECRET!,
     BETTER_AUTH_URL: alchemy.env.BETTER_AUTH_URL!,
-    GOOGLE_GENERATIVE_AI_API_KEY: alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY!,
+    CORS_ORIGIN: alchemy.env.CORS_ORIGIN!,
+    DB: db,
+    GOOGLE_GENERATIVE_AI_API_KEY:
+      alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY!,
   },
+  compatibility: "node",
+  cwd: "../../apps/server",
   dev: {
     port: 3000,
   },
+  entrypoint: "src/index.ts",
+  url: true,
 });
 
 export const web = await TanStackStart("web", {
-  cwd: "../../apps/web",
   bindings: {
-    VITE_SERVER_URL: server.url!,
-    DB: db,
-    CORS_ORIGIN: alchemy.env.CORS_ORIGIN!,
     BETTER_AUTH_SECRET: alchemy.secret.env.BETTER_AUTH_SECRET!,
     BETTER_AUTH_URL: alchemy.env.BETTER_AUTH_URL!,
-    GOOGLE_GENERATIVE_AI_API_KEY: alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY!,
+    CORS_ORIGIN: alchemy.env.CORS_ORIGIN!,
+    DB: db,
+    GOOGLE_GENERATIVE_AI_API_KEY:
+      alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY!,
+    VITE_SERVER_URL: server.url!,
   },
+  cwd: "../../apps/web",
 });
 
 console.log(`Web    -> ${web.url}`);

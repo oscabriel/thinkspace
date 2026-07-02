@@ -26,24 +26,24 @@ app.use(logger());
 app.use(
   "/*",
   cors({
-    origin: env.CORS_ORIGIN,
-    allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
+    allowMethods: ["GET", "POST", "OPTIONS"],
     credentials: true,
-  }),
+    origin: env.CORS_ORIGIN,
+  })
 );
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => createAuth().handler(c.req.raw));
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
-  plugins: [
-    new OpenAPIReferencePlugin({
-      schemaConverters: [new ZodToJsonSchemaConverter()],
-    }),
-  ],
   interceptors: [
     onError((error) => {
       console.error(error);
+    }),
+  ],
+  plugins: [
+    new OpenAPIReferencePlugin({
+      schemaConverters: [new ZodToJsonSchemaConverter()],
     }),
   ],
 });
@@ -60,8 +60,8 @@ app.use("/*", async (c, next) => {
   const context = await createContext({ context: c });
 
   const rpcResult = await rpcHandler.handle(c.req.raw, {
-    prefix: "/rpc",
     context: context,
+    prefix: "/rpc",
   });
 
   if (rpcResult.matched) {
@@ -69,8 +69,8 @@ app.use("/*", async (c, next) => {
   }
 
   const apiResult = await apiHandler.handle(c.req.raw, {
-    prefix: "/api-reference",
     context: context,
+    prefix: "/api-reference",
   });
 
   if (apiResult.matched) {
@@ -87,12 +87,12 @@ app.post("/ai", async (c) => {
     apiKey: env.GOOGLE_GENERATIVE_AI_API_KEY,
   });
   const model = wrapLanguageModel({
-    model: google("gemini-2.5-flash"),
     middleware: devToolsMiddleware(),
+    model: google("gemini-2.5-flash"),
   });
   const result = streamText({
-    model,
     messages: await convertToModelMessages(uiMessages),
+    model,
   });
 
   return createUIMessageStreamResponse({
@@ -100,8 +100,8 @@ app.post("/ai", async (c) => {
   });
 });
 
-app.get("/", (c) => {
-  return c.text("OK");
-});
+app.get("/", (c) => 
+  c.text("OK")
+);
 
 export default app;

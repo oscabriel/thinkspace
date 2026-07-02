@@ -29,10 +29,20 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@thinkspace/ui/components/message-scroller";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@thinkspace/ui/components/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@thinkspace/ui/components/tooltip";
 import { DefaultChatTransport } from "ai";
-import { ArrowUpIcon, Loader2, MessageCircleDashedIcon, RotateCwIcon } from "lucide-react";
-import { useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  ArrowUpIcon,
+  Loader2,
+  MessageCircleDashedIcon,
+  RotateCwIcon,
+} from "lucide-react";
+import { useState } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
 import { Streamdown } from "streamdown";
 
 export const Route = createFileRoute("/ai")({
@@ -51,7 +61,7 @@ function RouteComponent() {
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || isSending) return;
+    if (!text || isSending) {return;}
     sendMessage({ text });
     setInput("");
   };
@@ -75,7 +85,9 @@ function RouteComponent() {
           <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-sm font-medium">New Chat</h1>
-              <p className="text-xs/relaxed text-muted-foreground">How can I help you today?</p>
+              <p className="text-xs/relaxed text-muted-foreground">
+                How can I help you today?
+              </p>
             </div>
             <div className="shrink-0">
               <Tooltip>
@@ -106,7 +118,9 @@ function RouteComponent() {
                   <MessageCircleDashedIcon />
                 </EmptyMedia>
                 <EmptyTitle>Morning, thinkspace!</EmptyTitle>
-                <EmptyDescription>What are we working on today?</EmptyDescription>
+                <EmptyDescription>
+                  What are we working on today?
+                </EmptyDescription>
               </EmptyHeader>
             </Empty>
           ) : (
@@ -120,10 +134,15 @@ function RouteComponent() {
                     const isUser = message.role === "user";
 
                     return (
-                      <MessageScrollerItem key={message.id} scrollAnchor={isUser}>
+                      <MessageScrollerItem
+                        key={message.id}
+                        scrollAnchor={isUser}
+                      >
                         <Message align={isUser ? "end" : "start"}>
                           <MessageBody>
-                            <MessageHeader>{isUser ? "You" : "AI Assistant"}</MessageHeader>
+                            <MessageHeader>
+                              {isUser ? "You" : "AI Assistant"}
+                            </MessageHeader>
                             <Bubble
                               align={isUser ? "end" : "start"}
                               variant={isUser ? "default" : "secondary"}
@@ -135,7 +154,8 @@ function RouteComponent() {
                                       <Streamdown
                                         key={index}
                                         isAnimating={
-                                          status === "streaming" && message.role === "assistant"
+                                          status === "streaming" &&
+                                          message.role === "assistant"
                                         }
                                       >
                                         {part.text}
@@ -196,7 +216,11 @@ function RouteComponent() {
                     disabled={isSending || !input.trim()}
                     className="ml-auto"
                   >
-                    {isSending ? <Loader2 className="animate-spin" /> : <ArrowUpIcon />}
+                    {isSending ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <ArrowUpIcon />
+                    )}
                     <span className="sr-only">Send</span>
                   </InputGroupButton>
                 </InputGroupAddon>
