@@ -260,8 +260,21 @@ sessions (0026), tenant-guard atomicity, and the Shape↔Channel 1:1 invariant (
 error. The ADR 0015 §4 SDK gotchas (sync getModel/getTools, MCP persist/restore across
 hibernation) still need pinning against the real SDK once production adapters exist.
 
-**Next phase:** SDK-signature verification against the local clone (ADR 0015), then first
-behavior slices with TDD and a phased build plan (`/improve` / Plan agent).
+**SDK-signature verification COMPLETE (2026-07-01)** — `docs/sdk-signature-verification.md`
+verifies the matched set (`agents@0.17.1`, `@cloudflare/think@0.11.1`,
+`@cloudflare/shell@0.4.1` @ clone `2351e5c`) against the seams. All five ADR 0015 §3 gotchas
+confirmed real; two sharpened: MCP hibernation-restore reconnects from the persisted row and
+bypasses ANY add-time egress gate (gate before persistence; revoke = `removeMcpServer`), and
+the readonly-connection boundary does NOT gate `@callable` RPC. Key adapter mappings:
+run↔submission (`submitMessages`/`inspectSubmission`), `appendComment`↔`addMessages`
+(parentId tree = comment tree), curator sessions = one DO per member, domain Schedule =
+source of truth over the SDK alarm row, skills/artifacts = adapter-owned D1 index over
+read-only R2 primitives. The doc ends with the 7 contract tests to pin once production
+adapters exist.
+
+**Next phase:** first behavior slices with TDD (dispatch flow spine per
+`src/call-stacks.ts`), shaping production adapters against the verified signatures; then a
+phased build plan (`/improve` / Plan agent).
 
 ## Deferred / v2 / to-verify (explicit v1 boundary)
 

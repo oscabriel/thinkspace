@@ -4,7 +4,7 @@
 
 ## Context
 MCP is the most paved part of the Cloudflare Agents stack
-(`this.mcp.addMcpServer(name, url)` persists + auto-restores), which makes it the
+(`this.addMcpServer(name, url)` persists + auto-restores), which makes it the
 easiest exfiltration foot-gun. Under the B2B trust model (ADR 0001), the blast
 radius of a malicious MCP server is one workspace's data — docs, message history,
 tool outputs — silently shipped to an attacker endpoint. No cross-tenant boundary
@@ -28,6 +28,11 @@ it. Egress from agents is restricted to approved hosts.
 - Preserves the key B2B desire: "connect our internal Jira/Linear MCP server."
 - Egress enforcement must live at the Worker/agent boundary, not in the UI
   (a member or injected prompt must not be able to bypass it).
+- Verified against the SDK clone @ 2351e5c (2026-07-01): the hibernation-restore path
+  reconnects straight from the persisted `cf_agents_mcp_servers` row without re-running any
+  add-time check — the allowlist gate must run **before** the row is persisted, and revoking
+  a host must delete the row via `removeMcpServer` (else it reconnects on the next wake).
+  See `docs/sdk-signature-verification.md` §3.
 - Degrades cleanly toward model (c): tighten the default allowlist to
   registry-only and gate custom hosts behind verification/payment.
 
