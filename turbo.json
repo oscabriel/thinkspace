@@ -16,6 +16,9 @@
     "check-architecture": {
       "dependsOn": ["^check-architecture"]
     },
+    "test": {
+      "dependsOn": ["^test"]
+    },
     "dev": {
       "cache": false,
       "persistent": true

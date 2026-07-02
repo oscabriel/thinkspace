@@ -2,9 +2,10 @@
 	"extends": "@thinkspace/config/tsconfig.base.json",
 	"compilerOptions": {
 		"strictNullChecks": true,
-		"types": ["node", "@cloudflare/workers-types"]
+		"types": ["node", "@cloudflare/workers-types", "bun"]
 	},
 	"include": [
-		"src"
+		"src",
+		"test"
 	]
 }

@@ -250,6 +250,19 @@ audited against ADRs 0001–0024; the gaps it surfaced were grilled and landed a
 read path on TenantDataAccess; unread clearing; DO-resident run reads + SubAgentActivity;
 skills = workspace pool; Shape↔Channel strict 1:1.
 
+**Contract tests COMPLETE (2026-07-01)** — `packages/domain/test/` pins the seam contracts
+against the memory adapters (`bun test`, wired into turbo as `test`): branch context window
+(0025), DO-resident run reads + nested SubAgentActivity (0028), config-as-data snapshots
+(0007/0015), default-permit tool disables + additive-only beforeTurn + fail-closed MCP
+egress (0002/0004/0015), home-feed visibility/pagination + delete_unread (0027), curator
+sessions (0026), tenant-guard atomicity, and the Shape↔Channel 1:1 invariant (0030) — now
+**enforced in the tenant-guarded data layer** with a typed `shape_ownership_violation`
+error. The ADR 0015 §4 SDK gotchas (sync getModel/getTools, MCP persist/restore across
+hibernation) still need pinning against the real SDK once production adapters exist.
+
+**Next phase:** SDK-signature verification against the local clone (ADR 0015), then first
+behavior slices with TDD and a phased build plan (`/improve` / Plan agent).
+
 ## Deferred / v2 / to-verify (explicit v1 boundary)
 
 - **v2 features:** Code Mode / user code tools (0003) · executable script skills (0005) ·

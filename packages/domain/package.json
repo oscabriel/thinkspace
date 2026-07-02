@@ -20,13 +20,15 @@
   },
   "scripts": {
     "check-architecture": "bun ./scripts/check-import-boundaries.ts",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "zod": "catalog:"
   },
   "devDependencies": {
     "@thinkspace/config": "workspace:*",
+    "@types/bun": "^1.3.0",
     "typescript": "catalog:"
   }
 }
