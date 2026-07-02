@@ -1,0 +1,32 @@
+{
+  "name": "@thinkspace/domain",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./adapters": {
+      "default": "./src/adapters/index.ts"
+    },
+    "./adapters/memory": {
+      "default": "./src/adapters/memory/index.ts"
+    },
+    "./adapters/production": {
+      "default": "./src/adapters/production/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "check-architecture": "bun ./scripts/check-import-boundaries.ts",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@thinkspace/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
