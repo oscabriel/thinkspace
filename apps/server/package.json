@@ -16,6 +16,7 @@
     "@thinkspace/api": "workspace:*",
     "@thinkspace/auth": "workspace:*",
     "@thinkspace/db": "workspace:*",
+    "@thinkspace/domain": "workspace:*",
     "@thinkspace/env": "workspace:*",
     "ai": "catalog:",
     "better-auth": "catalog:",

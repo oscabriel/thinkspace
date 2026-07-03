@@ -104,4 +104,7 @@ app.post("/ai", async (c) => {
 
 app.get("/", (c) => c.text("OK"));
 
+/** Durable Object classes this worker defines (alchemy binds them; className must match). */
+export { ThreadAgentDurableObject } from "@thinkspace/domain/adapters/production";
+
 export default app;
