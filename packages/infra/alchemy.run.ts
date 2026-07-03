@@ -1,5 +1,10 @@
 import alchemy from "alchemy";
-import { D1Database, TanStackStart, Worker } from "alchemy/cloudflare";
+import {
+  D1Database,
+  DurableObjectNamespace,
+  TanStackStart,
+  Worker,
+} from "alchemy/cloudflare";
 import { config } from "dotenv";
 
 config({ path: "./.env" });
@@ -32,6 +37,17 @@ const db = await D1Database("database", {
   migrationsDir: "../../packages/db/src/migrations",
 });
 
+/**
+ * agents-SDK DOs REQUIRE sqlite: true (their state lives in DO-SQLite; alchemy applies no
+ * default, and the backend choice is permanent). The first argument is the immutable stable
+ * id driving alchemy's automatic DO migrations — never change it; className may be renamed.
+ * See docs/alchemy-iac-verification.md.
+ */
+const threadAgent = DurableObjectNamespace("thread-agent", {
+  className: "ThreadAgentDurableObject",
+  sqlite: true,
+});
+
 export const server = await Worker("server", {
   bindings: {
     BETTER_AUTH_SECRET: required(
@@ -45,6 +61,7 @@ export const server = await Worker("server", {
       alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
       "GOOGLE_GENERATIVE_AI_API_KEY"
     ),
+    THREAD_AGENT: threadAgent,
   },
   compatibility: "node",
   cwd: "../../apps/server",
