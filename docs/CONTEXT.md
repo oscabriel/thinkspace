@@ -197,6 +197,7 @@ _(ADRs land in `docs/adr/`; this table is the running index.)_
 | 0028 | Run reads DO-resident (getRun/listRuns); sub-agent activity nested in RunDetail, not a Run (refines 0017, 0022)                                                                                                                                         | accepted             |
 | 0029 | Skills = workspace-level pool, per-shape selection (amends 0005)                                                                                                                                                                                        | accepted             |
 | 0030 | Shape↔Channel strict 1:1, channel-owned; clone = copy + provenance (refines 0007, 0018, 0019, 0021)                                                                                                                                                     | accepted             |
+| 0031 | Artifact rendering = sandboxed separate-origin viewer (per-artifact subdomain, no-external-network CSP, sandboxed iframe, short-TTL view tokens; sanitization never the boundary) (refines 0001, 0014, 0024)                                            | proposed             |
 
 ## Persistence tiers (locked)
 
