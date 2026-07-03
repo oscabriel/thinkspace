@@ -13,7 +13,6 @@ import type {
   ChannelHubEvent,
   WorkspaceActivityEvent,
 } from "../src/seams/realtime-hubs";
-import type { Comment } from "../src/thread";
 import {
   commentId,
   makeChannel,
@@ -31,7 +30,8 @@ import {
   testWorkspaceId,
   threadAgentAddress,
   unwrapOk,
-} from "./fixtures";
+} from "../src/testing/fixtures";
+import type { Comment } from "../src/thread";
 
 const commentBody = (value: string) => commentBodySchema.parse(value);
 const failureReason = (value: string) => failureReasonSchema.parse(value);

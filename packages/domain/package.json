@@ -14,6 +14,9 @@
     "./adapters/production": {
       "default": "./src/adapters/production/index.ts"
     },
+    "./testing": {
+      "default": "./src/testing/index.ts"
+    },
     "./*": {
       "default": "./src/*.ts"
     }

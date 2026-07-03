@@ -1,4 +1,4 @@
-import type { Channel } from "../src/channel";
+import type { Channel } from "../channel";
 import {
   channelIdSchema,
   commentIdSchema,
@@ -11,8 +11,8 @@ import {
   threadIdSchema,
   toolIdSchema,
   workspaceIdSchema,
-} from "../src/ids";
-import type { McpServer } from "../src/mcp";
+} from "../ids";
+import type { McpServer } from "../mcp";
 import {
   commentBodySchema,
   facetNameSchema,
@@ -26,17 +26,17 @@ import {
   threadNameSchema,
   toolNameSchema,
   workspaceNameSchema,
-} from "../src/primitives";
-import type { Result } from "../src/result";
-import type { QueuedRun, RunTrigger, SubAgentActivity } from "../src/run";
-import type { TenantContext } from "../src/seams/tenant-data-access";
-import type { ThreadAgentAddress } from "../src/seams/thread-agent";
-import type { Shape, ShapeSnapshot, ShapeStructure } from "../src/shape";
-import type { Skill } from "../src/skill";
-import type { Comment, Thread } from "../src/thread";
-import type { CatalogTool, WorkspaceToolDisable } from "../src/tool";
-import type { Unread } from "../src/unread";
-import type { Workspace } from "../src/workspace";
+} from "../primitives";
+import type { Result } from "../result";
+import type { QueuedRun, RunTrigger, SubAgentActivity } from "../run";
+import type { TenantContext } from "../seams/tenant-data-access";
+import type { ThreadAgentAddress } from "../seams/thread-agent";
+import type { Shape, ShapeSnapshot, ShapeStructure } from "../shape";
+import type { Skill } from "../skill";
+import type { Comment, Thread } from "../thread";
+import type { CatalogTool, WorkspaceToolDisable } from "../tool";
+import type { Unread } from "../unread";
+import type { Workspace } from "../workspace";
 
 export const testWorkspaceId = workspaceIdSchema.parse("workspace-1");
 export const otherWorkspaceId = workspaceIdSchema.parse("workspace-2");

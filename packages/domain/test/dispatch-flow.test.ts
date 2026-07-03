@@ -39,7 +39,7 @@ import {
   threadId,
   unwrapErr,
   unwrapOk,
-} from "./fixtures";
+} from "../src/testing/fixtures";
 
 const testModel = {
   displayName: nonEmptyStringSchema.parse("Test Model"),
