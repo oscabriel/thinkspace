@@ -44,8 +44,9 @@ Then, run the development server:
 bun run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-The API is running at [http://localhost:3000](http://localhost:3000).
+Open [https://thinkspace.gneiss.run](https://thinkspace.gneiss.run) in your browser to see the web application when running on the Beelink through Caddy. The web dev server listens on `127.0.0.1:3002`, and API paths on the same domain proxy to the server on `127.0.0.1:3003`.
+
+Without the Caddy route, the app can still be run directly from the local ports configured in `packages/infra/alchemy.run.ts`.
 
 ## UI Customization
 

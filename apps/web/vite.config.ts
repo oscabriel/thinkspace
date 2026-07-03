@@ -5,7 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import alchemy from "alchemy/cloudflare/tanstack-start";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 
 const alchemyConfigPath = fileURLToPath(
   new URL(".alchemy/local/wrangler.jsonc", import.meta.url)
@@ -20,18 +20,39 @@ const cloudflareWorkersAlias: Record<string, string> = shouldUseAlchemy
       "cloudflare:workers": cloudflareWorkersShimPath,
     };
 
-export default defineConfig({
-  plugins: [
-    tailwindcss(),
-    tanstackStart(),
-    viteReact(),
-    ...(shouldUseAlchemy ? [alchemy({ configPath: alchemyConfigPath })] : []),
-  ],
-  resolve: {
-    alias: cloudflareWorkersAlias,
-    tsconfigPaths: true,
-  },
-  server: {
-    port: 3001,
-  },
+const webAppRoot = import.meta.dirname;
+
+export default defineConfig(({ mode }) => {
+  const caddyDevHost =
+    process.env.CADDY_DEV_HOST ||
+    loadEnv(mode, webAppRoot, "").CADDY_DEV_HOST ||
+    undefined;
+
+  if (caddyDevHost) {
+    process.env.VITE_SERVER_URL = `https://${caddyDevHost}`;
+  }
+
+  return {
+    plugins: [
+      tailwindcss(),
+      tanstackStart(),
+      viteReact(),
+      ...(shouldUseAlchemy ? [alchemy({ configPath: alchemyConfigPath })] : []),
+    ],
+    resolve: {
+      alias: cloudflareWorkersAlias,
+      tsconfigPaths: true,
+    },
+    server: {
+      allowedHosts: caddyDevHost
+        ? ["localhost", "127.0.0.1", caddyDevHost]
+        : undefined,
+      hmr: caddyDevHost
+        ? { clientPort: 443, host: caddyDevHost, protocol: "wss" }
+        : undefined,
+      host: "127.0.0.1",
+      port: 3002,
+      strictPort: true,
+    },
+  };
 });
