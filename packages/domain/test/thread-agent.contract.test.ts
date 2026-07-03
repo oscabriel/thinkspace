@@ -100,6 +100,7 @@ describe("ThreadAgent run reads — DO-resident run state (ADR 0028)", () => {
       address: threadAgentAddress,
       clock: () => new Date("2026-07-01T10:00:00Z"),
       nextRunId: () => runId("run-1"),
+      shapeSnapshot: makeShapeSnapshot(),
     });
 
     const trigger = makeDispatchTrigger({ targetCommentId: "comment-top" });
@@ -115,6 +116,22 @@ describe("ThreadAgent run reads — DO-resident run state (ADR 0028)", () => {
 
     const runs = unwrapOk(await agent.listRuns());
     expect(runs).toEqual([receipt.queuedRun]);
+  });
+
+  test("run on a never-initialized agent fails closed with thread_agent_uninitialized", async () => {
+    const agent = createMemoryThreadAgent({ address: threadAgentAddress });
+
+    const error = unwrapErr(
+      await agent.run(makeDispatchTrigger({ targetCommentId: "comment-top" }))
+    );
+
+    expect(error).toEqual({
+      channelId: threadAgentAddress.channelId,
+      kind: "thread_agent_uninitialized",
+      threadId: threadAgentAddress.threadId,
+      workspaceId: threadAgentAddress.workspaceId,
+    });
+    expect(unwrapOk(await agent.listRuns())).toEqual([]);
   });
 
   test("getRun returns null for an unknown run id instead of failing", async () => {

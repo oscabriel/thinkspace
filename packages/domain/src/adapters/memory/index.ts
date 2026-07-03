@@ -35,6 +35,9 @@ export {
 export {
   createMemoryThreadAgent,
   createMemoryThreadAgentDirectory,
+  type MemoryThreadAgent,
   type MemoryThreadAgentConfig,
   type MemoryThreadAgentDirectoryConfig,
+  type MemoryThreadAgentExecutionError,
+  type MemoryThreadAgentTurnOutcome,
 } from "./thread-agent";

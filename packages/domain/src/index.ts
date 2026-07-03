@@ -8,6 +8,16 @@ export type {
   DispatchRequest,
 } from "./flows/dispatch";
 export {
+  collectThreadParticipants,
+  createRunCompletionFlow,
+} from "./flows/run-completion";
+export type {
+  RunCompletionFlow,
+  RunCompletionFlowDependencies,
+  RunCompletionFlowError,
+  RunSettlement,
+} from "./flows/run-completion";
+export {
   artifactMediaKindSchema,
   artifactOriginSchema,
   artifactSchema,
@@ -53,6 +63,7 @@ export {
   realtimeHubUnavailableErrorSchema,
   runFailureErrorSchema,
   tenantGuardViolationErrorSchema,
+  threadAgentUninitializedErrorSchema,
 } from "./errors";
 export type {
   AuthzError,
@@ -66,6 +77,7 @@ export type {
   RealtimeHubUnavailableError,
   RunFailureError,
   TenantGuardViolationError,
+  ThreadAgentUninitializedError,
 } from "./errors";
 export {
   artifactIdSchema,

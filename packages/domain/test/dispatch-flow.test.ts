@@ -18,10 +18,12 @@ import { nonEmptyStringSchema, secretAliasSchema } from "../src/primitives";
 import type { ChannelHubEvent } from "../src/seams/realtime-hubs";
 import type { Shape, ShapeStructure } from "../src/shape";
 import {
+  channelId,
   commentId,
   makeChannel,
   makeMcpServer,
   makeShape,
+  makeShapeSnapshot,
   makeShapeStructure,
   mcpHost,
   mcpServerId,
@@ -34,6 +36,7 @@ import {
   testWorkspace,
   testWorkspaceId,
   threadAgentAddress,
+  threadId,
   unwrapErr,
   unwrapOk,
 } from "./fixtures";
@@ -63,6 +66,10 @@ const makeDispatchHarness = (input?: {
     address: threadAgentAddress,
     clock: () => new Date("2026-07-03T10:00:00Z"),
     nextRunId: () => runId("run-1"),
+    shapeSnapshot: makeShapeSnapshot({
+      shapeId: `shape-of-${channel.id}`,
+      structure: shape.structure,
+    }),
   });
 
   const publishedChannelEvents: ChannelHubEvent[] = [];
@@ -211,6 +218,25 @@ describe("Dispatch flow — channel authz gates the spine (ADR 0016/0017)", () =
     expect(unwrapOk(await harness.threadAgent.listRuns())).toEqual([]);
   });
 
+  test("dispatch into a channel that does not exist fails with channel_not_visible, indistinguishable from a private channel", async () => {
+    const harness = makeDispatchHarness();
+
+    const error = unwrapErr(
+      await harness.flow.dispatch({
+        channelId: channelId("channel-unknown"),
+        targetCommentId: commentId("comment-top"),
+        threadId: testThreadId,
+      })
+    );
+
+    expect(error).toEqual({
+      channelId: channelId("channel-unknown"),
+      kind: "channel_not_visible",
+      memberId: testMemberId,
+    });
+    expect(unwrapOk(await harness.threadAgent.listRuns())).toEqual([]);
+  });
+
   test("dispatch into a private channel by a non-owner fails with channel_not_visible and queues no run", async () => {
     const harness = makeDispatchHarness({
       channel: makeChannel({
@@ -234,6 +260,29 @@ describe("Dispatch flow — channel authz gates the spine (ADR 0016/0017)", () =
       memberId: testMemberId,
     });
     expect(unwrapOk(await harness.threadAgent.listRuns())).toEqual([]);
+  });
+});
+
+describe("Dispatch flow — thread agents fail closed before initialization (ADR 0016/0028)", () => {
+  test("dispatch addressing a thread never created in the channel fails with thread_agent_uninitialized and queues no run", async () => {
+    const harness = makeDispatchHarness();
+
+    const error = unwrapErr(
+      await harness.flow.dispatch({
+        channelId: testChannelId,
+        targetCommentId: commentId("comment-top"),
+        threadId: threadId("thread-elsewhere"),
+      })
+    );
+
+    expect(error).toEqual({
+      channelId: testChannelId,
+      kind: "thread_agent_uninitialized",
+      threadId: threadId("thread-elsewhere"),
+      workspaceId: testWorkspaceId,
+    });
+    expect(unwrapOk(await harness.threadAgent.listRuns())).toEqual([]);
+    expect(harness.publishedChannelEvents).toEqual([]);
   });
 });
 

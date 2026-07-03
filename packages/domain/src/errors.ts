@@ -8,6 +8,7 @@ import {
   modelIdSchema,
   runIdSchema,
   shapeIdSchema,
+  threadIdSchema,
   workspaceIdSchema,
 } from "./ids";
 import { modelProviderSchema } from "./model";
@@ -118,6 +119,21 @@ export type ShapeOwnershipViolationError = z.infer<
   typeof shapeOwnershipViolationErrorSchema
 >;
 
+/**
+ * A ThreadAgent address always resolves (DO-namespace semantics), so dispatching at a thread
+ * that was never created lands on an agent with no resident state; it must fail closed rather
+ * than mint runs at a bogus address (ADR 0016/0028).
+ */
+export const threadAgentUninitializedErrorSchema = z.object({
+  channelId: channelIdSchema,
+  kind: z.literal("thread_agent_uninitialized"),
+  threadId: threadIdSchema,
+  workspaceId: workspaceIdSchema,
+});
+export type ThreadAgentUninitializedError = z.infer<
+  typeof threadAgentUninitializedErrorSchema
+>;
+
 export const realtimeHubUnavailableErrorSchema = z.object({
   kind: z.literal("realtime_hub_unavailable"),
   workspaceId: workspaceIdSchema,
@@ -147,6 +163,7 @@ export const domainErrorSchema = z.discriminatedUnion("kind", [
   curatorExecutionFailedErrorSchema,
   curatorSessionNotFoundErrorSchema,
   shapeOwnershipViolationErrorSchema,
+  threadAgentUninitializedErrorSchema,
   realtimeHubUnavailableErrorSchema,
   notImplementedErrorSchema,
 ]);

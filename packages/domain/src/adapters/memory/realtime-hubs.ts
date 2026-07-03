@@ -22,6 +22,7 @@ export interface MemoryWorkspaceHubConfig {
   readonly activityEvents?: readonly WorkspaceActivityEvent[];
   readonly channels?: readonly Channel[];
   readonly context: TenantContext;
+  readonly onActivity?: (event: WorkspaceActivityEvent) => void;
   readonly roster?: readonly MemberId[];
 }
 
@@ -95,6 +96,7 @@ export const createMemoryWorkspaceHub = (
       }),
     publishActivity: async (event) => {
       activityEvents.push(event);
+      config.onActivity?.(event);
       return ok();
     },
   };

@@ -3,6 +3,7 @@ import type {
   NotImplementedError,
   RunFailureError,
   TenantGuardViolationError,
+  ThreadAgentUninitializedError,
 } from "../errors";
 import type {
   ChannelId,
@@ -26,7 +27,8 @@ export type ThreadAgentError =
   | AuthzError
   | NotImplementedError
   | RunFailureError
-  | TenantGuardViolationError;
+  | TenantGuardViolationError
+  | ThreadAgentUninitializedError;
 
 /**
  * The dispatch context window (ADR 0025): ancestors = the thread's top-level comment down
