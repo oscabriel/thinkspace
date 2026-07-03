@@ -28,6 +28,7 @@
     "test:workers": "vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
+    "agents": "0.17.1",
     "zod": "catalog:"
   },
   "devDependencies": {

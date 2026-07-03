@@ -9,6 +9,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [
     cloudflareTest(async () => ({
+      main: "./test-workers/worker.ts",
       miniflare: {
         bindings: {
           TEST_MIGRATIONS: await readD1Migrations(
@@ -18,6 +19,12 @@ export default defineConfig({
         compatibilityDate: "2026-06-01",
         compatibilityFlags: ["nodejs_compat"],
         d1Databases: ["DB"],
+        durableObjects: {
+          THREAD_AGENT: {
+            className: "ThreadAgentDurableObject",
+            useSQLite: true,
+          },
+        },
       },
     })),
   ],

@@ -2,6 +2,7 @@ export {
   createD1TenantDataAccess,
   type D1TenantDataAccessConfig,
 } from "./tenant-data-access";
+export { ThreadAgentDurableObject } from "./thread-agent";
 export {
   createAiGatewayByokModelRouterPlaceholder,
   createCatalogWorkspaceShapeToolResolverPlaceholder,

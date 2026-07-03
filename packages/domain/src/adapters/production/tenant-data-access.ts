@@ -19,25 +19,18 @@ import type { Shape } from "../../shape";
 import type { Thread } from "../../thread";
 import type { WorkspaceToolDisable } from "../../tool";
 import type { Unread } from "../../unread";
-import { hasSameId, isInTenant, tenantGuardViolation } from "../helpers";
+import {
+  hasSameId,
+  isInTenant,
+  parseJsonColumn,
+  tenantGuardViolation,
+} from "../helpers";
 import type { TenantScoped } from "../helpers";
 
 export interface D1TenantDataAccessConfig {
   readonly context: TenantContext;
   readonly db: D1Database;
 }
-
-const isoDatePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u;
-
-/** Revives Date-valued fields (domain convention: keys ending in "At") from stored JSON. */
-const parseJsonColumn = <Value>(text: string): Value =>
-  JSON.parse(text, (key, value: unknown) =>
-    typeof value === "string" &&
-    key.endsWith("At") &&
-    isoDatePattern.test(value)
-      ? new Date(value)
-      : value
-  ) as Value;
 
 interface ChannelRow {
   readonly created_at: number;

@@ -25,6 +25,7 @@ import type {
 } from "../../seams/thread-agent";
 import type { ShapeSnapshot } from "../../shape";
 import type { Comment } from "../../thread";
+import { ancestorComments, branchComments } from "../comment-tree";
 import { hasSameId, idKey } from "./helpers";
 
 /** The scripted outcome of one executed run — the memory stand-in for a real model turn. */
@@ -100,57 +101,6 @@ const tenantOrThreadViolation = (
   kind: "tenant_guard_violation",
   observed: { kind: "workspace", workspaceId: observedWorkspaceId },
 });
-
-const ancestorComments = (
-  state: MemoryThreadAgentState,
-  rootCommentId: Comment["id"]
-): readonly Comment[] => {
-  const root = state.comments.get(idKey(rootCommentId));
-  if (root === undefined) {
-    return [];
-  }
-
-  const ancestors: Comment[] = [];
-  let current = root;
-  while (current.parent.kind === "nested") {
-    const parent = state.comments.get(idKey(current.parent.parentCommentId));
-    if (parent === undefined) {
-      break;
-    }
-
-    ancestors.unshift(parent);
-    current = parent;
-  }
-
-  return ancestors;
-};
-
-const branchComments = (
-  state: MemoryThreadAgentState,
-  rootCommentId: Comment["id"]
-): readonly Comment[] => {
-  const root = state.comments.get(idKey(rootCommentId));
-  if (root === undefined) {
-    return [];
-  }
-
-  const collected: Comment[] = [];
-  const visit = (comment: Comment): void => {
-    collected.push(comment);
-
-    for (const candidate of state.comments.values()) {
-      if (
-        candidate.parent.kind === "nested" &&
-        hasSameId(candidate.parent.parentCommentId, comment.id)
-      ) {
-        visit(candidate);
-      }
-    }
-  };
-
-  visit(root);
-  return collected;
-};
 
 export const createMemoryThreadAgent = (
   config: MemoryThreadAgentConfig
@@ -310,12 +260,12 @@ export const createMemoryThreadAgent = (
     listRuns: async () => ok([...state.runs.values()]),
     loadBranch: async (input) => {
       const snapshot: BranchSnapshot = {
-        ancestors: ancestorComments(state, input.rootCommentId),
+        ancestors: ancestorComments(state.comments, input.rootCommentId),
         branch: {
           rootCommentId: input.rootCommentId,
           threadId: config.address.threadId,
         },
-        subtree: branchComments(state, input.rootCommentId),
+        subtree: branchComments(state.comments, input.rootCommentId),
       };
 
       return ok(snapshot);
