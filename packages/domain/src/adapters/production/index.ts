@@ -1,8 +1,11 @@
 export {
+  createD1TenantDataAccess,
+  type D1TenantDataAccessConfig,
+} from "./tenant-data-access";
+export {
   createAiGatewayByokModelRouterPlaceholder,
   createCatalogWorkspaceShapeToolResolverPlaceholder,
   createCuratorThinkAgentPlaceholder,
-  createD1TenantDataAccessPlaceholder,
   createDurableObjectChannelHubPlaceholder,
   createDurableObjectWorkspaceHubPlaceholder,
   createR2MarkdownSkillStorePlaceholder,

@@ -9,10 +9,7 @@ import type {
   WorkspaceHub,
 } from "../../seams/realtime-hubs";
 import type { SkillStore } from "../../seams/skill-store";
-import type {
-  TenantContext,
-  TenantDataAccess,
-} from "../../seams/tenant-data-access";
+import type { TenantContext } from "../../seams/tenant-data-access";
 import type { ThreadAgent, ThreadAgentAddress } from "../../seams/thread-agent";
 import type {
   McpEgressPolicy,
@@ -21,40 +18,6 @@ import type {
 
 const notImplemented = async (seam: string) =>
   err(createNotImplementedError(seam));
-
-export const createD1TenantDataAccessPlaceholder = (
-  context: TenantContext
-): TenantDataAccess => ({
-  batch: async (_input) => notImplemented("D1TenantDataAccess.batch"),
-  context,
-  getArtifact: async (_input) =>
-    notImplemented("D1TenantDataAccess.getArtifact"),
-  getChannel: async (_input) => notImplemented("D1TenantDataAccess.getChannel"),
-  getMcpHostApproval: async (_input) =>
-    notImplemented("D1TenantDataAccess.getMcpHostApproval"),
-  getMcpServer: async (_input) =>
-    notImplemented("D1TenantDataAccess.getMcpServer"),
-  getSchedule: async (_input) =>
-    notImplemented("D1TenantDataAccess.getSchedule"),
-  getShape: async (_input) => notImplemented("D1TenantDataAccess.getShape"),
-  getSkill: async (_input) => notImplemented("D1TenantDataAccess.getSkill"),
-  getWorkspaceGraph: async () =>
-    notImplemented("D1TenantDataAccess.getWorkspaceGraph"),
-  listArtifacts: async () => notImplemented("D1TenantDataAccess.listArtifacts"),
-  listChannelFavorites: async (_input) =>
-    notImplemented("D1TenantDataAccess.listChannelFavorites"),
-  listChannelThreads: async (_input) =>
-    notImplemented("D1TenantDataAccess.listChannelThreads"),
-  listChannels: async (_input) =>
-    notImplemented("D1TenantDataAccess.listChannels"),
-  listMemberUnread: async (_input) =>
-    notImplemented("D1TenantDataAccess.listMemberUnread"),
-  listRecentThreads: async (_input) =>
-    notImplemented("D1TenantDataAccess.listRecentThreads"),
-  listSkills: async () => notImplemented("D1TenantDataAccess.listSkills"),
-  listWorkspaceToolDisables: async () =>
-    notImplemented("D1TenantDataAccess.listWorkspaceToolDisables"),
-});
 
 export const createThinkThreadAgentPlaceholder = (
   address: ThreadAgentAddress
