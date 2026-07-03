@@ -70,6 +70,11 @@ export interface ThreadAgentRunReceipt {
   readonly threadId: ThreadId;
 }
 
+/** Address-based lookup of per-thread agents; production = DO namespace getByName. */
+export interface ThreadAgentDirectory {
+  readonly get: (address: ThreadAgentAddress) => ThreadAgent;
+}
+
 /**
  * Per-thread Durable Object seam: owns the comment tree and executes runs against its
  * resident shape snapshot. Run state is DO-resident and read here (ADR 0028) — no D1 run

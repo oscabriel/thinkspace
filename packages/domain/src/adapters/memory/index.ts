@@ -34,5 +34,7 @@ export {
 } from "./tool-resolution";
 export {
   createMemoryThreadAgent,
+  createMemoryThreadAgentDirectory,
   type MemoryThreadAgentConfig,
+  type MemoryThreadAgentDirectoryConfig,
 } from "./thread-agent";

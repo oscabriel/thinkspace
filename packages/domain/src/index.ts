@@ -1,5 +1,12 @@
 export { adapterSlots } from "./adapter-slots";
 export type { AdapterSlots } from "./adapter-slots";
+export { createDispatchFlow } from "./flows/dispatch";
+export type {
+  DispatchFlow,
+  DispatchFlowDependencies,
+  DispatchFlowError,
+  DispatchRequest,
+} from "./flows/dispatch";
 export {
   artifactMediaKindSchema,
   artifactOriginSchema,
@@ -299,6 +306,7 @@ export type {
   RunDetail,
   ThreadAgent,
   ThreadAgentAddress,
+  ThreadAgentDirectory,
   ThreadAgentError,
   ThreadAgentInitializeRequest,
   ThreadAgentResnapshotRequest,

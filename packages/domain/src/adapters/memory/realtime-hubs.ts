@@ -29,6 +29,7 @@ export interface MemoryChannelHubConfig {
   readonly address: ChannelHubAddress;
   readonly context: TenantContext;
   readonly events?: readonly ChannelHubEvent[];
+  readonly onEvent?: (event: ChannelHubEvent) => void;
   readonly presence?: readonly MemberPresence[];
   readonly shapeSnapshots?: readonly ShapeSnapshot[];
 }
@@ -146,6 +147,7 @@ export const createMemoryChannelHub = (
     getPresence: async () => ok(config.presence ?? []),
     publishEvent: async (event) => {
       events.push(event);
+      config.onEvent?.(event);
       return ok();
     },
   };

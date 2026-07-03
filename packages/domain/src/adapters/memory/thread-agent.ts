@@ -5,6 +5,7 @@ import type {
   BranchSnapshot,
   ThreadAgent,
   ThreadAgentAddress,
+  ThreadAgentDirectory,
   ThreadAgentError,
 } from "../../seams/thread-agent";
 import type { ShapeSnapshot } from "../../shape";
@@ -216,6 +217,40 @@ export const createMemoryThreadAgent = (
 
       state.schedules.set(idKey(input.schedule.id), input.schedule);
       return ok(input.schedule);
+    },
+  };
+};
+
+export interface MemoryThreadAgentDirectoryConfig {
+  readonly agents?: readonly ThreadAgent[];
+}
+
+const addressKey = (address: ThreadAgentAddress): string =>
+  [
+    idKey(address.workspaceId),
+    idKey(address.channelId),
+    idKey(address.threadId),
+  ].join("/");
+
+/** Mirrors DO namespace semantics: an agent exists at every address, created on first get. */
+export const createMemoryThreadAgentDirectory = (
+  config?: MemoryThreadAgentDirectoryConfig
+): ThreadAgentDirectory => {
+  const agents = new Map(
+    (config?.agents ?? []).map((agent) => [addressKey(agent.address), agent])
+  );
+
+  return {
+    get: (address) => {
+      const key = addressKey(address);
+      const existing = agents.get(key);
+      if (existing !== undefined) {
+        return existing;
+      }
+
+      const created = createMemoryThreadAgent({ address });
+      agents.set(key, created);
+      return created;
     },
   };
 };
