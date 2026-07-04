@@ -3,6 +3,7 @@ import type {
   NotImplementedError,
   RunFailureError,
   TenantGuardViolationError,
+  ThreadAgentUnaddressableError,
   ThreadAgentUninitializedError,
 } from "../errors";
 import type {
@@ -28,6 +29,7 @@ export type ThreadAgentError =
   | NotImplementedError
   | RunFailureError
   | TenantGuardViolationError
+  | ThreadAgentUnaddressableError
   | ThreadAgentUninitializedError;
 
 /**

@@ -1,7 +1,6 @@
 import { Agent } from "agents";
 import type { AgentContext } from "agents";
 
-import { createNotImplementedError } from "../../errors";
 import { runIdSchema } from "../../ids";
 import { err, ok } from "../../result";
 import type { AsyncResult } from "../../result";
@@ -28,6 +27,7 @@ import type { ThreadAgentSeed } from "../../testing/contracts/thread-agent";
 import type { Comment } from "../../thread";
 import { ancestorComments, branchComments } from "../comment-tree";
 import { hasSameId, idKey, parseJsonColumn } from "../helpers";
+import { decodeThreadAgentAddress } from "../thread-agent-address";
 
 const defaultClock = (): Date => new Date();
 
@@ -77,6 +77,33 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
     this.ensureSeamTables();
   }
 
+  /**
+   * ADR 0033: the DO name IS the address — routing-derived and tamper-proof. Decoded
+   * lazily (never in the constructor: contract binders address DOs by random UUID names
+   * and seed afterward; the seed's explicit address takes precedence) and memoized.
+   */
+  private deriveAddress(): ThreadAgentAddress | null {
+    this.address ??= decodeThreadAgentAddress(this.readDoName() ?? "");
+    return this.address;
+  }
+
+  /** `this.name` throws for DOs addressed by unique id (partyserver getter over ctx.id.name). */
+  private readDoName(): string | null {
+    try {
+      return this.name;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Fail closed: an undecodable name is a bad route or a forged caller — execute nothing. */
+  private unaddressable(): ThreadAgentError {
+    return {
+      doName: this.readDoName() ?? "",
+      kind: "thread_agent_unaddressable",
+    };
+  }
+
   private ensureSeamTables(): readonly (readonly unknown[])[] {
     return [
       this
@@ -115,9 +142,9 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
   async appendComment(input: {
     readonly comment: Comment;
   }): AsyncResult<Comment, ThreadAgentError> {
-    const { address } = this;
+    const address = this.deriveAddress();
     if (address === null) {
-      return err(createNotImplementedError("ThreadAgentDurableObject.address"));
+      return err(this.unaddressable());
     }
 
     if (!isCommentInAddress(address, input.comment)) {
@@ -131,6 +158,10 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
   async getRun(input: {
     readonly runId: Run["id"];
   }): AsyncResult<RunDetail | null, ThreadAgentError> {
+    if (this.deriveAddress() === null) {
+      return err(this.unaddressable());
+    }
+
     const rows = this.sql<{ data: string }>`
       SELECT data FROM ts_run WHERE id = ${idKey(input.runId)}
     `;
@@ -148,9 +179,9 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
   async initialize(
     input: ThreadAgentInitializeRequest
   ): AsyncResult<ThreadAgentSnapshot, ThreadAgentError> {
-    const { address } = this;
+    const address = this.deriveAddress();
     if (address === null) {
-      return err(createNotImplementedError("ThreadAgentDurableObject.address"));
+      return err(this.unaddressable());
     }
 
     if (!isCommentInAddress(address, input.openingComment)) {
@@ -169,6 +200,10 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
   }
 
   async listRuns(): AsyncResult<readonly Run[], ThreadAgentError> {
+    if (this.deriveAddress() === null) {
+      return err(this.unaddressable());
+    }
+
     const rows = this.sql<{ data: string }>`
       SELECT data FROM ts_run ORDER BY seq ASC
     `;
@@ -178,9 +213,9 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
   async loadBranch(input: {
     readonly rootCommentId: Comment["id"];
   }): AsyncResult<BranchSnapshot, ThreadAgentError> {
-    const { address } = this;
+    const address = this.deriveAddress();
     if (address === null) {
-      return err(createNotImplementedError("ThreadAgentDurableObject.address"));
+      return err(this.unaddressable());
     }
 
     const comments = this.loadComments();
@@ -197,9 +232,9 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
   async resnapshot(
     input: ThreadAgentResnapshotRequest
   ): AsyncResult<ThreadAgentSnapshot, ThreadAgentError> {
-    const { address } = this;
+    const address = this.deriveAddress();
     if (address === null) {
-      return err(createNotImplementedError("ThreadAgentDurableObject.address"));
+      return err(this.unaddressable());
     }
 
     this.putSnapshot(input.shapeSnapshot);
@@ -212,9 +247,9 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
   async run(
     input: RunTrigger
   ): AsyncResult<ThreadAgentRunReceipt, ThreadAgentError> {
-    const { address } = this;
+    const address = this.deriveAddress();
     if (address === null) {
-      return err(createNotImplementedError("ThreadAgentDurableObject.address"));
+      return err(this.unaddressable());
     }
 
     if (this.readSnapshot() === null) {
@@ -245,9 +280,9 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
   async scheduleRun(input: {
     readonly schedule: Schedule;
   }): AsyncResult<Schedule, ThreadAgentError> {
-    const { address } = this;
+    const address = this.deriveAddress();
     if (address === null) {
-      return err(createNotImplementedError("ThreadAgentDurableObject.address"));
+      return err(this.unaddressable());
     }
 
     if (!isScheduleInAddress(address, input.schedule)) {

@@ -134,6 +134,19 @@ export type ThreadAgentUninitializedError = z.infer<
   typeof threadAgentUninitializedErrorSchema
 >;
 
+/**
+ * ADR 0033: the DO name is the address; a DO whose name does not decode (bad route,
+ * forged name, directory-bypassing caller) executes nothing and fails closed with this.
+ * doName carries no tenant data by construction — it failed to decode into ids.
+ */
+export const threadAgentUnaddressableErrorSchema = z.object({
+  doName: z.string(),
+  kind: z.literal("thread_agent_unaddressable"),
+});
+export type ThreadAgentUnaddressableError = z.infer<
+  typeof threadAgentUnaddressableErrorSchema
+>;
+
 export const realtimeHubUnavailableErrorSchema = z.object({
   kind: z.literal("realtime_hub_unavailable"),
   workspaceId: workspaceIdSchema,
@@ -163,6 +176,7 @@ export const domainErrorSchema = z.discriminatedUnion("kind", [
   curatorExecutionFailedErrorSchema,
   curatorSessionNotFoundErrorSchema,
   shapeOwnershipViolationErrorSchema,
+  threadAgentUnaddressableErrorSchema,
   threadAgentUninitializedErrorSchema,
   realtimeHubUnavailableErrorSchema,
   notImplementedErrorSchema,
