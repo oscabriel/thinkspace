@@ -200,7 +200,7 @@ _(ADRs land in `docs/adr/`; this table is the running index.)_
 | 0031 | Artifact rendering = sandboxed separate-origin viewer (per-artifact subdomain, no-external-network CSP, sandboxed iframe, short-TTL view tokens; sanitization never the boundary) (refines 0001, 0014, 0024)                                            | proposed             |
 | 0032 | Artifact versioning = immutable versions behind a stable identity; provenance per version; search sees head only; no mutate, no delete in v1 (refines 0014, 0018, 0024)                                                                                 | proposed             |
 | 0033 | ThreadAgent addressing = DO name is the injectively-encoded address triple (shared codec, no mapping table); address derived lazily from `this.name`, fail-closed `thread_agent_unaddressable`; RunId = submissionId, domain run row source of truth (refines 0009, 0015, 0017, 0028) | accepted             |
-| 0034 | Thread creation = idempotent flow keyed by an edge-minted ThreadId; D1 index row first, initialize second, announce last; `thread_agent_uninitialized` = the designed retryable half-crash state; `ChannelHub.createThread` superseded (refines 0009, 0016, 0017, 0020, 0030, 0033)  | proposed             |
+| 0034 | Thread creation = idempotent flow keyed by edge-minted ids (ThreadId + opening CommentId); insert-if-absent D1 index row first, first-write-wins initialize second, workspace bump last (the only announce); `thread_agent_uninitialized` = the designed retryable half-crash state; `ChannelHub.createThread` superseded (refines 0007, 0009, 0016, 0017, 0020, 0030, 0033)  | accepted             |
 
 ## Persistence tiers (locked)
 
@@ -281,7 +281,7 @@ source of truth over the SDK alarm row, skills/artifacts = adapter-owned D1 inde
 read-only R2 primitives. The doc ends with the 7 contract tests to pin once production
 adapters exist.
 
-**Next phase:** thread-creation flow implementation (ADR 0034, proposed — grill first),
+**Next phase:** thread-creation flow implementation (ADR 0034, accepted),
 then the HTTP edge + auth (better-auth; D1 auth tables committed), which also owns the
 production wiring of the DO's completion flow and model routing (ModelRouter adapter).
 Remaining memory-only seams: CuratorAgent, ToolResolver/McpEgressPolicy, ArtifactStore
