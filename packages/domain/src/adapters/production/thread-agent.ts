@@ -1,4 +1,4 @@
-import { Agent } from "agents";
+import { Agent, getAgentByName } from "agents";
 import type { AgentContext } from "agents";
 
 import { runIdSchema } from "../../ids";
@@ -16,6 +16,7 @@ import type {
   RunDetail,
   ThreadAgent,
   ThreadAgentAddress,
+  ThreadAgentDirectory,
   ThreadAgentError,
   ThreadAgentInitializeRequest,
   ThreadAgentResnapshotRequest,
@@ -27,7 +28,10 @@ import type { ThreadAgentSeed } from "../../testing/contracts/thread-agent";
 import type { Comment } from "../../thread";
 import { ancestorComments, branchComments } from "../comment-tree";
 import { hasSameId, idKey, parseJsonColumn } from "../helpers";
-import { decodeThreadAgentAddress } from "../thread-agent-address";
+import {
+  decodeThreadAgentAddress,
+  encodeThreadAgentAddress,
+} from "../thread-agent-address";
 
 const defaultClock = (): Date => new Date();
 
@@ -358,3 +362,40 @@ type SeamMethods = Omit<ThreadAgent, "address" | "schedule"> & {
 type AssertSeam<T extends SeamMethods> = T;
 export type ThreadAgentDurableObjectSatisfiesSeam =
   AssertSeam<ThreadAgentDurableObject>;
+
+export interface ProductionThreadAgentDirectoryConfig {
+  readonly namespace: DurableObjectNamespace<ThreadAgentDurableObject>;
+}
+
+/**
+ * ADR 0033: a pure thin adapter over the DO namespace — no storage, no failure modes,
+ * no creation step; the first get materializes the agent. Each wrapper caches its stub
+ * promise so getAgentByName's setName round-trip is paid once per wrapper, and maps
+ * seam `schedule` to DO `scheduleRun` (the SDK reserves `schedule` for its alarm API).
+ */
+export const createProductionThreadAgentDirectory = (
+  config: ProductionThreadAgentDirectoryConfig
+): ThreadAgentDirectory => ({
+  get: (address) => {
+    let stubPromise: ReturnType<
+      typeof getAgentByName<Cloudflare.Env, ThreadAgentDurableObject>
+    > | null = null;
+    const stub = () =>
+      (stubPromise ??= getAgentByName(
+        config.namespace,
+        encodeThreadAgentAddress(address)
+      ));
+
+    return {
+      address,
+      appendComment: async (input) => (await stub()).appendComment(input),
+      getRun: async (input) => (await stub()).getRun(input),
+      initialize: async (input) => (await stub()).initialize(input),
+      listRuns: async () => (await stub()).listRuns(),
+      loadBranch: async (input) => (await stub()).loadBranch(input),
+      resnapshot: async (input) => (await stub()).resnapshot(input),
+      run: async (input) => (await stub()).run(input),
+      schedule: async (input) => (await stub()).scheduleRun(input),
+    };
+  },
+});
