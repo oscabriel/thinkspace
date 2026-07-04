@@ -138,6 +138,7 @@ export const mcpHost = (value: string) => mcpHostSchema.parse(value);
 export const memberId = (value: string) => memberIdSchema.parse(value);
 export const channelId = (value: string) => channelIdSchema.parse(value);
 export const threadId = (value: string) => threadIdSchema.parse(value);
+export const workspaceId = (value: string) => workspaceIdSchema.parse(value);
 export const shapeId = (value: string) => shapeIdSchema.parse(value);
 
 export const testWorkspace: Workspace = {

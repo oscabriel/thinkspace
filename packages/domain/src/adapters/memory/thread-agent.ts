@@ -26,6 +26,7 @@ import type {
 import type { ShapeSnapshot } from "../../shape";
 import type { Comment } from "../../thread";
 import { ancestorComments, branchComments } from "../comment-tree";
+import { encodeThreadAgentAddress } from "../thread-agent-address";
 import { hasSameId, idKey } from "./helpers";
 
 /** The scripted outcome of one executed run — the memory stand-in for a real model turn. */
@@ -323,24 +324,20 @@ export interface MemoryThreadAgentDirectoryConfig {
   readonly agents?: readonly ThreadAgent[];
 }
 
-const addressKey = (address: ThreadAgentAddress): string =>
-  [
-    idKey(address.workspaceId),
-    idKey(address.channelId),
-    idKey(address.threadId),
-  ].join("/");
-
 /** Mirrors DO namespace semantics: an agent exists at every address, created on first get. */
 export const createMemoryThreadAgentDirectory = (
   config?: MemoryThreadAgentDirectoryConfig
 ): ThreadAgentDirectory => {
   const agents = new Map(
-    (config?.agents ?? []).map((agent) => [addressKey(agent.address), agent])
+    (config?.agents ?? []).map((agent) => [
+      encodeThreadAgentAddress(agent.address),
+      agent,
+    ])
   );
 
   return {
     get: (address) => {
-      const key = addressKey(address);
+      const key = encodeThreadAgentAddress(address);
       const existing = agents.get(key);
       if (existing !== undefined) {
         return existing;
