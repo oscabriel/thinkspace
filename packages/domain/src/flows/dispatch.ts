@@ -1,6 +1,4 @@
-import type { Channel } from "../channel";
 import { createNotImplementedError } from "../errors";
-import type { AuthzError } from "../errors";
 import type { ChannelId, CommentId, ThreadId } from "../ids";
 import { err } from "../result";
 import type { AsyncResult } from "../result";
@@ -8,7 +6,6 @@ import type { RunTrigger } from "../run";
 import type { ModelRoutingError, ModelRouter } from "../seams/model-routing";
 import type { ChannelHub, RealtimeHubError } from "../seams/realtime-hubs";
 import type {
-  TenantContext,
   TenantDataAccess,
   TenantDataAccessError,
 } from "../seams/tenant-data-access";
@@ -22,6 +19,7 @@ import type {
   ToolResolutionError,
   ToolResolver,
 } from "../seams/tool-resolution";
+import { channelWriteGate } from "./channel-gate";
 
 export type DispatchFlowError =
   | ModelRoutingError
@@ -44,36 +42,6 @@ export interface DispatchFlowDependencies {
   readonly threadAgents: ThreadAgentDirectory;
   readonly toolResolver: ToolResolver;
 }
-
-/**
- * Visibility is checked before lifecycle so a non-owner learns nothing about a private
- * channel's archival or deletion.
- */
-const channelDispatchGate = (
-  context: TenantContext,
-  channel: Channel
-): AuthzError | null => {
-  if (
-    channel.visibility.kind === "private" &&
-    channel.ownerMemberId !== context.memberId
-  ) {
-    return {
-      channelId: channel.id,
-      kind: "channel_not_visible",
-      memberId: context.memberId,
-    };
-  }
-
-  if (channel.lifecycle.state === "deleted") {
-    return { channelId: channel.id, kind: "channel_deleted" };
-  }
-
-  if (channel.lifecycle.state === "archived") {
-    return { channelId: channel.id, kind: "channel_read_only" };
-  }
-
-  return null;
-};
 
 /** The dispatch spine (ADR 0017): the only human-initiated way to trigger a Run. */
 export interface DispatchFlow {
@@ -104,7 +72,7 @@ export const createDispatchFlow = (
       });
     }
 
-    const gateError = channelDispatchGate(context, channel);
+    const gateError = channelWriteGate(context, channel);
     if (gateError !== null) {
       return err(gateError);
     }

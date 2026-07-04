@@ -17,6 +17,14 @@ export type {
   RunCompletionFlowError,
   RunSettlement,
 } from "./flows/run-completion";
+export { createThreadCreationFlow } from "./flows/thread-creation";
+export type {
+  ThreadCreation,
+  ThreadCreationFlow,
+  ThreadCreationFlowDependencies,
+  ThreadCreationFlowError,
+  ThreadCreationRequest,
+} from "./flows/thread-creation";
 export {
   artifactMediaKindSchema,
   artifactOriginSchema,
