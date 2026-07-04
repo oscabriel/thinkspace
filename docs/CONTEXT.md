@@ -200,6 +200,7 @@ _(ADRs land in `docs/adr/`; this table is the running index.)_
 | 0031 | Artifact rendering = sandboxed separate-origin viewer (per-artifact subdomain, no-external-network CSP, sandboxed iframe, short-TTL view tokens; sanitization never the boundary) (refines 0001, 0014, 0024)                                            | proposed             |
 | 0032 | Artifact versioning = immutable versions behind a stable identity; provenance per version; search sees head only; no mutate, no delete in v1 (refines 0014, 0018, 0024)                                                                                 | proposed             |
 | 0033 | ThreadAgent addressing = DO name is the injectively-encoded address triple (shared codec, no mapping table); address derived lazily from `this.name`, fail-closed `thread_agent_unaddressable`; RunId = submissionId, domain run row source of truth (refines 0009, 0015, 0017, 0028) | accepted             |
+| 0034 | Thread creation = idempotent flow keyed by an edge-minted ThreadId; D1 index row first, initialize second, announce last; `thread_agent_uninitialized` = the designed retryable half-crash state; `ChannelHub.createThread` superseded (refines 0009, 0016, 0017, 0020, 0030, 0033)  | proposed             |
 
 ## Persistence tiers (locked)
 
@@ -255,15 +256,18 @@ audited against ADRs 0001–0024; the gaps it surfaced were grilled and landed a
 read path on TenantDataAccess; unread clearing; DO-resident run reads + SubAgentActivity;
 skills = workspace pool; Shape↔Channel strict 1:1.
 
-**Contract tests COMPLETE (2026-07-01)** — `packages/domain/test/` pins the seam contracts
-against the memory adapters (`bun test`, wired into turbo as `test`): branch context window
-(0025), DO-resident run reads + nested SubAgentActivity (0028), config-as-data snapshots
-(0007/0015), default-permit tool disables + additive-only beforeTurn + fail-closed MCP
-egress (0002/0004/0015), home-feed visibility/pagination + delete_unread (0027), curator
-sessions (0026), tenant-guard atomicity, and the Shape↔Channel 1:1 invariant (0030) — now
-**enforced in the tenant-guarded data layer** with a typed `shape_ownership_violation`
-error. The ADR 0015 §4 SDK gotchas (sync getModel/getTools, MCP persist/restore across
-hibernation) still need pinning against the real SDK once production adapters exist.
+**Contract tests (updated 2026-07-03)** — per-seam contract suites live in
+`packages/domain/src/testing/contracts/*`, parameterized over adapter factories and bound
+twice: memory binders in `test/` (`bun test`) and workers binders in `test-workers/`
+(`vitest` + `@cloudflare/vitest-pool-workers`, real D1 + DO-SQLite). Production adapters
+now pinned: D1 TenantDataAccess, the ThreadAgent DO (a Think DO — turn layer included:
+RunId = submissionId, dispatch→completion with a stubbed model, failure path), the
+address codec + name-derived DO identity + `thread_agent_unaddressable` (0033), the
+production ThreadAgentDirectory, and the hub DOs' publish→recent-log path. The
+dispatch→completion **round-trip acceptance test** runs the whole spine on real adapters
+under miniflare (`test-workers/round-trip.acceptance.test.ts`). Remaining ADR 0015 §4 SDK
+gotchas (MCP persist/restore across hibernation, additive beforeTurn on the real SDK)
+still need pinning as those adapters land.
 
 **SDK-signature verification COMPLETE (2026-07-01)** — `docs/sdk-signature-verification.md`
 verifies the matched set (`agents@0.17.1`, `@cloudflare/think@0.11.1`,
@@ -277,9 +281,11 @@ source of truth over the SDK alarm row, skills/artifacts = adapter-owned D1 inde
 read-only R2 primitives. The doc ends with the 7 contract tests to pin once production
 adapters exist.
 
-**Next phase:** first behavior slices with TDD (dispatch flow spine per
-`src/call-stacks.ts`), shaping production adapters against the verified signatures; then a
-phased build plan (`/improve` / Plan agent).
+**Next phase:** thread-creation flow implementation (ADR 0034, proposed — grill first),
+then the HTTP edge + auth (better-auth; D1 auth tables committed), which also owns the
+production wiring of the DO's completion flow and model routing (ModelRouter adapter).
+Remaining memory-only seams: CuratorAgent, ToolResolver/McpEgressPolicy, ArtifactStore
+(ADR 0032 reshape pending), SkillStore, ModelRouter.
 
 ## Deferred / v2 / to-verify (explicit v1 boundary)
 
