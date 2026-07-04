@@ -199,6 +199,7 @@ _(ADRs land in `docs/adr/`; this table is the running index.)_
 | 0030 | Shape↔Channel strict 1:1, channel-owned; clone = copy + provenance (refines 0007, 0018, 0019, 0021)                                                                                                                                                     | accepted             |
 | 0031 | Artifact rendering = sandboxed separate-origin viewer (per-artifact subdomain, no-external-network CSP, sandboxed iframe, short-TTL view tokens; sanitization never the boundary) (refines 0001, 0014, 0024)                                            | proposed             |
 | 0032 | Artifact versioning = immutable versions behind a stable identity; provenance per version; search sees head only; no mutate, no delete in v1 (refines 0014, 0018, 0024)                                                                                 | proposed             |
+| 0033 | ThreadAgent addressing = DO name is the injectively-encoded address triple (shared codec, no mapping table); address derived lazily from `this.name`, fail-closed `thread_agent_unaddressable`; RunId = submissionId, domain run row source of truth (refines 0009, 0015, 0017, 0028) | accepted             |
 
 ## Persistence tiers (locked)
 
