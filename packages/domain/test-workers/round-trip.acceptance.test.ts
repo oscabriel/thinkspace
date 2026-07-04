@@ -16,20 +16,22 @@ import {
 } from "../src/adapters/production";
 import { encodeThreadAgentAddress } from "../src/adapters/thread-agent-address";
 import { createRunCompletionFlow } from "../src/flows/run-completion";
+import { createThreadCreationFlow } from "../src/flows/thread-creation";
+import { commentBodySchema } from "../src/primitives";
 import type { RunTrigger } from "../src/run";
 import type { TenantContext } from "../src/seams/tenant-data-access";
 import type { ThreadAgentAddress } from "../src/seams/thread-agent";
 import {
   channelId,
-  makeComment,
-  makeShapeSnapshot,
+  commentId,
+  makeChannel,
+  makeShape,
   memberId,
   runId,
   threadId,
   unwrapOk,
   workspaceId,
 } from "../src/testing";
-import { threadSchema } from "../src/thread";
 import { modelReplying } from "./mock-model";
 
 /**
@@ -38,8 +40,8 @@ import { modelReplying } from "./mock-model";
  * the completion flow — built from the real D1 TenantDataAccess and the real hub DOs —
  * settles it. Everything below the model call is production code.
  *
- * The test seeds the D1 thread-index row and initializes the agent directly: that is the
- * thread-creation flow's job, deliberately out of scope here (ADR 0033 non-goal).
+ * The thread exists because ThreadCreationFlow created it (ADR 0034) — the same call the
+ * HTTP edge will make.
  */
 describe("dispatch→completion round trip (acceptance)", () => {
   test("a dispatched run completes: reply in the DO, D1 rows written, hub events observed", async () => {
@@ -72,20 +74,23 @@ describe("dispatch→completion round trip (acceptance)", () => {
       }),
     });
 
-    // Thread-creation stand-in: D1 index row first, agent initialize second.
-    const thread = threadSchema.parse({
-      channelId: address.channelId,
-      createdAt: new Date("2026-07-01T00:00:00Z"),
-      createdByMemberId: member,
-      id: address.threadId,
-      lastActivityAt: new Date("2026-07-01T00:00:00Z"),
-      lifecycle: { state: "active" },
-      name: "round-trip thread",
+    // The channel and its live shape exist; ThreadCreationFlow creates the thread.
+    const shape = {
+      ...makeShape({ id: "rt-shape-1" }),
+      workspaceId: address.workspaceId,
+    };
+    const channel = makeChannel({
+      id: "rt-ch-1",
+      ownerMemberId: member,
+      shapeId: "rt-shape-1",
       workspaceId: address.workspaceId,
     });
     unwrapOk(
       await tenantDataAccess.batch({
-        commands: [{ kind: "put_thread_index", thread }],
+        commands: [
+          { kind: "put_shape", shape },
+          { channel, kind: "put_channel" },
+        ],
         workspaceId: address.workspaceId,
       })
     );
@@ -94,20 +99,24 @@ describe("dispatch→completion round trip (acceptance)", () => {
       namespace: env.THREAD_AGENT,
     });
     const agent = directory.get(address);
-    const opening = {
-      ...makeComment({
-        id: "rt-comment-opening",
+
+    const created = unwrapOk(
+      await createThreadCreationFlow({
+        clock: () => new Date("2026-07-01T00:00:00Z"),
+        tenantDataAccess,
+        threadAgents: directory,
+        workspaceHub: createProductionWorkspaceHub({
+          context,
+          namespace: env.WORKSPACE_HUB,
+        }),
+      }).create({
+        channelId: address.channelId,
+        openingBody: commentBodySchema.parse("round-trip thread"),
+        openingCommentId: commentId("rt-comment-opening"),
         threadId: address.threadId,
-        workspaceId: address.workspaceId,
-      }),
-      author: { kind: "member" as const, memberId: member },
-    };
-    unwrapOk(
-      await agent.initialize({
-        openingComment: opening,
-        shapeSnapshot: makeShapeSnapshot(),
       })
     );
+    const { openingComment: opening, thread } = created;
 
     // Test capability: the model stub and the completion flow are injected in-isolate;
     // production wiring of both inside the DO lands with the HTTP edge slice.
@@ -216,6 +225,12 @@ describe("dispatch→completion round trip (acceptance)", () => {
       (instance: WorkspaceHubDurableObject) => instance.listRecentActivity()
     );
     expect(activity).toEqual([
+      {
+        bumpedAt: thread.lastActivityAt,
+        channelId: address.channelId,
+        kind: "thread_bumped",
+        threadId: address.threadId,
+      },
       {
         bumpedAt: settled.completedAt,
         channelId: address.channelId,
