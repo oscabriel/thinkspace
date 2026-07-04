@@ -1,8 +1,7 @@
 import type { Channel } from "../../channel";
 import type { ChannelDirectoryEntry } from "../../directory";
-import { createNotImplementedError } from "../../errors";
 import type { MemberId } from "../../ids";
-import { err, ok } from "../../result";
+import { ok } from "../../result";
 import type {
   ChannelHub,
   ChannelHubAddress,
@@ -15,8 +14,7 @@ import type {
   ChannelListingRequest,
   TenantContext,
 } from "../../seams/tenant-data-access";
-import type { ShapeSnapshot } from "../../shape";
-import { hasSameId, idKey, isInTenant, tenantGuardViolation } from "./helpers";
+import { hasSameId, isInTenant } from "./helpers";
 
 export interface MemoryWorkspaceHubConfig {
   readonly activityEvents?: readonly WorkspaceActivityEvent[];
@@ -32,7 +30,6 @@ export interface MemoryChannelHubConfig {
   readonly events?: readonly ChannelHubEvent[];
   readonly onEvent?: (event: ChannelHubEvent) => void;
   readonly presence?: readonly MemberPresence[];
-  readonly shapeSnapshots?: readonly ShapeSnapshot[];
 }
 
 const isVisibleToMember = (context: TenantContext, channel: Channel): boolean =>
@@ -106,46 +103,10 @@ export const createMemoryChannelHub = (
   config: MemoryChannelHubConfig
 ): ChannelHub => {
   const events = [...(config.events ?? [])];
-  const snapshots = new Map(
-    (config.shapeSnapshots ?? []).map((snapshot) => [
-      idKey(snapshot.shapeId),
-      snapshot,
-    ])
-  );
 
   return {
     address: config.address,
     context: config.context,
-    createThread: async (input) => {
-      if (!isInTenant(config.context, input.thread)) {
-        return err(
-          tenantGuardViolation(config.context, input.thread.workspaceId)
-        );
-      }
-
-      if (!isInTenant(config.context, input.openingComment)) {
-        return err(
-          tenantGuardViolation(config.context, input.openingComment.workspaceId)
-        );
-      }
-
-      if (!hasSameId(input.thread.channelId, config.address.channelId)) {
-        return err(
-          tenantGuardViolation(config.context, input.thread.workspaceId)
-        );
-      }
-
-      const shapeSnapshot = snapshots.get(idKey(input.shapeId));
-      if (shapeSnapshot === undefined) {
-        return err(createNotImplementedError("MemoryChannelHub.createThread"));
-      }
-
-      return ok({
-        openingComment: input.openingComment,
-        shapeSnapshot,
-        thread: input.thread,
-      });
-    },
     getPresence: async () => ok(config.presence ?? []),
     publishEvent: async (event) => {
       events.push(event);

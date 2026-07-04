@@ -10,12 +10,9 @@ import type {
   CommentId,
   MemberId,
   RunId,
-  ShapeId,
   ThreadId,
 } from "../ids";
 import type { AsyncResult } from "../result";
-import type { ShapeSnapshot } from "../shape";
-import type { Comment, Thread } from "../thread";
 import type {
   ChannelListingRequest,
   TenantContext,
@@ -67,18 +64,6 @@ export type ChannelHubEvent =
       readonly threadId: ThreadId;
     };
 
-export interface ChannelThreadCreationRequest {
-  readonly openingComment: Comment;
-  readonly shapeId: ShapeId;
-  readonly thread: Thread;
-}
-
-export interface ChannelThreadCreation {
-  readonly openingComment: Comment;
-  readonly shapeSnapshot: ShapeSnapshot;
-  readonly thread: Thread;
-}
-
 export interface ChannelHubAddress {
   readonly channelId: ChannelId;
 }
@@ -97,9 +82,6 @@ export interface WorkspaceHub {
 export interface ChannelHub {
   readonly address: ChannelHubAddress;
   readonly context: TenantContext;
-  readonly createThread: (
-    input: ChannelThreadCreationRequest
-  ) => AsyncResult<ChannelThreadCreation, RealtimeHubError>;
   readonly getPresence: () => AsyncResult<
     readonly MemberPresence[],
     RealtimeHubError

@@ -293,8 +293,6 @@ export type {
   ChannelHub,
   ChannelHubAddress,
   ChannelHubEvent,
-  ChannelThreadCreation,
-  ChannelThreadCreationRequest,
   MemberPresence,
   PresenceState,
   RealtimeHubError,

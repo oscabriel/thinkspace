@@ -157,8 +157,6 @@ export const createProductionChannelHub = (
   return {
     address: config.address,
     context: config.context,
-    createThread: async () =>
-      err(createNotImplementedError("ProductionChannelHub.createThread")),
     getPresence: async () =>
       err(createNotImplementedError("ProductionChannelHub.getPresence")),
     publishEvent: async (event) => {
