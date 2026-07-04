@@ -256,18 +256,21 @@ audited against ADRs 0001–0024; the gaps it surfaced were grilled and landed a
 read path on TenantDataAccess; unread clearing; DO-resident run reads + SubAgentActivity;
 skills = workspace pool; Shape↔Channel strict 1:1.
 
-**Contract tests (updated 2026-07-03)** — per-seam contract suites live in
+**Contract tests (updated 2026-07-04)** — per-seam contract suites live in
 `packages/domain/src/testing/contracts/*`, parameterized over adapter factories and bound
 twice: memory binders in `test/` (`bun test`) and workers binders in `test-workers/`
 (`vitest` + `@cloudflare/vitest-pool-workers`, real D1 + DO-SQLite). Production adapters
-now pinned: D1 TenantDataAccess, the ThreadAgent DO (a Think DO — turn layer included:
-RunId = submissionId, dispatch→completion with a stubbed model, failure path), the
-address codec + name-derived DO identity + `thread_agent_unaddressable` (0033), the
+now pinned: D1 TenantDataAccess (incl. `create_thread_index` insert-if-absent), the
+ThreadAgent DO (a Think DO — turn layer included: RunId = submissionId,
+dispatch→completion with a stubbed model, failure path, first-write-wins `initialize`),
+the address codec + name-derived DO identity + `thread_agent_unaddressable` (0033), the
 production ThreadAgentDirectory, and the hub DOs' publish→recent-log path. The
 dispatch→completion **round-trip acceptance test** runs the whole spine on real adapters
-under miniflare (`test-workers/round-trip.acceptance.test.ts`). Remaining ADR 0015 §4 SDK
-gotchas (MCP persist/restore across hibernation, additive beforeTurn on the real SDK)
-still need pinning as those adapters land.
+under miniflare (`test-workers/round-trip.acceptance.test.ts`), with the thread created
+by ThreadCreationFlow; `test-workers/thread-creation.flow.test.ts` pins ADR 0034's
+half-crash heal on the production binders. Remaining ADR 0015 §4 SDK gotchas (MCP
+persist/restore across hibernation, additive beforeTurn on the real SDK) still need
+pinning as those adapters land.
 
 **SDK-signature verification COMPLETE (2026-07-01)** — `docs/sdk-signature-verification.md`
 verifies the matched set (`agents@0.17.1`, `@cloudflare/think@0.11.1`,
@@ -281,9 +284,11 @@ source of truth over the SDK alarm row, skills/artifacts = adapter-owned D1 inde
 read-only R2 primitives. The doc ends with the 7 contract tests to pin once production
 adapters exist.
 
-**Next phase:** thread-creation flow implementation (ADR 0034, accepted),
-then the HTTP edge + auth (better-auth; D1 auth tables committed), which also owns the
-production wiring of the DO's completion flow and model routing (ModelRouter adapter).
+**Next phase:** the HTTP edge + auth (better-auth; D1 auth tables committed) —
+request→TenantContext, creation/dispatch gestures with client-minted ids (the
+ADR 0033/0034 idempotence boundary), plus the production wiring of the DO's completion
+flow (the "system context" decision — grill first) and model routing (ModelRouter
+adapter). ThreadCreationFlow is DONE (ADR 0034 accepted + implemented 2026-07-04).
 Remaining memory-only seams: CuratorAgent, ToolResolver/McpEgressPolicy, ArtifactStore
 (ADR 0032 reshape pending), SkillStore, ModelRouter.
 
