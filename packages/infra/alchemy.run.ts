@@ -48,6 +48,16 @@ const threadAgent = DurableObjectNamespace("thread-agent", {
   sqlite: true,
 });
 
+const channelHub = DurableObjectNamespace("channel-hub", {
+  className: "ChannelHubDurableObject",
+  sqlite: true,
+});
+
+const workspaceHub = DurableObjectNamespace("workspace-hub", {
+  className: "WorkspaceHubDurableObject",
+  sqlite: true,
+});
+
 export const server = await Worker("server", {
   bindings: {
     BETTER_AUTH_SECRET: required(
@@ -55,6 +65,7 @@ export const server = await Worker("server", {
       "BETTER_AUTH_SECRET"
     ),
     BETTER_AUTH_URL: authUrl,
+    CHANNEL_HUB: channelHub,
     CORS_ORIGIN: corsOrigin,
     DB: db,
     GOOGLE_GENERATIVE_AI_API_KEY: required(
@@ -62,6 +73,7 @@ export const server = await Worker("server", {
       "GOOGLE_GENERATIVE_AI_API_KEY"
     ),
     THREAD_AGENT: threadAgent,
+    WORKSPACE_HUB: workspaceHub,
   },
   compatibility: "node",
   cwd: "../../apps/server",
