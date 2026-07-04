@@ -220,6 +220,7 @@ export {
   commentAuthorSchema,
   commentParentSchema,
   commentSchema,
+  deriveThreadName,
   subAgentFacetSchema,
   threadLifecycleSchema,
   threadSchema,

@@ -13,6 +13,7 @@ import {
   facetNameSchema,
   threadNameSchema,
 } from "./primitives";
+import type { CommentBody, ThreadName } from "./primitives";
 
 export const threadLifecycleSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("active") }),
@@ -32,6 +33,21 @@ export const threadSchema = z.object({
   workspaceId: workspaceIdSchema,
 });
 export type Thread = z.infer<typeof threadSchema>;
+
+/**
+ * ADR 0034 §5's pinned derivation: first non-empty line, whitespace runs collapsed,
+ * hard-truncated to 80 characters; whitespace-only bodies fall back to "New thread".
+ */
+export const deriveThreadName = (openingBody: CommentBody): ThreadName => {
+  const firstLine = openingBody
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  const collapsed = (firstLine ?? "").replaceAll(/\s+/gu, " ").slice(0, 80);
+  return threadNameSchema.parse(
+    collapsed.length > 0 ? collapsed : "New thread"
+  );
+};
 
 export const commentParentSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("top_level") }),
