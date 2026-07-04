@@ -388,14 +388,38 @@ export const createProductionThreadAgentDirectory = (
 
     return {
       address,
-      appendComment: async (input) => (await stub()).appendComment(input),
-      getRun: async (input) => (await stub()).getRun(input),
-      initialize: async (input) => (await stub()).initialize(input),
-      listRuns: async () => (await stub()).listRuns(),
-      loadBranch: async (input) => (await stub()).loadBranch(input),
-      resnapshot: async (input) => (await stub()).resnapshot(input),
-      run: async (input) => (await stub()).run(input),
-      schedule: async (input) => (await stub()).scheduleRun(input),
+      appendComment: async (input) => {
+        const agent = await stub();
+        return agent.appendComment(input);
+      },
+      getRun: async (input) => {
+        const agent = await stub();
+        return agent.getRun(input);
+      },
+      initialize: async (input) => {
+        const agent = await stub();
+        return agent.initialize(input);
+      },
+      listRuns: async () => {
+        const agent = await stub();
+        return agent.listRuns();
+      },
+      loadBranch: async (input) => {
+        const agent = await stub();
+        return agent.loadBranch(input);
+      },
+      resnapshot: async (input) => {
+        const agent = await stub();
+        return agent.resnapshot(input);
+      },
+      run: async (input) => {
+        const agent = await stub();
+        return agent.run(input);
+      },
+      schedule: async (input) => {
+        const agent = await stub();
+        return agent.scheduleRun(input);
+      },
     };
   },
 });
