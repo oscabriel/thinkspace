@@ -20,8 +20,16 @@ export default defineConfig({
         compatibilityFlags: ["nodejs_compat"],
         d1Databases: ["DB"],
         durableObjects: {
+          CHANNEL_HUB: {
+            className: "ChannelHubDurableObject",
+            useSQLite: true,
+          },
           THREAD_AGENT: {
             className: "ThreadAgentDurableObject",
+            useSQLite: true,
+          },
+          WORKSPACE_HUB: {
+            className: "WorkspaceHubDurableObject",
             useSQLite: true,
           },
         },

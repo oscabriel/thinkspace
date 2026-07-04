@@ -3,11 +3,6 @@ import { err } from "../../result";
 import type { ArtifactStore } from "../../seams/artifact-store";
 import type { CuratorAgent } from "../../seams/curator-agent";
 import type { ModelRouter } from "../../seams/model-routing";
-import type {
-  ChannelHub,
-  ChannelHubAddress,
-  WorkspaceHub,
-} from "../../seams/realtime-hubs";
 import type { SkillStore } from "../../seams/skill-store";
 import type { TenantContext } from "../../seams/tenant-data-access";
 import type { ThreadAgent, ThreadAgentAddress } from "../../seams/thread-agent";
@@ -77,30 +72,6 @@ export const createWorkerMcpEgressPolicyPlaceholder = (
   context,
 });
 
-export const createDurableObjectWorkspaceHubPlaceholder = (
-  context: TenantContext
-): WorkspaceHub => ({
-  context,
-  getRoster: async () => notImplemented("DurableObjectWorkspaceHub.getRoster"),
-  listChannels: async (_input) =>
-    notImplemented("DurableObjectWorkspaceHub.listChannels"),
-  publishActivity: async (_event) =>
-    notImplemented("DurableObjectWorkspaceHub.publishActivity"),
-});
-
-export const createDurableObjectChannelHubPlaceholder = (input: {
-  readonly address: ChannelHubAddress;
-  readonly context: TenantContext;
-}): ChannelHub => ({
-  address: input.address,
-  context: input.context,
-  createThread: async (_request) =>
-    notImplemented("DurableObjectChannelHub.createThread"),
-  getPresence: async () =>
-    notImplemented("DurableObjectChannelHub.getPresence"),
-  publishEvent: async (_event) =>
-    notImplemented("DurableObjectChannelHub.publishEvent"),
-});
 
 export const createCuratorThinkAgentPlaceholder = (
   context: TenantContext

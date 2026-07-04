@@ -1,14 +1,26 @@
 export {
+  ChannelHubDurableObject,
+  createProductionChannelHub,
+  createProductionWorkspaceHub,
+  encodeChannelHubName,
+  encodeWorkspaceHubName,
+  type ProductionChannelHubConfig,
+  type ProductionWorkspaceHubConfig,
+  WorkspaceHubDurableObject,
+} from "./realtime-hubs";
+export {
   createD1TenantDataAccess,
   type D1TenantDataAccessConfig,
 } from "./tenant-data-access";
-export { ThreadAgentDurableObject } from "./thread-agent";
+export {
+  createProductionThreadAgentDirectory,
+  type ProductionThreadAgentDirectoryConfig,
+  ThreadAgentDurableObject,
+} from "./thread-agent";
 export {
   createAiGatewayByokModelRouterPlaceholder,
   createCatalogWorkspaceShapeToolResolverPlaceholder,
   createCuratorThinkAgentPlaceholder,
-  createDurableObjectChannelHubPlaceholder,
-  createDurableObjectWorkspaceHubPlaceholder,
   createR2MarkdownSkillStorePlaceholder,
   createR2VirtualFsArtifactStorePlaceholder,
   createThinkThreadAgentPlaceholder,
