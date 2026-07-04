@@ -141,6 +141,9 @@ const commandScopedValue = (
   command: TenantWriteCommand
 ): TenantScoped | null => {
   switch (command.kind) {
+    case "create_thread_index": {
+      return command.thread;
+    }
     case "put_channel": {
       return command.channel;
     }
@@ -168,6 +171,24 @@ const commandToStatement = (
   command: TenantWriteCommand
 ): D1PreparedStatement | null => {
   switch (command.kind) {
+    case "create_thread_index": {
+      return db
+        .prepare(
+          `INSERT INTO thread (id, channel_id, created_at, created_by_member_id, last_activity_at, lifecycle, name, workspace_id)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+           ON CONFLICT (id) DO NOTHING`
+        )
+        .bind(
+          command.thread.id,
+          command.thread.channelId,
+          command.thread.createdAt.getTime(),
+          command.thread.createdByMemberId,
+          command.thread.lastActivityAt.getTime(),
+          JSON.stringify(command.thread.lifecycle),
+          command.thread.name,
+          command.thread.workspaceId
+        );
+    }
     case "delete_unread": {
       return db
         .prepare(

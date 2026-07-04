@@ -250,6 +250,61 @@ export const defineTenantDataAccessContract = (input: {
     });
   });
 
+  describe("TenantDataAccess.batch — create_thread_index is insert-if-absent (ADR 0034)", () => {
+    test("creates the index row when no row exists for the thread id", async () => {
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testTenantContext,
+        workspace: testWorkspace,
+      });
+
+      const thread = makeThread({ channelId: "channel-1", id: "thread-new" });
+      const receipt = unwrapOk(
+        await data.batch({
+          commands: [{ kind: "create_thread_index", thread }],
+          workspaceId: testWorkspaceId,
+        })
+      );
+      expect(receipt.commandCount).toBe(1);
+
+      const index = unwrapOk(
+        await data.listChannelThreads({ channelId: channelId("channel-1") })
+      );
+      expect(index.threads).toEqual([thread]);
+    });
+
+    test("a replayed creation leaves the existing row untouched — lastActivityAt cannot regress", async () => {
+      const original = makeThread({
+        channelId: "channel-1",
+        id: "thread-1",
+        lastActivityAt: new Date("2026-06-30T12:00:00Z"),
+      });
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testTenantContext,
+        threads: [original],
+        workspace: testWorkspace,
+      });
+
+      const replay = makeThread({
+        channelId: "channel-1",
+        id: "thread-1",
+        lastActivityAt: new Date("2026-06-30T09:00:00Z"),
+      });
+      unwrapOk(
+        await data.batch({
+          commands: [{ kind: "create_thread_index", thread: replay }],
+          workspaceId: testWorkspaceId,
+        })
+      );
+
+      const index = unwrapOk(
+        await data.listChannelThreads({ channelId: channelId("channel-1") })
+      );
+      expect(index.threads).toEqual([original]);
+    });
+  });
+
   describe("TenantDataAccess.batch — tenant guard and atomicity (ADR 0009)", () => {
     test("rejects a batch addressed to a foreign workspace", async () => {
       const data = await makeTenantDataAccess({

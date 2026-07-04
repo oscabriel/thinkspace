@@ -129,6 +129,7 @@ const scopedValueByKind: {
     state: MemoryTenantDataAccessState
   ) => TenantScoped | null;
 } = {
+  create_thread_index: (command) => command.thread,
   delete_channel_favorite: (command, state) =>
     state.channelFavorites.get(channelFavoriteKey(command)) ?? null,
   delete_mcp_host_approval: (command, state) =>
@@ -226,6 +227,12 @@ const applyCommandByKind: {
     state: MemoryTenantDataAccessState
   ) => void;
 } = {
+  create_thread_index: (command, state) => {
+    const key = idKey(command.thread.id);
+    if (!state.threads.has(key)) {
+      state.threads.set(key, command.thread);
+    }
+  },
   delete_channel_favorite: (command, state) => {
     state.channelFavorites.delete(channelFavoriteKey(command));
   },

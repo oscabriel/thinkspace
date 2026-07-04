@@ -76,6 +76,11 @@ export interface HomeFeed {
 
 export type TenantWriteCommand =
   | {
+      /** Insert-if-absent (ADR 0034): a replayed creation never touches an existing row. */
+      readonly kind: "create_thread_index";
+      readonly thread: Thread;
+    }
+  | {
       readonly channelId: ChannelId;
       readonly kind: "delete_channel_favorite";
       readonly memberId: MemberId;
