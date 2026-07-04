@@ -1,12 +1,25 @@
-import { Agent, getAgentByName } from "agents";
+import { Think } from "@cloudflare/think";
+import type { ThinkSubmissionInspection } from "@cloudflare/think";
+import { getAgentByName } from "agents";
 import type { AgentContext } from "agents";
+import type { LanguageModel, ToolSet, UIMessage } from "ai";
 
-import { runIdSchema } from "../../ids";
+import { collectThreadParticipants } from "../../flows/run-completion";
+import type {
+  RunCompletionFlow,
+  RunSettlement,
+} from "../../flows/run-completion";
+import { commentIdSchema, runIdSchema } from "../../ids";
+import { commentBodySchema, failureReasonSchema } from "../../primitives";
 import { err, ok } from "../../result";
 import type { AsyncResult } from "../../result";
 import type {
+  CompleteRun,
+  FailedRun,
   QueuedRun,
   Run,
+  RunFailure,
+  RunningRun,
   RunTrigger,
   Schedule,
   SubAgentActivity,
@@ -38,6 +51,34 @@ const defaultClock = (): Date => new Date();
 const defaultRunId = (): QueuedRun["id"] =>
   runIdSchema.parse(`run-${crypto.randomUUID()}`);
 
+const defaultCommentId = (): Comment["id"] =>
+  commentIdSchema.parse(`comment-${crypto.randomUUID()}`);
+
+const TERMINAL_SUBMISSION_STATUSES = new Set([
+  "aborted",
+  "completed",
+  "error",
+  "skipped",
+]);
+
+/** ADR 0025 context window rendered as the turn input: ancestors then subtree, in tree order. */
+const commentToUiMessage = (comment: Comment): UIMessage => ({
+  id: idKey(comment.id),
+  parts: [{ text: comment.body, type: "text" }],
+  role: comment.author.kind === "member" ? "user" : "assistant",
+});
+
+const runBase = (
+  run: QueuedRun | RunningRun
+): Omit<QueuedRun, "lifecycle"> => ({
+  channelId: run.channelId,
+  id: run.id,
+  queuedAt: run.queuedAt,
+  threadId: run.threadId,
+  trigger: run.trigger,
+  workspaceId: run.workspaceId,
+});
+
 const isCommentInAddress = (
   address: ThreadAgentAddress,
   comment: Comment
@@ -63,14 +104,25 @@ const tenantOrThreadViolation = (
 });
 
 /**
- * The production ThreadAgent: an agents-SDK Durable Object (ADR 0015 pin set) whose seam
- * state lives in adapter-owned DO-SQLite tables. The domain rows are the source of truth;
- * the SDK supplies the substrate (SQLite, hibernation, alarms) — the model-turn execution
- * layer (Think submissions) composes on top in the dispatch→completion round-trip slice.
+ * The production ThreadAgent: a Think Durable Object (ADR 0015 pin set) whose seam state
+ * lives in adapter-owned DO-SQLite tables. The domain rows are the source of truth; the
+ * SDK supplies the substrate (SQLite, hibernation, alarms) and the durable turn queue —
+ * a domain Run is executed as a Think submission with `submissionId = RunId` (ADR 0033),
+ * and `onSubmissionStatus` maps terminal submissions back onto the run lifecycle.
  */
-export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
+export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
+  /**
+   * Run-settlement fan-out (ADR 0017). Injected by the worker host (production) or the
+   * test binder; a terminal run still transitions its ts_run row without it — settlement
+   * is the only thing lost, and the wake-path reconciliation sweep can replay it.
+   */
+  completionFlow: RunCompletionFlow | null = null;
+  /** Stands in for shape-driven model routing until the ModelRouter adapter lands. */
+  modelOverride: LanguageModel | null = null;
+
   private address: ThreadAgentAddress | null = null;
   private clock: () => Date = defaultClock;
+  private mintCommentId: () => Comment["id"] = defaultCommentId;
   private mintRunId: () => QueuedRun["id"] = defaultRunId;
   private subAgentActivityByRunId: Readonly<
     Record<string, readonly SubAgentActivity[]>
@@ -79,6 +131,25 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
   constructor(ctx: AgentContext, env: Cloudflare.Env) {
     super(ctx, env);
     this.ensureSeamTables();
+  }
+
+  override getModel(): LanguageModel {
+    if (this.modelOverride !== null) {
+      return this.modelOverride;
+    }
+    throw new Error(
+      "ThreadAgentDurableObject.getModel: model routing not wired (ModelRouter adapter pending)"
+    );
+  }
+
+  /** Config-as-data (ADR 0007): behavior reads the resident shape snapshot every turn. */
+  override getSystemPrompt(): string {
+    return this.readSnapshot()?.structure.systemPrompt ?? "";
+  }
+
+  // eslint-disable-next-line class-methods-use-this -- tool resolution (ADR 0004) will read shape config here
+  override getTools(): ToolSet {
+    return {};
   }
 
   /**
@@ -166,16 +237,13 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
       return err(this.unaddressable());
     }
 
-    const rows = this.sql<{ data: string }>`
-      SELECT data FROM ts_run WHERE id = ${idKey(input.runId)}
-    `;
-    const [row] = rows;
-    if (row === undefined) {
+    const run = this.readRun(input.runId);
+    if (run === null) {
       return ok(null);
     }
 
     return ok({
-      run: parseJsonColumn<Run>(row.data),
+      run,
       subAgentActivity: this.subAgentActivityByRunId[idKey(input.runId)] ?? [],
     });
   }
@@ -208,10 +276,7 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
       return err(this.unaddressable());
     }
 
-    const rows = this.sql<{ data: string }>`
-      SELECT data FROM ts_run ORDER BY seq ASC
-    `;
-    return ok(rows.map((row) => parseJsonColumn<Run>(row.data)));
+    return ok(this.readRuns());
   }
 
   async loadBranch(input: {
@@ -277,7 +342,246 @@ export class ThreadAgentDurableObject extends Agent<Cloudflare.Env> {
     };
     this.putRun(queuedRun);
 
+    // Until the ModelRouter adapter lands, a DO with no model wired queues without
+    // submitting — the memory adapter's exact semantics (execution is driven explicitly,
+    // not implied by run()). The contract suites pin the queued read on this path.
+    if (this.modelOverride !== null) {
+      const submitted = await this.submitRunTurn(queuedRun);
+      if (!submitted.ok) {
+        return submitted;
+      }
+    }
+
     return ok({ queuedRun, runId, threadId: address.threadId });
+  }
+
+  /**
+   * ADR 0033 §3: the domain run row is the source of truth; the Think submission is the
+   * mechanism, referenced by the shared id. `idempotencyKey = runId` covers internal
+   * retries only — duplicate-dispatch suppression is the HTTP edge's concern.
+   */
+  private async submitRunTurn(
+    run: QueuedRun
+  ): AsyncResult<undefined, ThreadAgentError> {
+    try {
+      await this.submitMessages(this.turnMessagesFor(run), {
+        idempotencyKey: idKey(run.id),
+        submissionId: idKey(run.id),
+      });
+      return ok();
+    } catch (error) {
+      const failureReason = failureReasonSchema.parse(
+        error instanceof Error && error.message.length > 0
+          ? error.message
+          : "submission was rejected"
+      );
+      this.putRun({
+        ...run,
+        failure: { failedAt: this.clock(), failureReason, from: "queued" },
+        lifecycle: "failed",
+      });
+      return err({ failureReason, kind: "run_failure", runId: run.id });
+    }
+  }
+
+  /** Dispatch turns get the ADR 0025 context window; scheduled turns get the schedule's prompt. */
+  private turnMessagesFor(run: QueuedRun): UIMessage[] {
+    if (run.trigger.kind === "dispatch") {
+      const comments = this.loadComments();
+      const target = run.trigger.dispatch.targetCommentId;
+      return [
+        ...ancestorComments(comments, target),
+        ...branchComments(comments, target),
+      ].map(commentToUiMessage);
+    }
+
+    const rows = this.sql<{ data: string }>`
+      SELECT data FROM ts_schedule WHERE id = ${idKey(run.trigger.scheduleId)}
+    `;
+    const [row] = rows;
+    const prompt =
+      row === undefined
+        ? "Execute the scheduled run."
+        : parseJsonColumn<Schedule>(row.data).prompt;
+    return [
+      {
+        id: idKey(run.id),
+        parts: [{ text: prompt, type: "text" }],
+        role: "user",
+      },
+    ];
+  }
+
+  /**
+   * ADR 0033 §3: terminal submission status maps onto the run lifecycle. Idempotent by
+   * construction — an emit for an already-terminal run is a no-op, so Think's wake-path
+   * recovery re-emits (stranded `running` submissions swept to error/pending on start)
+   * cannot double-settle.
+   */
+  protected override async onSubmissionStatus(
+    inspection: ThinkSubmissionInspection
+  ): Promise<void> {
+    const parsed = runIdSchema.safeParse(inspection.submissionId);
+    if (!parsed.success) {
+      return;
+    }
+    const run = this.readRun(parsed.data);
+    if (
+      run === null ||
+      run.lifecycle === "complete" ||
+      run.lifecycle === "failed"
+    ) {
+      return;
+    }
+
+    if (inspection.status === "running") {
+      if (run.lifecycle === "queued") {
+        const runningRun: RunningRun = {
+          ...runBase(run),
+          lifecycle: "running",
+          startedAt: this.at(inspection.startedAt),
+        };
+        this.putRun(runningRun);
+      }
+      return;
+    }
+
+    if (!TERMINAL_SUBMISSION_STATUSES.has(inspection.status)) {
+      return;
+    }
+
+    const startedAt =
+      run.lifecycle === "running"
+        ? run.startedAt
+        : this.at(inspection.startedAt);
+
+    if (inspection.status !== "completed") {
+      await this.settleFailed(run, {
+        failedAt: this.at(inspection.completedAt),
+        failureReason: failureReasonSchema.parse(
+          inspection.error ?? `submission ${inspection.status}`
+        ),
+        from: "running",
+        startedAt,
+      });
+      return;
+    }
+
+    const text = this.lastAssistantText();
+    if (text === null) {
+      await this.settleFailed(run, {
+        failedAt: this.at(inspection.completedAt),
+        failureReason: failureReasonSchema.parse(
+          "model turn produced no output text"
+        ),
+        from: "running",
+        startedAt,
+      });
+      return;
+    }
+
+    /** A scheduled fire appends a new top-level comment; a dispatch replies at its target (ADR 0017). */
+    const outputComment: Comment = {
+      author: {
+        channelId: run.channelId,
+        facet: { kind: "channel_agent" },
+        kind: "agent",
+      },
+      body: commentBodySchema.parse(text),
+      createdAt: this.at(inspection.completedAt),
+      id: this.mintCommentId(),
+      parent:
+        run.trigger.kind === "dispatch"
+          ? {
+              kind: "nested",
+              parentCommentId: run.trigger.dispatch.targetCommentId,
+            }
+          : { kind: "top_level" },
+      threadId: run.threadId,
+      workspaceId: run.workspaceId,
+    };
+    this.putComment(outputComment);
+
+    const completeRun: CompleteRun = {
+      ...runBase(run),
+      completedAt: this.at(inspection.completedAt),
+      lifecycle: "complete",
+      outputCommentId: outputComment.id,
+      startedAt,
+    };
+    this.putRun(completeRun);
+
+    await this.settle({
+      kind: "complete",
+      outputComment,
+      participants: collectThreadParticipants({
+        comments: [...this.loadComments().values()],
+        runs: this.readRuns(),
+      }),
+      run: completeRun,
+    });
+  }
+
+  private async settleFailed(
+    run: QueuedRun | RunningRun,
+    failure: RunFailure
+  ): Promise<void> {
+    const failedRun: FailedRun = {
+      ...runBase(run),
+      failure,
+      lifecycle: "failed",
+    };
+    this.putRun(failedRun);
+    await this.settle({ kind: "failed", run: failedRun });
+  }
+
+  /** Settlement fan-out is best-effort from inside the hook; the ts_run row already turned. */
+  private async settle(settlement: RunSettlement): Promise<void> {
+    if (this.completionFlow === null) {
+      console.error(
+        "[ThreadAgent] run settled without a completion flow injected",
+        { runId: idKey(settlement.run.id) }
+      );
+      return;
+    }
+    const settled = await this.completionFlow.settle(settlement);
+    if (!settled.ok) {
+      console.error("[ThreadAgent] run completion flow failed", settled.error);
+    }
+  }
+
+  private at(epochMs: number | undefined): Date {
+    return epochMs === undefined ? this.clock() : new Date(epochMs);
+  }
+
+  private lastAssistantText(): string | null {
+    for (const message of this.messages.toReversed()) {
+      if (message.role !== "assistant") {
+        continue;
+      }
+      const text = message.parts
+        .map((part) => (part.type === "text" ? part.text : ""))
+        .join("");
+      if (text.length > 0) {
+        return text;
+      }
+    }
+    return null;
+  }
+
+  private readRun(id: Run["id"]): Run | null {
+    const rows = this.sql<{ data: string }>`
+      SELECT data FROM ts_run WHERE id = ${idKey(id)}
+    `;
+    const [row] = rows;
+    return row === undefined ? null : parseJsonColumn<Run>(row.data);
+  }
+
+  private readRuns(): readonly Run[] {
+    const rows = this.sql<{ data: string }>`
+      SELECT data FROM ts_run ORDER BY seq ASC
+    `;
+    return rows.map((row) => parseJsonColumn<Run>(row.data));
   }
 
   /** Seam ThreadAgent.schedule — renamed: the agents SDK reserves `schedule` for its alarm API. */

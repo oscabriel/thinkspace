@@ -1,0 +1,251 @@
+import { MockLanguageModelV3, simulateReadableStream } from "ai/test";
+import { env, runInDurableObject } from "cloudflare:test";
+import { describe, expect, test, vi } from "vitest";
+
+import type { ThreadAgentDurableObject } from "../src/adapters/production/thread-agent";
+import { encodeThreadAgentAddress } from "../src/adapters/thread-agent-address";
+import type { RunSettlement } from "../src/flows/run-completion";
+import { ok } from "../src/result";
+import type { ThreadAgentAddress } from "../src/seams/thread-agent";
+import {
+  channelId,
+  makeComment,
+  makeDispatchTrigger,
+  makeShapeSnapshot,
+  runId,
+  testMemberId,
+  threadId,
+  unwrapOk,
+  workspaceId,
+} from "../src/testing";
+
+/** A model whose one turn streams the given text and stops. */
+const modelReplying = (text: string) =>
+  new MockLanguageModelV3({
+    doStream: async () => ({
+      stream: simulateReadableStream({
+        chunks: [
+          { type: "stream-start", warnings: [] },
+          { id: "text-1", type: "text-start" },
+          { delta: text, id: "text-1", type: "text-delta" },
+          { id: "text-1", type: "text-end" },
+          {
+            finishReason: "stop",
+            type: "finish",
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          },
+        ],
+      }),
+    }),
+  });
+
+const address = (suffix: string): ThreadAgentAddress => ({
+  channelId: channelId(`turn-ch-${suffix}`),
+  threadId: threadId(`turn-th-${suffix}`),
+  workspaceId: workspaceId(`turn-ws-${suffix}`),
+});
+
+const agentAt = (addr: ThreadAgentAddress) =>
+  env.THREAD_AGENT.get(
+    env.THREAD_AGENT.idFromName(encodeThreadAgentAddress(addr))
+  );
+
+/**
+ * Direct runInDurableObject calls bypass partyserver's start gating (production traffic
+ * arrives via getAgentByName → setName → onStart, which builds Think's Session). Trigger
+ * it the same way the paved path does.
+ */
+const startAgent = (
+  stub: ReturnType<typeof agentAt>,
+  addr: ThreadAgentAddress
+) =>
+  runInDurableObject(stub, (instance: Instance) =>
+    instance.setName(encodeThreadAgentAddress(addr))
+  );
+
+type Instance = ThreadAgentDurableObject;
+
+const waitForTerminalRun = (
+  stub: ReturnType<typeof agentAt>,
+  id: ReturnType<typeof runId>
+) =>
+  vi.waitFor(
+    async () => {
+      const detail = unwrapOk(
+        await runInDurableObject(stub, (instance: Instance) =>
+          instance.getRun({ runId: id })
+        )
+      );
+      if (
+        detail === null ||
+        (detail.run.lifecycle !== "complete" &&
+          detail.run.lifecycle !== "failed")
+      ) {
+        throw new Error("run has not reached a terminal lifecycle yet");
+      }
+      return detail.run;
+    },
+    { interval: 50, timeout: 5000 }
+  );
+
+describe("ThreadAgent turn layer — RunId is the submissionId (ADR 0033)", () => {
+  test("a dispatched run executes a model turn to completion: reply appended, run complete, settle invoked", async () => {
+    const addr = address("complete");
+    const stub = agentAt(addr);
+    const target = makeComment({
+      id: "turn-comment-top",
+      threadId: addr.threadId,
+      workspaceId: addr.workspaceId,
+    });
+    const settlements: RunSettlement[] = [];
+
+    await runInDurableObject(stub, (instance: Instance) => {
+      instance.applyTestSeed({
+        address: addr,
+        comments: [target],
+        nextRunId: () => runId("turn-run-1"),
+        shapeSnapshot: makeShapeSnapshot(),
+      });
+      instance.modelOverride = modelReplying("Hello from the agent.");
+      instance.completionFlow = {
+        settle: async (settlement) => {
+          settlements.push(settlement);
+          return ok();
+        },
+      };
+    });
+    await startAgent(stub, addr);
+
+    const receipt = unwrapOk(
+      await runInDurableObject(stub, (instance: Instance) =>
+        instance.run(makeDispatchTrigger({ targetCommentId: target.id }))
+      )
+    );
+    expect(receipt.runId).toBe(runId("turn-run-1"));
+
+    const settled = await waitForTerminalRun(stub, receipt.runId);
+    expect(settled.lifecycle).toBe("complete");
+    if (settled.lifecycle !== "complete") {
+      throw new Error("unreachable");
+    }
+
+    const branch = unwrapOk(
+      await runInDurableObject(stub, (instance: Instance) =>
+        instance.loadBranch({ rootCommentId: target.id })
+      )
+    );
+    const reply = branch.subtree.find(
+      (comment) => comment.id === settled.outputCommentId
+    );
+    expect(reply).toBeDefined();
+    expect(reply?.body).toBe("Hello from the agent.");
+    expect(reply?.author).toEqual({
+      channelId: addr.channelId,
+      facet: { kind: "channel_agent" },
+      kind: "agent",
+    });
+    expect(reply?.parent).toEqual({
+      kind: "nested",
+      parentCommentId: target.id,
+    });
+
+    expect(settlements).toHaveLength(1);
+    const [settlement] = settlements;
+    expect(settlement?.kind).toBe("complete");
+    if (settlement?.kind !== "complete") {
+      throw new Error("unreachable");
+    }
+    expect(settlement.run.id).toBe(receipt.runId);
+    expect(settlement.outputComment.id).toBe(settled.outputCommentId);
+    expect(settlement.participants).toContain(testMemberId);
+  });
+
+  test("the run row and the Think submission share one id", async () => {
+    const addr = address("identity");
+    const stub = agentAt(addr);
+    const target = makeComment({
+      id: "turn-comment-identity",
+      threadId: addr.threadId,
+      workspaceId: addr.workspaceId,
+    });
+
+    await runInDurableObject(stub, (instance: Instance) => {
+      instance.applyTestSeed({
+        address: addr,
+        comments: [target],
+        nextRunId: () => runId("turn-run-identity"),
+        shapeSnapshot: makeShapeSnapshot(),
+      });
+      instance.modelOverride = modelReplying("Reply.");
+      instance.completionFlow = { settle: async () => ok() };
+    });
+    await startAgent(stub, addr);
+
+    const receipt = unwrapOk(
+      await runInDurableObject(stub, (instance: Instance) =>
+        instance.run(makeDispatchTrigger({ targetCommentId: target.id }))
+      )
+    );
+    await waitForTerminalRun(stub, receipt.runId);
+
+    const inspection = await runInDurableObject(stub, (instance: Instance) =>
+      instance.inspectSubmission(receipt.runId)
+    );
+    expect(inspection?.submissionId).toBe(receipt.runId);
+    expect(inspection?.status).toBe("completed");
+  });
+
+  test("a failing model turn settles the run as failed (no output comment, failure announced)", async () => {
+    const addr = address("failure");
+    const stub = agentAt(addr);
+    const target = makeComment({
+      id: "turn-comment-failure",
+      threadId: addr.threadId,
+      workspaceId: addr.workspaceId,
+    });
+    const settlements: RunSettlement[] = [];
+
+    await runInDurableObject(stub, (instance: Instance) => {
+      instance.applyTestSeed({
+        address: addr,
+        comments: [target],
+        nextRunId: () => runId("turn-run-failure"),
+        shapeSnapshot: makeShapeSnapshot(),
+      });
+      instance.modelOverride = new MockLanguageModelV3({
+        doStream: async () => {
+          throw new Error("model exploded");
+        },
+      });
+      instance.completionFlow = {
+        settle: async (settlement) => {
+          settlements.push(settlement);
+          return ok();
+        },
+      };
+    });
+    await startAgent(stub, addr);
+
+    const receipt = unwrapOk(
+      await runInDurableObject(stub, (instance: Instance) =>
+        instance.run(makeDispatchTrigger({ targetCommentId: target.id }))
+      )
+    );
+
+    const settled = await waitForTerminalRun(stub, receipt.runId);
+    expect(settled.lifecycle).toBe("failed");
+    if (settled.lifecycle !== "failed") {
+      throw new Error("unreachable");
+    }
+    expect(settled.failure.failureReason).toContain("model exploded");
+
+    const branch = unwrapOk(
+      await runInDurableObject(stub, (instance: Instance) =>
+        instance.loadBranch({ rootCommentId: target.id })
+      )
+    );
+    expect(branch.subtree.map((comment) => comment.id)).toEqual([target.id]);
+
+    expect(settlements).toEqual([{ kind: "failed", run: settled }]);
+  });
+});
