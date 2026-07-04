@@ -262,6 +262,15 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       );
     }
 
+    // First-write-wins (ADR 0034): the DO is the authority on its own initialization.
+    const resident = this.readSnapshot();
+    if (resident !== null) {
+      return ok({
+        shapeSnapshot: resident,
+        threadId: address.threadId,
+      });
+    }
+
     this.putSnapshot(input.shapeSnapshot);
     this.putComment(input.openingComment);
 

@@ -215,6 +215,34 @@ export const defineThreadAgentContract = (input: {
       ]);
     });
 
+    test("initialize is first-write-wins: a replay leaves the resident snapshot and comment tree untouched (ADR 0034)", async () => {
+      const original = makeShapeSnapshot({ shapeId: "shape-1" });
+      const openingComment = makeComment({ id: "comment-opening" });
+      const agent = await makeThreadAgent({ address: threadAgentAddress });
+      unwrapOk(
+        await agent.initialize({ openingComment, shapeSnapshot: original })
+      );
+
+      const replayed = unwrapOk(
+        await agent.initialize({
+          openingComment: makeComment({ id: "comment-replayed" }),
+          shapeSnapshot: makeShapeSnapshot({
+            shapeId: "shape-1",
+            structure: makeShapeStructure({
+              systemPrompt: "Edited since creation.",
+            }),
+          }),
+        })
+      );
+
+      expect(replayed.shapeSnapshot).toEqual(original);
+
+      const branch = unwrapOk(
+        await agent.loadBranch({ rootCommentId: openingComment.id })
+      );
+      expect(branch.subtree).toEqual([openingComment]);
+    });
+
     test("resnapshot swaps the resident snapshot on explicit shape update", async () => {
       const initial = makeShapeSnapshot({ shapeId: "shape-1" });
       const updated = makeShapeSnapshot({

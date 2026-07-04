@@ -250,6 +250,14 @@ export const createMemoryThreadAgent = (
         );
       }
 
+      // First-write-wins (ADR 0034): the DO is the authority on its own initialization.
+      if (state.shapeSnapshot !== null) {
+        return ok({
+          shapeSnapshot: state.shapeSnapshot,
+          threadId: config.address.threadId,
+        });
+      }
+
       state.shapeSnapshot = input.shapeSnapshot;
       state.comments.set(idKey(input.openingComment.id), input.openingComment);
 
