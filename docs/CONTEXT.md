@@ -201,6 +201,7 @@ _(ADRs land in `docs/adr/`; this table is the running index.)_
 | 0032 | Artifact versioning = immutable versions behind a stable identity; provenance per version; search sees head only; no mutate, no delete in v1 (refines 0014, 0018, 0024)                                                                                 | proposed             |
 | 0033 | ThreadAgent addressing = DO name is the injectively-encoded address triple (shared codec, no mapping table); address derived lazily from `this.name`, fail-closed `thread_agent_unaddressable`; RunId = submissionId, domain run row source of truth (refines 0009, 0015, 0017, 0028) | accepted             |
 | 0034 | Thread creation = idempotent flow keyed by edge-minted ids (ThreadId + opening CommentId); insert-if-absent D1 index row first, first-write-wins initialize second, workspace bump last (the only announce); `thread_agent_uninitialized` = the designed retryable half-crash state; `ChannelHub.createThread` superseded (refines 0007, 0009, 0016, 0017, 0020, 0030, 0033)  | accepted             |
+| 0035 | HTTP edge: path-scoped workspace identity → `resolveTenantContext` in apps/server (401/404/500 vocabulary); SystemContext union at the TenantDataAccess boundary only, member-visibility reads fail closed; DO lazily self-constructs its completion flow (`??=`, hibernation-proof); PUT-create + POST-dispatch gestures, `gestureId` contract-now/enforce-later; JWT/JWKS + invitations deferred (refines 0001, 0008, 0009, 0017, 0033, 0034) | accepted             |
 
 ## Persistence tiers (locked)
 
@@ -268,9 +269,17 @@ production ThreadAgentDirectory, and the hub DOs' publish→recent-log path. The
 dispatch→completion **round-trip acceptance test** runs the whole spine on real adapters
 under miniflare (`test-workers/round-trip.acceptance.test.ts`), with the thread created
 by ThreadCreationFlow; `test-workers/thread-creation.flow.test.ts` pins ADR 0034's
-half-crash heal on the production binders. Remaining ADR 0015 §4 SDK gotchas (MCP
-persist/restore across hibernation, additive beforeTurn on the real SDK) still need
-pinning as those adapters land.
+half-crash heal on the production binders. ADR 0035 pins (2026-07-05): SystemContext
+passes the tenant guard and member-visibility reads fail closed (both binders); the DO
+self-constructs its completion flow when none is injected
+(`test-workers/completion-self-construct.test.ts`). The HTTP edge has its own workers
+suite in `apps/server/test-workers/` (real D1 + better-auth sign-up/org-create):
+`resolveTenantContext`'s full error vocabulary, the PUT creation gesture (200 + receipt,
+replay convergence, 401/404/400), and the dispatch route's wire contract — dispatch runs
+to the placeholder ToolResolver seam and that stop is pinned so the ModelRouter slice
+must renegotiate. Remaining ADR 0015 §4 SDK gotchas (MCP persist/restore across
+hibernation, additive beforeTurn on the real SDK) still need pinning as those adapters
+land.
 
 **SDK-signature verification COMPLETE (2026-07-01)** — `docs/sdk-signature-verification.md`
 verifies the matched set (`agents@0.17.1`, `@cloudflare/think@0.11.1`,
@@ -284,13 +293,17 @@ source of truth over the SDK alarm row, skills/artifacts = adapter-owned D1 inde
 read-only R2 primitives. The doc ends with the 7 contract tests to pin once production
 adapters exist.
 
-**Next phase:** the HTTP edge + auth (better-auth; D1 auth tables committed) —
-request→TenantContext, creation/dispatch gestures with client-minted ids (the
-ADR 0033/0034 idempotence boundary), plus the production wiring of the DO's completion
-flow (the "system context" decision — grill first) and model routing (ModelRouter
-adapter). ThreadCreationFlow is DONE (ADR 0034 accepted + implemented 2026-07-04).
-Remaining memory-only seams: CuratorAgent, ToolResolver/McpEgressPolicy, ArtifactStore
-(ADR 0032 reshape pending), SkillStore, ModelRouter.
+**Next phase:** ModelRouter (ADR 0011 — deletes the DO's `modelOverride` + no-model
+gate, renegotiates the workers contract binder and the two pinned placeholder-seam
+edge tests), then the wake-path reconciliation sweep. The HTTP edge + auth slice is
+DONE (ADR 0035 accepted + implemented 2026-07-05): better-auth organization plugin +
+org/member/invitation tables, `resolveTenantContext` + middleware in apps/server,
+PUT-create / POST-dispatch gestures over real HTTP, SystemContext union, DO completion
+flow self-construction. Recorded debt from 0035: dispatch-dedupe enforcement,
+invitations (needs an email sender), JWT/JWKS for hub WebSocket authz,
+`getWorkspaceGraph`. Remaining memory-only seams: CuratorAgent,
+ToolResolver/McpEgressPolicy, ArtifactStore (ADR 0032 reshape pending), SkillStore,
+ModelRouter.
 
 ## Deferred / v2 / to-verify (explicit v1 boundary)
 
