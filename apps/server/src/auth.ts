@@ -3,6 +3,7 @@ import * as schema from "@thinkspace/db/schema/auth";
 import { env } from "@thinkspace/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { organization } from "better-auth/plugins";
 
 export const createAuth = () => {
   const db = createDb();
@@ -30,6 +31,8 @@ export const createAuth = () => {
     emailAndPassword: {
       enabled: true,
     },
+    /** ADR 0035 §6: defaults only — creator = owner, no teams, no dynamic roles; invitations deferred (no email sender). */
+    plugins: [organization()],
     secret: env.BETTER_AUTH_SECRET,
     // uncomment cookieCache setting when ready to deploy to Cloudflare using *.workers.dev domains
     // session: {
