@@ -8,6 +8,7 @@ import { err, ok } from "../../result";
 import type { Schedule } from "../../run";
 import type {
   ChannelListingRequest,
+  DataAccessContext,
   TenantContext,
   TenantDataAccess,
   TenantDataAccessError,
@@ -20,14 +21,22 @@ import type { Thread } from "../../thread";
 import type { WorkspaceToolDisable } from "../../tool";
 import type { Unread } from "../../unread";
 import type { Member, Workspace } from "../../workspace";
-import { hasSameId, idKey, isInTenant, tenantGuardViolation } from "./helpers";
+import {
+  hasSameId,
+  idKey,
+  isInTenant,
+  requireMemberContext,
+  tenantGuardViolation,
+} from "./helpers";
 import type { TenantScoped } from "./helpers";
 
-export interface MemoryTenantDataAccessConfig {
+export interface MemoryTenantDataAccessConfig<
+  Context extends DataAccessContext = TenantContext,
+> {
   readonly artifacts?: readonly Artifact[];
   readonly channelFavorites?: readonly ChannelFavorite[];
   readonly channels?: readonly Channel[];
-  readonly context: TenantContext;
+  readonly context: Context;
   readonly mcpHostApprovals?: readonly McpHostApproval[];
   readonly mcpServers?: readonly McpServer[];
   readonly members?: readonly Member[];
@@ -111,7 +120,7 @@ const toDirectoryEntry = (channel: Channel): ChannelDirectoryEntry => ({
 });
 
 const validateScopedValue = (
-  context: TenantContext,
+  context: DataAccessContext,
   value: TenantScoped
 ): TenantDataAccessError | null =>
   isInTenant(context, value)
@@ -168,7 +177,7 @@ const commandScopedValue = (
 
 /** ADR 0030: a Shape row is only ever written alongside / on behalf of its one channel. */
 const validateShapeOwnership = (
-  context: TenantContext,
+  context: DataAccessContext,
   commands: readonly TenantWriteCommand[],
   state: MemoryTenantDataAccessState
 ): ShapeOwnershipViolationError | null => {
@@ -308,7 +317,7 @@ const applyCommand = (
 };
 
 const getTenantScoped = async <Value extends TenantScoped>(
-  context: TenantContext,
+  context: DataAccessContext,
   value: Value | undefined
 ) => {
   if (value === undefined) {
@@ -319,9 +328,11 @@ const getTenantScoped = async <Value extends TenantScoped>(
   return violation === null ? ok(value) : err(violation);
 };
 
-export const createMemoryTenantDataAccess = (
-  config: MemoryTenantDataAccessConfig
-): TenantDataAccess => {
+export const createMemoryTenantDataAccess = <
+  Context extends DataAccessContext = TenantContext,
+>(
+  config: MemoryTenantDataAccessConfig<Context>
+): TenantDataAccess<Context> => {
   const state: MemoryTenantDataAccessState = {
     artifacts: mapById(config.artifacts ?? []),
     channelFavorites: new Map(
@@ -460,15 +471,21 @@ export const createMemoryTenantDataAccess = (
         ),
         workspaceId: config.context.workspaceId,
       }),
-    listChannels: async (input) =>
-      ok({
+    listChannels: async (input) => {
+      const member = requireMemberContext(config.context);
+      if (!member.ok) {
+        return member;
+      }
+
+      return ok({
         entries: [...state.channels.values()]
           .filter((channel) => isInTenant(config.context, channel))
-          .filter((channel) => isVisibleToMember(config.context, channel))
+          .filter((channel) => isVisibleToMember(member.value, channel))
           .filter((channel) => matchesListingRequest(input, channel))
           .map(toDirectoryEntry),
         workspaceId: config.context.workspaceId,
-      }),
+      });
+    },
     listMemberUnread: async (input) =>
       ok(
         [...state.unread.values()].filter(
@@ -478,11 +495,16 @@ export const createMemoryTenantDataAccess = (
         )
       ),
     listRecentThreads: async (input) => {
+      const member = requireMemberContext(config.context);
+      if (!member.ok) {
+        return member;
+      }
+
       const visibleChannelIds = new Set(
         [...state.channels.values()]
           .filter((channel) => isInTenant(config.context, channel))
           .filter((channel) => channel.lifecycle.state !== "deleted")
-          .filter((channel) => isVisibleToMember(config.context, channel))
+          .filter((channel) => isVisibleToMember(member.value, channel))
           .map((channel) => idKey(channel.id))
       );
 

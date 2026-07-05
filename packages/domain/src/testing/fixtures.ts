@@ -29,7 +29,7 @@ import {
 } from "../primitives";
 import type { Result } from "../result";
 import type { QueuedRun, RunTrigger, SubAgentActivity } from "../run";
-import type { TenantContext } from "../seams/tenant-data-access";
+import type { SystemContext, TenantContext } from "../seams/tenant-data-access";
 import type { ThreadAgentAddress } from "../seams/thread-agent";
 import type { Shape, ShapeSnapshot, ShapeStructure } from "../shape";
 import type { Skill } from "../skill";
@@ -53,6 +53,11 @@ export const threadAgentAddress: ThreadAgentAddress = {
 export const testTenantContext: TenantContext = {
   memberId: testMemberId,
   role: "member",
+  workspaceId: testWorkspaceId,
+};
+
+export const testSystemContext: SystemContext = {
+  kind: "system",
   workspaceId: testWorkspaceId,
 };
 

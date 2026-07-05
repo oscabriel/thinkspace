@@ -42,6 +42,18 @@ export interface TenantContext {
   readonly workspaceId: WorkspaceId;
 }
 
+/**
+ * ADR 0035 §1: the system-side caller — a workspace with no acting member (run settle,
+ * reconciliation). Only the data-access adapters learn the distinction (by the kind tag);
+ * every other seam keeps the flat member shape.
+ */
+export interface SystemContext {
+  readonly kind: "system";
+  readonly workspaceId: WorkspaceId;
+}
+
+export type DataAccessContext = SystemContext | TenantContext;
+
 export interface WorkspaceGraph {
   readonly members: readonly Member[];
   readonly workspace: Workspace;
@@ -125,12 +137,19 @@ export interface TenantWriteReceipt {
   readonly workspaceId: WorkspaceId;
 }
 
-/** Tenant-guarded D1 seam over better-auth org membership plus workspace-partitioned tables. */
-export interface TenantDataAccess {
+/**
+ * Tenant-guarded D1 seam over better-auth org membership plus workspace-partitioned tables.
+ * Generic only so a system context can hold the seam (ADR 0035 §1); the default keeps the
+ * flat member shape everywhere else. Member-visibility reads (sidebar/directory listings,
+ * home feed) fail closed with an AuthzError under a system context.
+ */
+export interface TenantDataAccess<
+  Context extends DataAccessContext = TenantContext,
+> {
   readonly batch: (
     input: TenantWriteBatch
   ) => AsyncResult<TenantWriteReceipt, TenantDataAccessError>;
-  readonly context: TenantContext;
+  readonly context: Context;
   readonly getArtifact: (input: {
     readonly artifactId: ArtifactId;
   }) => AsyncResult<Artifact | null, TenantDataAccessError>;

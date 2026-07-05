@@ -10,6 +10,7 @@ import type { ChannelId, WorkspaceId } from "../../ids";
 import { err, ok } from "../../result";
 import type { Result } from "../../result";
 import type {
+  DataAccessContext,
   TenantContext,
   TenantDataAccess,
   TenantDataAccessError,
@@ -23,12 +24,15 @@ import {
   hasSameId,
   isInTenant,
   parseJsonColumn,
+  requireMemberContext,
   tenantGuardViolation,
 } from "../helpers";
 import type { TenantScoped } from "../helpers";
 
-export interface D1TenantDataAccessConfig {
-  readonly context: TenantContext;
+export interface D1TenantDataAccessConfig<
+  Context extends DataAccessContext = TenantContext,
+> {
+  readonly context: Context;
   readonly db: D1Database;
 }
 
@@ -167,7 +171,7 @@ const commandScopedValue = (
 
 const commandToStatement = (
   db: D1Database,
-  context: TenantContext,
+  context: DataAccessContext,
   command: TenantWriteCommand
 ): D1PreparedStatement | null => {
   switch (command.kind) {
@@ -304,7 +308,7 @@ const commandToStatement = (
  * Mirrors the memory adapter's replay over existing ownership plus in-batch claims.
  */
 const validateShapeOwnership = (
-  context: TenantContext,
+  context: DataAccessContext,
   commands: readonly TenantWriteCommand[],
   existingOwners: ReadonlyMap<string, ChannelId>
 ): ShapeOwnershipViolationError | null => {
@@ -354,7 +358,7 @@ const notImplemented = async (seam: string) =>
 
 /** Fail-closed read: a row visible by key but outside the tenant is a guard violation, not a miss. */
 const guardedRow = <Row extends { readonly workspace_id: string }, Value>(
-  context: TenantContext,
+  context: DataAccessContext,
   row: Row | null,
   revive: (row: Row) => Value
 ): Result<Value | null, TenantDataAccessError> => {
@@ -368,9 +372,11 @@ const guardedRow = <Row extends { readonly workspace_id: string }, Value>(
 };
 
 /** ADR 0009: single shared D1, every read/write tenant-guarded by the resident context. */
-export const createD1TenantDataAccess = (
-  config: D1TenantDataAccessConfig
-): TenantDataAccess => {
+export const createD1TenantDataAccess = <
+  Context extends DataAccessContext = TenantContext,
+>(
+  config: D1TenantDataAccessConfig<Context>
+): TenantDataAccess<Context> => {
   const { context, db } = config;
 
   const listTenantChannels = async (): Promise<readonly Channel[]> => {
@@ -473,8 +479,14 @@ export const createD1TenantDataAccess = (
         workspaceId: context.workspaceId,
       });
     },
-    listChannels: async (_input) =>
-      notImplemented("D1TenantDataAccess.listChannels"),
+    listChannels: async (_input) => {
+      const member = requireMemberContext(context);
+      if (!member.ok) {
+        return member;
+      }
+
+      return notImplemented("D1TenantDataAccess.listChannels");
+    },
     listMemberUnread: async (input) => {
       const rows = await db
         .prepare(
@@ -485,11 +497,16 @@ export const createD1TenantDataAccess = (
       return ok(rows.results.map(rowToUnread));
     },
     listRecentThreads: async (input) => {
+      const member = requireMemberContext(context);
+      if (!member.ok) {
+        return member;
+      }
+
       const tenantChannels = await listTenantChannels();
       const visibleChannelIds = new Set(
         tenantChannels
           .filter((channel) => channel.lifecycle.state !== "deleted")
-          .filter((channel) => isVisibleToMember(context, channel))
+          .filter((channel) => isVisibleToMember(member.value, channel))
           .map((channel) => channel.id as string)
       );
 

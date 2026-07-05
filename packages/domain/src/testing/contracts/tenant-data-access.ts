@@ -1,6 +1,6 @@
 import type { Channel } from "../../channel";
 import type {
-  TenantContext,
+  DataAccessContext,
   TenantDataAccess,
 } from "../../seams/tenant-data-access";
 import type { Shape } from "../../shape";
@@ -19,6 +19,7 @@ import {
   otherWorkspaceId,
   shapeId,
   testMemberId,
+  testSystemContext,
   testTenantContext,
   testWorkspace,
   testWorkspaceId,
@@ -31,7 +32,7 @@ import {
 /** Domain-termed initial state a TenantDataAccess adapter must be constructible from. */
 export interface TenantDataAccessSeed {
   readonly channels?: readonly Channel[];
-  readonly context: TenantContext;
+  readonly context: DataAccessContext;
   readonly shapes?: readonly Shape[];
   readonly threads?: readonly Thread[];
   readonly unread?: readonly Unread[];
@@ -40,7 +41,9 @@ export interface TenantDataAccessSeed {
 
 export type TenantDataAccessFactory = (
   seed: TenantDataAccessSeed
-) => Promise<TenantDataAccess> | TenantDataAccess;
+) =>
+  | Promise<TenantDataAccess<DataAccessContext>>
+  | TenantDataAccess<DataAccessContext>;
 
 /** Pins the TenantDataAccess seam semantics on whichever adapter the factory builds. */
 export const defineTenantDataAccessContract = (input: {
@@ -49,6 +52,84 @@ export const defineTenantDataAccessContract = (input: {
 }): void => {
   const { describe, expect, test } = input.api;
   const { makeTenantDataAccess } = input;
+
+  describe("TenantDataAccess under a system context (ADR 0035 §1)", () => {
+    test("a system context passes the tenant guard for settle-shaped work: listChannelThreads + batch", async () => {
+      const thread = makeThread({
+        channelId: "channel-1",
+        id: "thread-1",
+        lastActivityAt: new Date("2026-07-01T10:00:00Z"),
+      });
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testSystemContext,
+        threads: [thread],
+        workspace: testWorkspace,
+      });
+
+      const bumped = {
+        ...thread,
+        lastActivityAt: new Date("2026-07-01T11:00:00Z"),
+      };
+      const receipt = unwrapOk(
+        await data.batch({
+          commands: [
+            { kind: "put_thread_index", thread: bumped },
+            {
+              kind: "put_unread",
+              unread: makeUnread({ threadId: "thread-1" }),
+            },
+          ],
+          workspaceId: testWorkspaceId,
+        })
+      );
+      expect(receipt.commandCount).toBe(2);
+
+      const index = unwrapOk(
+        await data.listChannelThreads({ channelId: channelId("channel-1") })
+      );
+      expect(index.threads).toEqual([bumped]);
+    });
+
+    test("sidebar and directory channel listings fail closed with an AuthzError", async () => {
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testSystemContext,
+        workspace: testWorkspace,
+      });
+
+      const failClosed = {
+        kind: "not_workspace_member",
+        workspaceId: testWorkspaceId,
+      };
+      expect(unwrapErr(await data.listChannels({ kind: "sidebar" }))).toEqual(
+        failClosed
+      );
+      expect(
+        unwrapErr(
+          await data.listChannels({
+            kind: "directory",
+            search: { ownerMemberId: null, query: null, status: null },
+          })
+        )
+      ).toEqual(failClosed);
+    });
+
+    test("the home feed fails closed with an AuthzError", async () => {
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testSystemContext,
+        workspace: testWorkspace,
+      });
+
+      expect(
+        unwrapErr(await data.listRecentThreads({ before: null, limit: 10 }))
+      ).toEqual({
+        kind: "not_workspace_member",
+        workspaceId: testWorkspaceId,
+      });
+    });
+  });
 
   describe("TenantDataAccess.listRecentThreads — home feed (ADR 0020/0027)", () => {
     test("lists bumped threads across the member's visible channels, most recent first; other members' private and deleted channels are excluded", async () => {
