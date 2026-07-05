@@ -68,10 +68,6 @@ export const server = await Worker("server", {
     CHANNEL_HUB: channelHub,
     CORS_ORIGIN: corsOrigin,
     DB: db,
-    GOOGLE_GENERATIVE_AI_API_KEY: required(
-      alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
-      "GOOGLE_GENERATIVE_AI_API_KEY"
-    ),
     THREAD_AGENT: threadAgent,
     WORKSPACE_HUB: workspaceHub,
   },
@@ -93,10 +89,6 @@ export const web = await TanStackStart("web", {
     BETTER_AUTH_URL: authUrl,
     CORS_ORIGIN: corsOrigin,
     DB: db,
-    GOOGLE_GENERATIVE_AI_API_KEY: required(
-      alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
-      "GOOGLE_GENERATIVE_AI_API_KEY"
-    ),
     VITE_SERVER_URL: required(caddyDevOrigin ?? server.url, "server.url"),
   },
   cwd: "../../apps/web",

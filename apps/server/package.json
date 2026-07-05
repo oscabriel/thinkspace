@@ -8,17 +8,9 @@
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server"
   },
   "dependencies": {
-    "@ai-sdk/devtools": "^1.0.0",
-    "@ai-sdk/google": "^4.0.1",
-    "@orpc/openapi": "catalog:",
-    "@orpc/server": "catalog:",
-    "@orpc/zod": "catalog:",
-    "@thinkspace/api": "workspace:*",
-    "@thinkspace/auth": "workspace:*",
     "@thinkspace/db": "workspace:*",
     "@thinkspace/domain": "workspace:*",
     "@thinkspace/env": "workspace:*",
-    "ai": "catalog:",
     "better-auth": "catalog:",
     "dotenv": "catalog:",
     "hono": "catalog:",
