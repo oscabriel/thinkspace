@@ -4,7 +4,10 @@ import { getAgentByName } from "agents";
 import type { AgentContext } from "agents";
 import type { LanguageModel, ToolSet, UIMessage } from "ai";
 
-import { collectThreadParticipants } from "../../flows/run-completion";
+import {
+  collectThreadParticipants,
+  createRunCompletionFlow,
+} from "../../flows/run-completion";
 import type {
   RunCompletionFlow,
   RunSettlement,
@@ -24,6 +27,7 @@ import type {
   Schedule,
   SubAgentActivity,
 } from "../../run";
+import type { SystemContext } from "../../seams/tenant-data-access";
 import type {
   BranchSnapshot,
   RunDetail,
@@ -45,6 +49,15 @@ import {
   decodeThreadAgentAddress,
   encodeThreadAgentAddress,
 } from "../thread-agent-address";
+import {
+  createProductionChannelHub,
+  createProductionWorkspaceHub,
+} from "./realtime-hubs";
+import type {
+  ChannelHubDurableObject,
+  WorkspaceHubDurableObject,
+} from "./realtime-hubs";
+import { createD1TenantDataAccess } from "./tenant-data-access";
 
 const defaultClock = (): Date => new Date();
 
@@ -102,6 +115,41 @@ const tenantOrThreadViolation = (
   kind: "tenant_guard_violation",
   observed: { kind: "workspace", workspaceId: observedWorkspaceId },
 });
+
+/** The exact bindings settlement wiring needs; the server worker env carries all three. */
+export interface CompletionFlowEnv {
+  readonly CHANNEL_HUB: DurableObjectNamespace<ChannelHubDurableObject>;
+  readonly DB: D1Database;
+  readonly WORKSPACE_HUB: DurableObjectNamespace<WorkspaceHubDurableObject>;
+}
+
+/**
+ * ADR 0035 §2: production wiring of the settlement fan-out. Everything needed survives a
+ * hibernation wake — env and the name-derived address. No member acts at settle time, so
+ * the D1 adapter runs under a SystemContext built from the address's workspaceId; the
+ * hubs are addressed from the same triple.
+ */
+export const buildCompletionFlow = (
+  env: CompletionFlowEnv,
+  address: ThreadAgentAddress
+): RunCompletionFlow => {
+  const context: SystemContext = {
+    kind: "system",
+    workspaceId: address.workspaceId,
+  };
+  return createRunCompletionFlow({
+    channelHub: createProductionChannelHub({
+      address: { channelId: address.channelId },
+      context,
+      namespace: env.CHANNEL_HUB,
+    }),
+    tenantDataAccess: createD1TenantDataAccess({ context, db: env.DB }),
+    workspaceHub: createProductionWorkspaceHub({
+      context,
+      namespace: env.WORKSPACE_HUB,
+    }),
+  });
+};
 
 /**
  * The production ThreadAgent: a Think Durable Object (ADR 0015 pin set) whose seam state
@@ -546,6 +594,20 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
 
   /** Settlement fan-out is best-effort from inside the hook; the ts_run row already turned. */
   private async settle(settlement: RunSettlement): Promise<void> {
+    const address = this.deriveAddress();
+    if (address !== null) {
+      /**
+       * ADR 0035 §2: a field does not survive hibernation — a fresh wake self-constructs
+       * the flow from env + address. An injected override (test binders) wins; the ??=
+       * never fires for them. The alchemy worker env carries these bindings by
+       * construction; Cloudflare.Env is untyped inside this package.
+       */
+      this.completionFlow ??= buildCompletionFlow(
+        this.env as CompletionFlowEnv,
+        address
+      );
+    }
+
     if (this.completionFlow === null) {
       console.error(
         "[ThreadAgent] run settled without a completion flow injected",

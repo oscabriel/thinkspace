@@ -10,6 +10,7 @@ import type {
   WorkspaceHub,
 } from "../seams/realtime-hubs";
 import type {
+  DataAccessContext,
   TenantDataAccess,
   TenantDataAccessError,
   TenantWriteCommand,
@@ -67,7 +68,8 @@ export const collectThreadParticipants = (input: {
 
 export interface RunCompletionFlowDependencies {
   readonly channelHub: ChannelHub;
-  readonly tenantDataAccess: TenantDataAccess;
+  /** Settle needs no member: production composes this under a SystemContext (ADR 0035 §1/§2). */
+  readonly tenantDataAccess: TenantDataAccess<DataAccessContext>;
   readonly workspaceHub: WorkspaceHub;
 }
 

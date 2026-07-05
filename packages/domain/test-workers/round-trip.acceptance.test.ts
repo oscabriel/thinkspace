@@ -118,8 +118,10 @@ describe("dispatch→completion round trip (acceptance)", () => {
     );
     const { openingComment: opening, thread } = created;
 
-    // Test capability: the model stub and the completion flow are injected in-isolate;
-    // production wiring of both inside the DO lands with the HTTP edge slice.
+    // Test capability: the model stub is injected in-isolate (ModelRouter pending). The
+    // injected completion flow pins the override path — the DO's lazy self-construct
+    // (ADR 0035 §2) never fires when a binder injects; the self-construct path has its
+    // own pin in completion-self-construct.test.ts.
     const agentStub = env.THREAD_AGENT.get(
       env.THREAD_AGENT.idFromName(encodeThreadAgentAddress(address))
     );

@@ -12,8 +12,8 @@ import type {
   RealtimeHubError,
   WorkspaceActivityEvent,
   WorkspaceHub,
+  WorkspaceScope,
 } from "../../seams/realtime-hubs";
-import type { TenantContext } from "../../seams/tenant-data-access";
 import { parseJsonColumn } from "../helpers";
 
 /**
@@ -22,11 +22,11 @@ import { parseJsonColumn } from "../helpers";
  * workspace/channel pair, so a colliding channel id in another workspace is a different
  * DO by construction.
  */
-export const encodeWorkspaceHubName = (context: TenantContext): string =>
+export const encodeWorkspaceHubName = (context: WorkspaceScope): string =>
   encodeURIComponent(context.workspaceId);
 
 export const encodeChannelHubName = (
-  context: TenantContext,
+  context: WorkspaceScope,
   address: ChannelHubAddress
 ): string =>
   [context.workspaceId, address.channelId].map(encodeURIComponent).join("/");
@@ -107,7 +107,7 @@ export class ChannelHubDurableObject extends RecentLogHub<ChannelHubEvent> {
 }
 
 export interface ProductionWorkspaceHubConfig {
-  readonly context: TenantContext;
+  readonly context: WorkspaceScope;
   readonly namespace: DurableObjectNamespace<WorkspaceHubDurableObject>;
 }
 
@@ -138,7 +138,7 @@ export const createProductionWorkspaceHub = (
 
 export interface ProductionChannelHubConfig {
   readonly address: ChannelHubAddress;
-  readonly context: TenantContext;
+  readonly context: WorkspaceScope;
   readonly namespace: DurableObjectNamespace<ChannelHubDurableObject>;
 }
 

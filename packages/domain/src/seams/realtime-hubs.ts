@@ -11,12 +11,19 @@ import type {
   MemberId,
   RunId,
   ThreadId,
+  WorkspaceId,
 } from "../ids";
 import type { AsyncResult } from "../result";
-import type {
-  ChannelListingRequest,
-  TenantContext,
-} from "./tenant-data-access";
+import type { ChannelListingRequest } from "./tenant-data-access";
+
+/**
+ * Hubs are addressed by tenant containment alone (ADR 0010/0033) — no member identity.
+ * Both a member's TenantContext and the system context satisfy this shape, so the
+ * completion flow can hold hubs without the seam learning the distinction (ADR 0035 §1/§2).
+ */
+export interface WorkspaceScope {
+  readonly workspaceId: WorkspaceId;
+}
 
 export type RealtimeHubError =
   | AuthzError
@@ -69,7 +76,7 @@ export interface ChannelHubAddress {
 }
 
 export interface WorkspaceHub {
-  readonly context: TenantContext;
+  readonly context: WorkspaceScope;
   readonly getRoster: () => AsyncResult<WorkspaceRoster, RealtimeHubError>;
   readonly listChannels: (
     input: ChannelListingRequest
@@ -81,7 +88,7 @@ export interface WorkspaceHub {
 
 export interface ChannelHub {
   readonly address: ChannelHubAddress;
-  readonly context: TenantContext;
+  readonly context: WorkspaceScope;
   readonly getPresence: () => AsyncResult<
     readonly MemberPresence[],
     RealtimeHubError
