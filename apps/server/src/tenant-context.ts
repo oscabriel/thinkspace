@@ -6,6 +6,7 @@ import type { AsyncResult } from "@thinkspace/domain/result";
 import type { TenantContext } from "@thinkspace/domain/seams/tenant-data-access";
 import { roleSchema } from "@thinkspace/domain/workspace";
 import { and, eq } from "drizzle-orm";
+import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 
 import { createAuth } from "./auth";
@@ -60,3 +61,31 @@ export const resolveTenantContext = async (
     ? ok(context.data)
     : err({ kind: "malformed_identity" });
 };
+
+export interface TenantVariables {
+  readonly tenantContext: TenantContext;
+}
+
+const resolutionErrorStatus = {
+  malformed_identity: 500,
+  not_a_member: 404,
+  unauthenticated: 401,
+} as const;
+
+/** The thin middleware half of the seam: resolves the path workspace onto c.var, or ends the request. */
+export const tenantContextMiddleware = createMiddleware<{
+  Variables: TenantVariables;
+}>(async (c, next) => {
+  const resolved = await resolveTenantContext(
+    c.req.raw,
+    c.req.param("workspaceId") ?? ""
+  );
+  if (!resolved.ok) {
+    return c.json(
+      { error: { kind: resolved.error.kind } },
+      resolutionErrorStatus[resolved.error.kind]
+    );
+  }
+  c.set("tenantContext", resolved.value);
+  return next();
+});

@@ -1,40 +1,9 @@
-import { err } from "@thinkspace/domain/result";
+import { err, ok } from "@thinkspace/domain/result";
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
-import { createAuth } from "../src/auth";
 import { resolveTenantContext } from "../src/tenant-context";
-
-/** Replays a response's session cookies as a request cookie header. */
-const cookieFrom = (headers: Headers): string =>
-  headers
-    .getSetCookie()
-    .map((setCookie) => setCookie.split(";")[0] ?? "")
-    .join("; ");
-
-const signUpWithWorkspace = async (input: {
-  readonly email: string;
-  readonly slug: string;
-}) => {
-  const auth = createAuth();
-  const signUp = await auth.api.signUpEmail({
-    body: {
-      email: input.email,
-      name: "Test Member",
-      password: "password-123456",
-    },
-    returnHeaders: true,
-  });
-  const cookie = cookieFrom(signUp.headers);
-  const workspace = await auth.api.createOrganization({
-    body: { name: input.slug, slug: input.slug },
-    headers: new Headers({ cookie }),
-  });
-  if (workspace === null) {
-    throw new Error("workspace creation failed");
-  }
-  return { cookie, workspaceId: workspace.id };
-};
+import { signUpWithWorkspace } from "./auth-fixtures";
 
 const requestWithCookie = (workspaceId: string, cookie: string): Request =>
   new Request(`https://test.local/api/w/${workspaceId}/threads`, {
@@ -43,7 +12,7 @@ const requestWithCookie = (workspaceId: string, cookie: string): Request =>
 
 describe("resolveTenantContext", () => {
   it("resolves a signed-in member of the path workspace to their TenantContext", async () => {
-    const { cookie, workspaceId } = await signUpWithWorkspace({
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
       email: "owner@example.com",
       slug: "acme",
     });
@@ -53,21 +22,7 @@ describe("resolveTenantContext", () => {
       workspaceId
     );
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      return;
-    }
-
-    const memberRow = await env.DB.prepare(
-      "SELECT id FROM member WHERE organization_id = ?1"
-    )
-      .bind(workspaceId)
-      .first<{ id: string }>();
-    expect(result.value).toEqual({
-      memberId: memberRow?.id,
-      role: "owner",
-      workspaceId,
-    });
+    expect(result).toEqual(ok({ memberId, role: "owner", workspaceId }));
   });
 
   it("resolves a request without a session to unauthenticated", async () => {

@@ -4,6 +4,8 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
 import { createAuth } from "./auth";
+import { gestureRoutes } from "./gestures";
+import { tenantContextMiddleware } from "./tenant-context";
 
 const app = new Hono();
 
@@ -12,13 +14,16 @@ app.use(
   "/*",
   cors({
     allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "OPTIONS"],
     credentials: true,
     origin: env.CORS_ORIGIN,
   })
 );
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => createAuth().handler(c.req.raw));
+
+app.use("/api/w/:workspaceId/*", tenantContextMiddleware);
+app.route("/api/w/:workspaceId", gestureRoutes);
 
 app.get("/", (c) => c.text("OK"));
 
