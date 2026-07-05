@@ -79,7 +79,8 @@ scheduled runs skip the byok gate (gateway rejection → run failure path).
 - **E1.5 — D1 ModelRouter adapter + contract suite.** `resolve` (parse provider → registry
   check → catalog membership → route w/ derived alias) and `listAvailableModels` (catalog ∩
   keyed). New `testing/contracts/model-routing.ts` bound to memory (updated for new types) and
-  production (fetchMock fixture) binders. Pins: key-gating, happy resolve, byok_key_missing,
+  production (outboundService mock-gateway fixture — see E1.1 findings §5) binders. Pins:
+  key-gating, happy resolve, byok_key_missing,
   model_not_in_catalog, catalog_unavailable, tenant guard.
 - **E1.6 — Real ToolResolver.** Empty-catalog intersection semantics (silent intersect, echo
   artifactAccessScope); bind the existing tool-resolution contract suite to it.
@@ -89,14 +90,79 @@ scheduled runs skip the byok gate (gateway rejection → run failure path).
   no-model gate; seed-carried test model via `ThreadAgentSeed`; port turn-layer tests.
 - **E1.8 — Edge wiring + red-test rewrite.** Swap real ModelRouter/ToolResolver into
   `buildDispatchFlow`; add the four `domainErrorStatus` rows; rewrite the two deliberately-red
-  dispatch tests into happy paths (registry-row helper + fetchMock fixtures); add
+  dispatch tests into happy paths (registry-row helper + mock-gateway fixtures); add
   byok_key_missing and model_not_in_catalog negative pins at the edge.
 - **E1.9 — IaC.** `AI_GATEWAY_URL` + `AI_GATEWAY_TOKEN` bindings in alchemy.run.ts (AiGateway
-  resource if E1.1 confirms it; else manual gateway + documented .env.example); gateway test
-  literals in both workers harnesses.
+  resource confirmed at 0.91.2 — see E1.1 findings §4; token stays a documented .env secret);
+  gateway test literals in both workers harnesses.
 - **E1.10 — Docs.** ADR 0036 (all of the above); "superseded by 0036" notes in ADR 0011
   (curated→live catalog, tier→cost, alias format); error-table rows appended to ADR 0035 §7;
   CONTEXT.md next-phase update.
+
+### E1.1 spike findings (verified 2026-07-05 against live Cloudflare docs, @ai-sdk source, and pinned clones; closes #1)
+
+Every claim below was sourced from primary material and the two doc-based sections were
+independently re-verified by an adversarial second pass; the clone-based sections were
+spot-checked by hand. Feed all of this into ADR 0036 at E1.10.
+
+1. **Alias format — FROZEN: `byokSecretAlias(workspaceId, provider) = ws-<workspaceId>-<provider>`**
+   (lowercase, hyphen-delimited; hyphens deliberately, so the alias never clashes with the
+   underscore delimiters below). AI Gateway resolves BYOK keys by Secrets Store secret NAME
+   `{gateway_id}_{provider_slug}_{alias}` — the `cf-aig-byok-alias` header carries only the
+   `{alias}` component; gateway and provider come from the request URL path; the `secret_id` is
+   not used for runtime lookup. Omitting the header falls back to alias `default`. Correction to
+   ADR 0011's sketch: because `provider_slug` is its own name component, a bare `<workspace>`
+   alias would NOT collide across providers — we keep the provider suffix for self-documenting,
+   self-contained uniqueness, not collision avoidance (record that reason in 0036). Naming
+   constraints: the only documented rule is "no spaces" (hyphens/underscores/digits/mixed case
+   all appear in official examples; OpenAPI `secret_name` schema has no maxLength/pattern —
+   validate our ~80-char names empirically when E3.1 first writes one). `ai_gateway` is a
+   confirmed Secrets Store scope value.
+2. **SCALE BLOCKER (not an E1 blocker):** Secrets Store open beta = **100 production secrets per
+   account, one store per account** (documented; ADR 0011's "undocumented" note is superseded).
+   One secret per workspace×provider means even ~100 single-provider workspaces hit the cap.
+   Fine for dev/MVP scale; before GA scale, pursue the Cloudflare limit-increase form or an
+   alternative key-storage architecture. Gateway counts are not the constraint (10 free/20 paid
+   per account; BYOK requests are exempt from the unified-billing 200 req/60s cap).
+3. **Gateway recipe for E1.7 (all code-verified against `@ai-sdk/anthropic@3.0.93`):**
+   `createAnthropic({ baseURL, apiKey, headers })` with baseURL =
+   `https://gateway.ai.cloudflare.com/v1/{accountId}/{gatewayName}/anthropic/v1` — the trailing
+   `/v1` is mandatory (the SDK builds `${baseURL}/messages`; trailing slash is stripped safely);
+   apiKey = any non-empty dummy (`loadApiKey` returns strings verbatim, throws only when absent
+   AND env unset); headers = `cf-aig-authorization: Bearer <token>` (REQUIRED on plain-HTTPS
+   fetch — the docs' binding exemption applies only to a real gateway binding, which the SDK
+   doesn't use), `cf-aig-byok-alias: <alias>`, `cf-aig-metadata: <JSON, ≤5 keys, extras dropped>`.
+   `options.headers` spreads last, so the SDK's unavoidable dummy `x-api-key` can be overridden
+   with `''` if needed — docs don't state whether a stray `x-api-key` is ignored under BYOK;
+   smoke-test once against the real gateway before shipping E1.7. **Dependency pin:
+   `@ai-sdk/anthropic@^3.0.93` (npm dist-tag `ai-v6`, matches ai@6.0.202) — NOT `latest`
+   (4.x targets ai v7, incompatible).**
+4. **alchemy (E1.9):** 0.91.2 DOES ship `AiGateway` (`import { AiGateway } from
+   "alchemy/cloudflare"`, verified at the `v0.91.2` tag, not clone HEAD which is 0.93.12). Use it
+   with `authentication: true`; the prop is **`gatewayName`, not `name`** (the published docs
+   example passes `name:`, which is silently ignored); pin an explicit stable `gatewayName` —
+   the default is `${app}-${stage}-${id}`, which would fragment the one-shared-gateway design
+   across stages. The resource emits NO url/token outputs: `AI_GATEWAY_URL` = plain-string
+   binding derived from `gateway.accountId`+`gatewayName` (or .env), `AI_GATEWAY_TOKEN` =
+   `alchemy.secret.env.…` (account-created token, document in .env.example) — same pattern as
+   the existing BETTER_AUTH bindings. Bonus: 0.91.2 also ships `SecretsStore`/`SecretKey`
+   resources (relevant to E3, but they don't manage BYOK aliases — that wiring stays
+   dashboard/REST, per baked decision 3).
+5. **Test mocking (E1.5/E1.7/E1.8) — the planned mechanism is dead:** vitest-pool-workers
+   **0.18.0 REMOVED the `fetchMock` export from `cloudflare:test`** (the in-worker fetch patch
+   is a verified no-op passthrough; confirmed in the actual 0.18.0 tarball, integrity-matched to
+   bun.lock). The DO question is therefore moot — use the fallback: a **miniflare
+   `outboundService` mock gateway**, wired into the existing `miniflare:{}` blocks (the 0.18.0
+   pool schema is `.passthrough()`, so no API change): `outboundService: "AI_GATEWAY_MOCK"` +
+   `workers: [{ name: "AI_GATEWAY_MOCK", modules: true, scriptPath: … }]`, where the mock
+   branches on `new URL(req.url).hostname === "gateway.ai.cloudflare.com"` and passes everything
+   else through (the E1.4 models.dev catalog fetch rides the same global-fetch outbound!).
+   `outboundService` dispatches the worker's global `fetch()` at the workerd layer — it reaches
+   DO-originated absolute-URL calls and is immune to the DO-storage isolation-proxy caveat. A
+   plain `serviceBindings` entry will NOT intercept the SDK's absolute-URL fetch. Per-test
+   response variation happens by branching on request body/headers/`cf-aig-metadata` inside the
+   mock worker, not per-test interceptor registration (the outbound is fixed at miniflare
+   startup). E1.5/E1.8 bullet wording updated above accordingly.
 
 ## E2 — Wake-path reconciliation sweep
 
