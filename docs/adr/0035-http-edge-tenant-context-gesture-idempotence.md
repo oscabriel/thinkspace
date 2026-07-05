@@ -186,3 +186,54 @@ deferred deliberately, not dropped.
   shape; its findings may rework our member-lookup or schema per §5's rule.
 - Deferred, recorded: invitations (§6), dispatch-dedupe enforcement (§7), JWT/JWKS (§8),
   `getWorkspaceGraph` (§6).
+
+## §6 verification record (2026-07-05)
+
+Verified against better-auth at our lockfile pin `1.6.22` — clone worktree
+`~/Developer/clones/github.com/better-auth/better-auth-v1.6.22`, tag `v1.6.22` =
+`a90d061de7cdbd60e796230aadf5d1082add1fe2` (do-not-update). All shapes confirmed; no
+schema rework triggered. File references below are within that clone.
+
+1. **Session response shape** — `auth.api.getSession({headers})` returns
+   `{session, user} | null` (`packages/better-auth/src/api/routes/session.ts:32`).
+   Base session fields: `id, createdAt, updatedAt, userId, expiresAt, token,
+   ipAddress?, userAgent?` (`packages/core/src/db/schema/session.ts:9`). The org
+   plugin adds optional `activeOrganizationId` to the session model. `null` maps to
+   `unauthenticated`.
+2. **`member` table columns** — `id, organizationId (FK organization.id), userId
+   (FK user.id), role (text, default "member"), createdAt`
+   (`plugins/organization/schema.ts`, `MemberDefaultFields` + `memberSchema`). No
+   `updatedAt`.
+3. **Role strings** — defaults are exactly `owner/admin/member`
+   (`plugins/organization/access/statement.ts:37`); `creatorRole` defaults to
+   `"owner"` (`routes/crud-org.ts:193`). Maps 1:1 onto `roleSchema`. Caveat, accepted:
+   the plugin treats `member.role` as a comma-separated *list* in permission checks
+   (`permission.ts:12`), and `updateMemberRole` called with an array writes
+   `"a,b"` (`organization.ts:117`). Under our minimal scope nothing writes
+   multi-role; if one ever appears, the branded parse fails →
+   `malformed_identity` → 500, which is §4's intended page-us behavior.
+4. **First-class "member of org X" read** — none that fits. `getActiveMember` is
+   active-org-shaped; `getActiveMemberRole` takes an explicit `organizationId` but
+   returns `{role}` only — no member `id`, which `TenantContext` needs; the full
+   point-read `findMemberByOrgId` is internal org-adapter surface, not public
+   `auth.api`; and any `auth.api` call re-runs session middleware (a redundant
+   session lookup). **§5's rule therefore resolves to the direct drizzle query**
+   (`where userId = ? and organizationId = ?` → `{id, role}`).
+5. **Org-create writes** — org row and creator member row are two sequential
+   awaited adapter writes with **no transaction** (`routes/crud-org.ts:179` then
+   `:212`); slug uniqueness is also check-then-insert. A crash between the writes
+   leaves a memberless org — invisible under our 404-for-non-members rule, an
+   acceptable orphan. Note: org-create also sets the new org active on the session
+   by default, so the `session` table needs the `activeOrganizationId` column even
+   though we never read it for authz.
+6. **Email sender** — not required. `sendInvitationEmail?` is optional
+   (`plugins/organization/types.ts:254`) and both call sites guard on presence
+   (`routes/crud-invites.ts:400,582`); the plugin runs fine with invitations unused
+   and no sender configured.
+
+Implied schema additions when the plugin lands (our `packages/db/src/schema/auth.ts`
+has only user/session/account/verification today): `organization`, `member`,
+`invitation` tables plus `session.activeOrganizationId`. Useful extra: `addMember`
+is a server-only endpoint (`routes/crud-members.ts:51`) — an alternative to raw D1
+seeding for multi-member test workspaces, though direct seeding remains the pinned
+approach.
