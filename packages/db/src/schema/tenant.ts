@@ -82,6 +82,18 @@ export const shape = sqliteTable(
   (table) => [index("shape_workspaceId_idx").on(table.workspaceId)]
 );
 
+export const workspaceProviderKey = sqliteTable(
+  "workspace_provider_key",
+  {
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    provider: text("provider").notNull(),
+    workspaceId: text("workspace_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.provider] }),
+  ]
+);
+
 export const workspaceToolDisable = sqliteTable(
   "workspace_tool_disable",
   {
