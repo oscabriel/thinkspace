@@ -1,5 +1,6 @@
 import alchemy from "alchemy";
 import {
+  AiGateway,
   D1Database,
   DurableObjectNamespace,
   TanStackStart,
@@ -58,8 +59,24 @@ const workspaceHub = DurableObjectNamespace("workspace-hub", {
   sqlite: true,
 });
 
+/**
+ * Single shared gateway across stages: `gatewayName` (NOT `name`, which alchemy 0.91.2 silently
+ * ignores) is pinned to a stable literal — the default (`${app}-${stage}-${id}`) would fragment
+ * the gateway per stage. The resource emits no url/token outputs, so both are derived/bound
+ * below. See docs/BACKLOG.md E1.1 spike findings §4.
+ */
+const aiGateway = await AiGateway("ai-gateway", {
+  authentication: true,
+  gatewayName: "thinkspace",
+});
+
 export const server = await Worker("server", {
   bindings: {
+    AI_GATEWAY_TOKEN: required(
+      alchemy.secret.env.AI_GATEWAY_TOKEN,
+      "AI_GATEWAY_TOKEN"
+    ),
+    AI_GATEWAY_URL: `https://gateway.ai.cloudflare.com/v1/${aiGateway.accountId}/${aiGateway.gatewayName}`,
     BETTER_AUTH_SECRET: required(
       alchemy.secret.env.BETTER_AUTH_SECRET,
       "BETTER_AUTH_SECRET"
