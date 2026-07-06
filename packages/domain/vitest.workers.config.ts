@@ -36,6 +36,20 @@ export default defineConfig({
             useSQLite: true,
           },
         },
+        // Canonical egress mock (spike finding 5): dispatches the workers' global fetch — DO
+        // outbound included — through the fixture worker; models.dev and the AI Gateway are
+        // served deterministically, everything else passes through.
+        outboundService: "AI_GATEWAY_MOCK",
+        workers: [
+          {
+            modules: true,
+            name: "AI_GATEWAY_MOCK",
+            scriptPath: path.join(
+              import.meta.dirname,
+              "test-workers/outbound-mock.mjs"
+            ),
+          },
+        ],
       },
     })),
   ],
