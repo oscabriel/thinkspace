@@ -12,6 +12,9 @@ export default defineConfig({
       main: "./test-workers/worker.ts",
       miniflare: {
         bindings: {
+          AI_GATEWAY_TOKEN: "test-ai-gateway-token-0123456789",
+          AI_GATEWAY_URL:
+            "https://gateway.ai.cloudflare.com/v1/test-account/test-gateway",
           TEST_MIGRATIONS: await readD1Migrations(
             path.join(import.meta.dirname, "../db/src/migrations")
           ),
