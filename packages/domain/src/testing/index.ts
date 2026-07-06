@@ -19,6 +19,7 @@ export {
   defineToolResolutionContract,
   type McpEgressPolicyFactory,
   type McpEgressPolicySeed,
+  type ToolResolutionCatalog,
   type ToolResolverFactory,
   type ToolResolverSeed,
 } from "./contracts/tool-resolution";
