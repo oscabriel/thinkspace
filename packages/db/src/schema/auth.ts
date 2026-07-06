@@ -155,6 +155,22 @@ export const invitation = sqliteTable(
   ]
 );
 
+/**
+ * better-auth JWT plugin (E4.1): the signing key store. The plugin creates and rotates
+ * EdDSA key pairs here and serves their public halves at /api/auth/jwks; the private
+ * halves sign the short-lived hub-connect tokens. Field keys mirror the plugin's own
+ * schema (publicKey/privateKey/createdAt/expiresAt) so the drizzle adapter binds them.
+ */
+export const jwks = sqliteTable("jwks", {
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    .notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+  id: text("id").primaryKey(),
+  privateKey: text("private_key").notNull(),
+  publicKey: text("public_key").notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   accounts: many(account),
   invitations: many(invitation),
