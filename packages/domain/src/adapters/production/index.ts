@@ -20,6 +20,15 @@ export {
   ThreadAgentDurableObject,
 } from "./thread-agent";
 export {
+  assembleCatalog,
+  type CatalogFetch,
+  createModelCatalog,
+  modelCatalog,
+  type ModelCatalog,
+  type ModelCatalogConfig,
+  MODELS_DEV_API_URL,
+} from "./model-catalog";
+export {
   createAiGatewayByokModelRouterPlaceholder,
   createCatalogWorkspaceShapeToolResolverPlaceholder,
   createCuratorThinkAgentPlaceholder,
