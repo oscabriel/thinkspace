@@ -1,4 +1,5 @@
 import { byokSecretAlias } from "../../byok";
+import { parseModelId } from "../../ids";
 import type { ModelId } from "../../ids";
 import type { Model, ModelProvider } from "../../model";
 import type { SecretAlias } from "../../primitives";
@@ -52,6 +53,18 @@ export const createMemoryModelRouter = (
       );
     },
     resolve: async (input) => {
+      // Design B fail-fast BYOK gate: the provider parsed from the ModelId is checked before any
+      // catalog concern, mirroring the production adapter's ordering.
+      const provider = parseModelId(input.modelId).providerId as ModelProvider;
+      if (!keyedProviders.has(idKey(provider))) {
+        return err({
+          kind: "byok_key_missing",
+          modelId: input.modelId,
+          provider,
+          workspaceId: config.context.workspaceId,
+        });
+      }
+
       if (config.catalogUnavailable === true) {
         return err({ kind: "catalog_unavailable" });
       }
@@ -76,15 +89,6 @@ export const createMemoryModelRouter = (
         return err({
           kind: "model_not_in_catalog",
           modelId: input.modelId,
-          workspaceId: config.context.workspaceId,
-        });
-      }
-
-      if (!keyedProviders.has(idKey(model.provider))) {
-        return err({
-          kind: "byok_key_missing",
-          modelId: model.id,
-          provider: model.provider,
           workspaceId: config.context.workspaceId,
         });
       }

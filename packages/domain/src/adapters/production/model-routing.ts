@@ -1,6 +1,7 @@
 import type { D1Database } from "@cloudflare/workers-types";
 
 import { byokSecretAlias } from "../../byok";
+import { parseModelId } from "../../ids";
 import type { WorkspaceId } from "../../ids";
 import type { ModelProvider } from "../../model";
 import { err, ok } from "../../result";
@@ -46,9 +47,11 @@ const listKeyedProviders = async (config: D1ModelRouterConfig) => {
  *
  * The catalog is injected rather than imported as a singleton so tests can pin the adapter against
  * a deterministic catalog and the production Worker can share the normal isolate-level catalog.
- * Resolution deliberately fetches the catalog and the workspace's full provider-key registry before
- * deciding: a catalog miss is `model_not_in_catalog`, a catalog hit without a provider-key row is
- * `byok_key_missing`, and a catalog hit with a key resolves to the derived BYOK secret alias.
+ * Resolution is the Design B fail-fast BYOK gate: the provider parsed from the composite ModelId is
+ * checked against the workspace's provider-key registry BEFORE any catalog access, so an unkeyed
+ * provider is `byok_key_missing` even when the model is absent from the catalog or the catalog is
+ * unavailable; only a keyed provider proceeds to catalog membership (`model_not_in_catalog` /
+ * `catalog_unavailable`) and resolves to the derived BYOK secret alias.
  *
  * Every registry query is scoped to the resident tenant (`workspace_id = context.workspaceId`). The
  * row-level workspace check mirrors the D1 tenant-data adapter's guard discipline for
@@ -79,14 +82,24 @@ export const createD1ModelRouter = (
       );
     },
     resolve: async (input) => {
-      const catalogModels = await catalog.getModels();
-      if (!catalogModels.ok) {
-        return catalogModels;
-      }
+      const provider = parseModelId(input.modelId).providerId as ModelProvider;
 
       const keyedProviders = await listKeyedProviders(config);
       if (!keyedProviders.ok) {
         return keyedProviders;
+      }
+      if (!keyedProviders.value.has(idKey(provider))) {
+        return err({
+          kind: "byok_key_missing",
+          modelId: input.modelId,
+          provider,
+          workspaceId: context.workspaceId,
+        });
+      }
+
+      const catalogModels = await catalog.getModels();
+      if (!catalogModels.ok) {
+        return catalogModels;
       }
 
       const model = catalogModels.value.find((entry) =>
@@ -96,15 +109,6 @@ export const createD1ModelRouter = (
         return err({
           kind: "model_not_in_catalog",
           modelId: input.modelId,
-          workspaceId: context.workspaceId,
-        });
-      }
-
-      if (!keyedProviders.value.has(idKey(model.provider))) {
-        return err({
-          kind: "byok_key_missing",
-          modelId: input.modelId,
-          provider: model.provider,
           workspaceId: context.workspaceId,
         });
       }

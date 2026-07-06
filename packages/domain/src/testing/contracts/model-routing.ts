@@ -110,6 +110,27 @@ export const defineModelRoutingContract = (input: {
       });
     });
 
+    test("resolve fails fast with byok_key_missing for an unkeyed provider even when the model is absent from the catalog", async () => {
+      // Design B: the byok gate runs on the provider parsed from the ModelId BEFORE any catalog
+      // lookup, so unkeyed-provider + unknown-model must be byok_key_missing, not
+      // model_not_in_catalog.
+      const missingModelId = modelIdSchema.parse("anthropic/missing");
+      const router = await makeModelRouter({
+        catalogModels: [],
+        context: testTenantContext,
+        keyedProviders: [],
+      });
+
+      expect(
+        unwrapErr(await router.resolve({ modelId: missingModelId }))
+      ).toEqual({
+        kind: "byok_key_missing",
+        modelId: missingModelId,
+        provider: anthropic,
+        workspaceId: testWorkspaceId,
+      });
+    });
+
     test("resolve fails with model_not_in_catalog for an absent model id", async () => {
       const router = await makeModelRouter({
         catalogModels: [],
