@@ -182,6 +182,66 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     this.ensureSeamTables();
   }
 
+  /**
+   * E2.1 wake-path reconciliation (ADR 0017/0035 §2). partyserver runs `onStart` on every
+   * Durable Object start — including a fresh isolate after hibernation — so it is where the
+   * settlement sweep hooks in. After the base start work we replay any settlement lost on a
+   * prior wake: a terminal run's fan-out is fail-soft inside `onSubmissionStatus`, so the
+   * only durable trace of a dropped settlement is the missing `ts_run_settled` mark.
+   */
+  override async onStart(props?: Record<string, unknown>): Promise<void> {
+    await super.onStart(props);
+    await this.reconcileUnsettledRuns();
+  }
+
+  /**
+   * Scan `ts_run` for terminal-but-unsettled runs and replay each through `settle`. A
+   * completed run is settled only after its fan-out succeeds (its id in `ts_run_settled`),
+   * so an already-settled run carries a mark and never appears here — the fan-out is
+   * idempotent. Best-effort: a wake must not be terminalized by a replay hiccup.
+   */
+  private async reconcileUnsettledRuns(): Promise<void> {
+    if (this.deriveAddress() === null) {
+      return;
+    }
+    try {
+      const settlements = this.readTerminalUnsettledRuns()
+        .map((run) => this.settlementFor(run))
+        .filter(
+          (settlement): settlement is RunSettlement => settlement !== null
+        );
+      // Independent, idempotent fan-outs; replay them together rather than serially.
+      await Promise.all(
+        settlements.map((settlement) => this.settle(settlement))
+      );
+    } catch (error) {
+      console.error("[ThreadAgent] wake reconciliation sweep failed", error);
+    }
+  }
+
+  /** Reconstruct a settlement from resident state (ADR 0035 §2: no member acts at wake). */
+  private settlementFor(run: Run): RunSettlement | null {
+    if (run.lifecycle === "failed") {
+      return { kind: "failed", run };
+    }
+    if (run.lifecycle !== "complete") {
+      return null;
+    }
+    const outputComment = this.readComment(run.outputCommentId);
+    if (outputComment === null) {
+      return null;
+    }
+    return {
+      kind: "complete",
+      outputComment,
+      participants: collectThreadParticipants({
+        comments: [...this.loadComments().values()],
+        runs: this.readRuns(),
+      }),
+      run,
+    };
+  }
+
   override getModel(): LanguageModel {
     if (this.testModel !== null) {
       return this.testModel;
@@ -244,6 +304,11 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
         .sql`CREATE TABLE IF NOT EXISTS ts_comment (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
       this
         .sql`CREATE TABLE IF NOT EXISTS ts_run (id TEXT PRIMARY KEY, seq INTEGER NOT NULL, data TEXT NOT NULL)`,
+      // Durable settlement state (ADR 0017/0035): a run's id lands here only after its
+      // completion-flow fan-out succeeds, so a terminal ts_run row with no sibling here is
+      // exactly the "terminal-but-unsettled" set the wake-path sweep replays. A separate
+      // table keeps live DOs' existing ts_run rows untouched (CREATE TABLE IF NOT EXISTS).
+      this.sql`CREATE TABLE IF NOT EXISTS ts_run_settled (id TEXT PRIMARY KEY)`,
       this
         .sql`CREATE TABLE IF NOT EXISTS ts_schedule (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
       this
@@ -627,7 +692,10 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     const settled = await this.completionFlow.settle(settlement);
     if (!settled.ok) {
       console.error("[ThreadAgent] run completion flow failed", settled.error);
+      return;
     }
+    // Fan-out succeeded: mark the run settled so the wake-path sweep leaves it alone.
+    this.markRunSettled(settlement.run.id);
   }
 
   private at(epochMs: number | undefined): Date {
@@ -662,6 +730,35 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       SELECT data FROM ts_run ORDER BY seq ASC
     `;
     return rows.map((row) => parseJsonColumn<Run>(row.data));
+  }
+
+  /** Terminal runs with no `ts_run_settled` mark — the wake-path sweep's replay set. */
+  private readTerminalUnsettledRuns(): readonly Run[] {
+    const rows = this.sql<{ data: string }>`
+      SELECT r.data AS data FROM ts_run r
+      WHERE NOT EXISTS (SELECT 1 FROM ts_run_settled s WHERE s.id = r.id)
+      ORDER BY r.seq ASC
+    `;
+    return rows
+      .map((row) => parseJsonColumn<Run>(row.data))
+      .filter(
+        (run) => run.lifecycle === "complete" || run.lifecycle === "failed"
+      );
+  }
+
+  private markRunSettled(id: Run["id"]): readonly unknown[] {
+    return this.sql`
+      INSERT INTO ts_run_settled (id) VALUES (${idKey(id)})
+      ON CONFLICT (id) DO NOTHING
+    `;
+  }
+
+  private readComment(id: Comment["id"]): Comment | null {
+    const rows = this.sql<{ data: string }>`
+      SELECT data FROM ts_comment WHERE id = ${idKey(id)}
+    `;
+    const [row] = rows;
+    return row === undefined ? null : parseJsonColumn<Comment>(row.data);
   }
 
   /** Seam ThreadAgent.schedule — renamed: the agents SDK reserves `schedule` for its alarm API. */
