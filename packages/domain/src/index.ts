@@ -61,11 +61,13 @@ export type {
 export {
   authzErrorSchema,
   byokKeyMissingErrorSchema,
+  catalogUnavailableErrorSchema,
   createNotImplementedError,
   curatorExecutionFailedErrorSchema,
   curatorSessionNotFoundErrorSchema,
   domainErrorSchema,
   mcpHostNotAllowedErrorSchema,
+  modelNotInCatalogErrorSchema,
   notImplementedErrorSchema,
   observedTenantSchema,
   realtimeHubUnavailableErrorSchema,
@@ -76,10 +78,12 @@ export {
 export type {
   AuthzError,
   ByokKeyMissingError,
+  CatalogUnavailableError,
   CuratorExecutionFailedError,
   CuratorSessionNotFoundError,
   DomainError,
   McpHostNotAllowedError,
+  ModelNotInCatalogError,
   NotImplementedError,
   ObservedTenant,
   RealtimeHubUnavailableError,
@@ -92,9 +96,11 @@ export {
   channelIdSchema,
   commentIdSchema,
   curatorSessionIdSchema,
+  formatModelId,
   mcpServerIdSchema,
   memberIdSchema,
   modelIdSchema,
+  parseModelId,
   runIdSchema,
   scheduleIdSchema,
   shapeIdSchema,
@@ -121,10 +127,25 @@ export type {
   UserId,
   WorkspaceId,
 } from "./ids";
+export { byokSecretAlias } from "./byok";
 export { mcpHostApprovalSchema, mcpServerSchema } from "./mcp";
 export type { McpHostApproval, McpServer } from "./mcp";
-export { modelProviderSchema, modelSchema, modelTierSchema } from "./model";
-export type { Model, ModelProvider, ModelTier } from "./model";
+export {
+  modelCapabilitiesSchema,
+  modelCostSchema,
+  modelLimitsSchema,
+  modelProviderSchema,
+  modelSchema,
+} from "./model";
+export type {
+  Model,
+  ModelCapabilities,
+  ModelCost,
+  ModelLimits,
+  ModelProvider,
+} from "./model";
+export { providerAllowlist } from "./provider-allowlist";
+export type { ProviderAllowEntry } from "./provider-allowlist";
 export {
   artifactNameSchema,
   artifactSearchQuerySchema,

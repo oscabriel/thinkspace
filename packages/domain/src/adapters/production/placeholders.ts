@@ -72,7 +72,6 @@ export const createWorkerMcpEgressPolicyPlaceholder = (
   context,
 });
 
-
 export const createCuratorThinkAgentPlaceholder = (
   context: TenantContext
 ): CuratorAgent => ({

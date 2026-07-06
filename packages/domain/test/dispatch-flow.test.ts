@@ -42,10 +42,18 @@ import {
 } from "../src/testing/fixtures";
 
 const testModel = {
+  capabilities: {
+    attachment: false,
+    reasoning: false,
+    structuredOutput: true,
+    toolCall: true,
+  },
+  cost: { cacheRead: 0, cacheWrite: 0, input: 1, output: 1 },
   displayName: nonEmptyStringSchema.parse("Test Model"),
-  id: modelIdSchema.parse("model-1"),
+  id: modelIdSchema.parse("test-provider/model-1"),
+  limits: { context: 1000, output: 1000 },
   provider: modelProviderSchema.parse("test-provider"),
-  tier: "default" as const,
+  releaseDate: "2026-07-01",
 };
 
 const makeDispatchHarness = (input?: {

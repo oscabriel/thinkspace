@@ -52,6 +52,22 @@ export const byokKeyMissingErrorSchema = z.object({
 });
 export type ByokKeyMissingError = z.infer<typeof byokKeyMissingErrorSchema>;
 
+export const modelNotInCatalogErrorSchema = z.object({
+  kind: z.literal("model_not_in_catalog"),
+  modelId: modelIdSchema,
+  workspaceId: workspaceIdSchema,
+});
+export type ModelNotInCatalogError = z.infer<
+  typeof modelNotInCatalogErrorSchema
+>;
+
+export const catalogUnavailableErrorSchema = z.object({
+  kind: z.literal("catalog_unavailable"),
+});
+export type CatalogUnavailableError = z.infer<
+  typeof catalogUnavailableErrorSchema
+>;
+
 export const mcpHostNotAllowedErrorSchema = z.object({
   host: mcpHostSchema,
   kind: z.literal("mcp_host_not_allowed"),
@@ -170,6 +186,8 @@ export const createNotImplementedError = (seam: string): NotImplementedError =>
 export const domainErrorSchema = z.discriminatedUnion("kind", [
   ...authzErrorSchema.options,
   byokKeyMissingErrorSchema,
+  catalogUnavailableErrorSchema,
+  modelNotInCatalogErrorSchema,
   mcpHostNotAllowedErrorSchema,
   tenantGuardViolationErrorSchema,
   runFailureErrorSchema,

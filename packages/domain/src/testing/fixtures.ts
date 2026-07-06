@@ -93,7 +93,7 @@ export const makeShapeStructure = (input?: {
 }): ShapeStructure => ({
   artifactSelection: [],
   mcpServerSelection: (input?.mcpServerSelection ?? []).map(mcpServerId),
-  modelId: modelIdSchema.parse("model-1"),
+  modelId: modelIdSchema.parse("test-provider/model-1"),
   skillSelection: (input?.skillSelection ?? []).map(skillId),
   systemPrompt: systemPromptSchema.parse(
     input?.systemPrompt ?? "You are the channel's agent."
