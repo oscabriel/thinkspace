@@ -1,7 +1,9 @@
-import { env } from "cloudflare:test";
+import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, test } from "vitest";
 
+import type { ThreadAgentDurableObject } from "../src/adapters/production/thread-agent";
 import { createProductionThreadAgentDirectory } from "../src/adapters/production/thread-agent";
+import { encodeThreadAgentAddress } from "../src/adapters/thread-agent-address";
 import { scheduleSchema } from "../src/run";
 import type { ThreadAgentAddress } from "../src/seams/thread-agent";
 import {
@@ -14,6 +16,7 @@ import {
   unwrapOk,
   workspaceId,
 } from "../src/testing";
+import { modelReplying } from "./mock-model";
 
 const directory = createProductionThreadAgentDirectory({
   namespace: env.THREAD_AGENT,
@@ -58,16 +61,30 @@ describe("Production ThreadAgentDirectory — get(address) routes to the named D
         shapeSnapshot: makeShapeSnapshot(),
       })
     );
+    const stub = env.THREAD_AGENT.get(
+      env.THREAD_AGENT.idFromName(encodeThreadAgentAddress(same))
+    );
+    await runInDurableObject(stub, (instance: ThreadAgentDurableObject) => {
+      instance.applyTestSeed({
+        address: same,
+        testModel: modelReplying("Directory reply."),
+      });
+    });
+
     const receipt = unwrapOk(
       await directory
         .get(same)
         .run(makeDispatchTrigger({ targetCommentId: "dir-comment-opening" }))
     );
 
+    // The routing pin under test is identity (same DO instance across gets), not turn
+    // execution timing — with a real model self-constructed/injected, the run turn may
+    // already have progressed past "queued" by the time we read it back.
     const detail = unwrapOk(
       await directory.get(same).getRun({ runId: receipt.runId })
     );
-    expect(detail?.run).toEqual(receipt.queuedRun);
+    expect(detail?.run.id).toEqual(receipt.queuedRun.id);
+    expect(detail?.run.trigger).toEqual(receipt.queuedRun.trigger);
   });
 
   test("seam schedule maps to the DO's scheduleRun (SDK reserves `schedule`)", async () => {

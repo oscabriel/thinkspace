@@ -3,7 +3,15 @@ import { describe, expect, test } from "vitest";
 
 import type { ThreadAgentDurableObject } from "../src/adapters/production/thread-agent";
 import type { ThreadAgent } from "../src/seams/thread-agent";
-import { defineThreadAgentContract } from "../src/testing";
+import { defineThreadAgentContract, makeComment } from "../src/testing";
+import { modelReplying } from "./mock-model";
+
+/**
+ * Direct runInDurableObject calls bypass partyserver's start gating (production traffic
+ * arrives via getAgentByName → setName → onStart, which builds Think's Session). Every
+ * seed carries a real name here, so mirror that lifecycle before any run() call —
+ * self-construction now always submits a Think turn (no more no-model queue-only path).
+ */
 
 /**
  * Each factory call gets its own DO instance (unique name), so no cross-test state.
@@ -13,9 +21,8 @@ import { defineThreadAgentContract } from "../src/testing";
 defineThreadAgentContract({
   api: { describe, expect, test },
   makeThreadAgent: async (seed) => {
-    const stub = env.THREAD_AGENT.get(
-      env.THREAD_AGENT.idFromName(crypto.randomUUID())
-    );
+    const name = crypto.randomUUID();
+    const stub = env.THREAD_AGENT.get(env.THREAD_AGENT.idFromName(name));
     const inAgent = <Value>(
       body: (instance: ThreadAgentDurableObject) => Promise<Value> | Value
     ): Promise<Value> =>
@@ -24,8 +31,20 @@ defineThreadAgentContract({
       );
 
     await inAgent((instance) => {
-      instance.applyTestSeed(seed);
+      instance.applyTestSeed({
+        ...seed,
+        comments:
+          seed.shapeSnapshot === undefined || seed.comments !== undefined
+            ? seed.comments
+            : [makeComment({ id: "comment-top" })],
+        testModel:
+          seed.shapeSnapshot === undefined
+            ? seed.testModel
+            : (seed.testModel ?? modelReplying("Contract reply.")),
+      });
     });
+    // Mirror the paved-path start lifecycle (see file header) before any run() call.
+    await inAgent((instance) => instance.setName(name));
 
     const agent: ThreadAgent = {
       address: seed.address,
