@@ -24,6 +24,13 @@ export {
   ThreadAgentDurableObject,
 } from "./thread-agent";
 export {
+  createGatewayModel,
+  gatewayModelFactories,
+  type GatewayModelEnv,
+  type GatewayModelFactory,
+  type GatewayModelFactoryOptions,
+} from "./model-gateway";
+export {
   assembleCatalog,
   type CatalogFetch,
   createModelCatalog,

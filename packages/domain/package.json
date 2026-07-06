@@ -28,6 +28,7 @@
     "test:workers": "vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.93",
     "@cloudflare/think": "0.11.1",
     "agents": "0.17.1",
     "ai": "6.0.202",
