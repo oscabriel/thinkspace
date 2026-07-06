@@ -42,7 +42,8 @@ Routing responsibility splits across the trust boundary:
 
 - **Edge (`modelRouter.resolve`) is the fail-fast BYOK gate.** Before a run is ever triggered,
   the edge resolves the shape's `modelId` against the workspace, in this **fixed order**:
-  **parse provider** (split the composite `ModelId`, brand-parse the provider) → **registry
+  **parse provider** (split the composite `ModelId` at its `/`; an unknown provider needs no
+  separate gate — it simply has no registry row) → **registry
   check** (is there a `workspace_provider_key` row for `(workspaceId, provider)`?) →
   **catalog membership** (is the model in the live key-gated catalog?). The first failing gate
   returns its error and no run starts. Ordering is load-bearing: the missing-key answer
@@ -177,7 +178,8 @@ factory`. v1 = anthropic only. Invariant, unit-tested: **allowlist ⊆ factory-m
       SDK makes (the docs' binding exemption applies only to a real gateway _binding_, which the
       SDK does not use);
     - `cf-aig-byok-alias: <alias>` — the `byokSecretAlias` value (§4);
-    - `cf-aig-metadata: <JSON, ≤5 keys>` — carries the `workspace_id` tag (ADR 0011 attribution);
+    - `cf-aig-metadata: <JSON, ≤5 keys>` — carries the workspace attribution tag, emitted as
+      `{"workspace": <workspaceId>}` (ADR 0011);
       extra keys beyond 5 are dropped by the gateway.
   - `options.headers` spreads last, so the SDK's unavoidable dummy `x-api-key` can be overridden
     with `''` if a stray header proves to matter — smoke-test once against the real gateway.
