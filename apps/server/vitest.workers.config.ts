@@ -12,6 +12,9 @@ export default defineConfig({
       main: "./src/index.ts",
       miniflare: {
         bindings: {
+          AI_GATEWAY_TOKEN: "test-ai-gateway-token-0123456789",
+          AI_GATEWAY_URL:
+            "https://gateway.ai.cloudflare.com/v1/test-account/test-gateway",
           BETTER_AUTH_SECRET: "test-secret-for-workers-tests-0123456789",
           BETTER_AUTH_URL: "https://test.local",
           CORS_ORIGIN: "https://test.local",
