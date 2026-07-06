@@ -86,8 +86,8 @@ describe("ThreadAgent turn layer — RunId is the submissionId (ADR 0033)", () =
         comments: [target],
         nextRunId: () => runId("turn-run-1"),
         shapeSnapshot: makeShapeSnapshot(),
+        testModel: modelReplying("Hello from the agent."),
       });
-      instance.modelOverride = modelReplying("Hello from the agent.");
       instance.completionFlow = {
         settle: async (settlement) => {
           settlements.push(settlement);
@@ -156,8 +156,8 @@ describe("ThreadAgent turn layer — RunId is the submissionId (ADR 0033)", () =
         comments: [target],
         nextRunId: () => runId("turn-run-identity"),
         shapeSnapshot: makeShapeSnapshot(),
+        testModel: modelReplying("Reply."),
       });
-      instance.modelOverride = modelReplying("Reply.");
       instance.completionFlow = { settle: async () => ok() };
     });
     await startAgent(stub, addr);
@@ -192,11 +192,11 @@ describe("ThreadAgent turn layer — RunId is the submissionId (ADR 0033)", () =
         comments: [target],
         nextRunId: () => runId("turn-run-failure"),
         shapeSnapshot: makeShapeSnapshot(),
-      });
-      instance.modelOverride = new MockLanguageModelV3({
-        doStream: async () => {
-          throw new Error("model exploded");
-        },
+        testModel: new MockLanguageModelV3({
+          doStream: async () => {
+            throw new Error("model exploded");
+          },
+        }),
       });
       instance.completionFlow = {
         settle: async (settlement) => {

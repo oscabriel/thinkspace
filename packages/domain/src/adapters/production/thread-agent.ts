@@ -49,6 +49,7 @@ import {
   decodeThreadAgentAddress,
   encodeThreadAgentAddress,
 } from "../thread-agent-address";
+import { createGatewayModel } from "./model-gateway";
 import {
   createProductionChannelHub,
   createProductionWorkspaceHub,
@@ -118,6 +119,8 @@ const tenantOrThreadViolation = (
 
 /** The exact bindings settlement wiring needs; the server worker env carries all three. */
 export interface CompletionFlowEnv {
+  readonly AI_GATEWAY_TOKEN: string;
+  readonly AI_GATEWAY_URL: string;
   readonly CHANNEL_HUB: DurableObjectNamespace<ChannelHubDurableObject>;
   readonly DB: D1Database;
   readonly WORKSPACE_HUB: DurableObjectNamespace<WorkspaceHubDurableObject>;
@@ -165,9 +168,6 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
    * is the only thing lost, and the wake-path reconciliation sweep can replay it.
    */
   completionFlow: RunCompletionFlow | null = null;
-  /** Stands in for shape-driven model routing until the ModelRouter adapter lands. */
-  modelOverride: LanguageModel | null = null;
-
   private address: ThreadAgentAddress | null = null;
   private clock: () => Date = defaultClock;
   private mintCommentId: () => Comment["id"] = defaultCommentId;
@@ -175,6 +175,7 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
   private subAgentActivityByRunId: Readonly<
     Record<string, readonly SubAgentActivity[]>
   > = {};
+  private testModel: LanguageModel | null = null;
 
   constructor(ctx: AgentContext, env: Cloudflare.Env) {
     super(ctx, env);
@@ -182,12 +183,22 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
   }
 
   override getModel(): LanguageModel {
-    if (this.modelOverride !== null) {
-      return this.modelOverride;
+    if (this.testModel !== null) {
+      return this.testModel;
     }
-    throw new Error(
-      "ThreadAgentDurableObject.getModel: model routing not wired (ModelRouter adapter pending)"
-    );
+
+    const address = this.deriveAddress();
+    const snapshot = this.readSnapshot();
+    if (address === null || snapshot === null) {
+      throw new Error(
+        "ThreadAgentDurableObject.getModel: thread agent is not initialized"
+      );
+    }
+
+    return createGatewayModel(snapshot.structure.modelId, {
+      env: this.env as CompletionFlowEnv,
+      workspaceId: address.workspaceId,
+    });
   }
 
   /** Config-as-data (ADR 0007): behavior reads the resident shape snapshot every turn. */
@@ -250,6 +261,9 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       this.mintRunId = seed.nextRunId;
     }
     this.subAgentActivityByRunId = seed.subAgentActivityByRunId ?? {};
+    if (seed.testModel !== undefined) {
+      this.testModel = seed.testModel as LanguageModel;
+    }
 
     for (const comment of seed.comments ?? []) {
       this.putComment(comment);
@@ -399,14 +413,9 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     };
     this.putRun(queuedRun);
 
-    // Until the ModelRouter adapter lands, a DO with no model wired queues without
-    // submitting — the memory adapter's exact semantics (execution is driven explicitly,
-    // not implied by run()). The contract suites pin the queued read on this path.
-    if (this.modelOverride !== null) {
-      const submitted = await this.submitRunTurn(queuedRun);
-      if (!submitted.ok) {
-        return submitted;
-      }
+    const submitted = await this.submitRunTurn(queuedRun);
+    if (!submitted.ok) {
+      return submitted;
     }
 
     return ok({ queuedRun, runId, threadId: address.threadId });
