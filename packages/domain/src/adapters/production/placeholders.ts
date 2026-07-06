@@ -2,14 +2,10 @@ import { createNotImplementedError } from "../../errors";
 import { err } from "../../result";
 import type { ArtifactStore } from "../../seams/artifact-store";
 import type { CuratorAgent } from "../../seams/curator-agent";
-import type { ModelRouter } from "../../seams/model-routing";
 import type { SkillStore } from "../../seams/skill-store";
 import type { TenantContext } from "../../seams/tenant-data-access";
 import type { ThreadAgent, ThreadAgentAddress } from "../../seams/thread-agent";
-import type {
-  McpEgressPolicy,
-  ToolResolver,
-} from "../../seams/tool-resolution";
+import type { McpEgressPolicy } from "../../seams/tool-resolution";
 
 const notImplemented = async (seam: string) =>
   err(createNotImplementedError(seam));
@@ -45,23 +41,6 @@ export const createR2MarkdownSkillStorePlaceholder = (
   create: async (_input) => notImplemented("R2MarkdownSkillStore.create"),
   get: async (_input) => notImplemented("R2MarkdownSkillStore.get"),
   update: async (_input) => notImplemented("R2MarkdownSkillStore.update"),
-});
-
-export const createAiGatewayByokModelRouterPlaceholder = (
-  context: TenantContext
-): ModelRouter => ({
-  context,
-  listAvailableModels: async () =>
-    notImplemented("AiGatewayByokModelRouter.listAvailableModels"),
-  resolve: async (_input) => notImplemented("AiGatewayByokModelRouter.resolve"),
-});
-
-export const createCatalogWorkspaceShapeToolResolverPlaceholder = (
-  context: TenantContext
-): ToolResolver => ({
-  context,
-  resolve: async (_input) =>
-    notImplemented("CatalogWorkspaceShapeToolResolver.resolve"),
 });
 
 export const createWorkerMcpEgressPolicyPlaceholder = (

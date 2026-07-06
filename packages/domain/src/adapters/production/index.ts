@@ -41,8 +41,6 @@ export {
 } from "./model-catalog";
 export { createD1ModelRouter, type D1ModelRouterConfig } from "./model-routing";
 export {
-  createAiGatewayByokModelRouterPlaceholder,
-  createCatalogWorkspaceShapeToolResolverPlaceholder,
   createCuratorThinkAgentPlaceholder,
   createR2MarkdownSkillStorePlaceholder,
   createR2VirtualFsArtifactStorePlaceholder,

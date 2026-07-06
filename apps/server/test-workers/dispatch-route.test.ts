@@ -2,6 +2,7 @@ import { createD1TenantDataAccess } from "@thinkspace/domain/adapters/production
 import {
   makeChannel,
   makeShape,
+  makeShapeStructure,
   memberId as brandMemberId,
   unwrapOk,
   workspaceId as brandWorkspaceId,
@@ -13,6 +14,17 @@ import { signUpWithWorkspace } from "./auth-fixtures";
 
 const gestureId = "01980d13-93a2-7000-8000-000000000000";
 
+/** A model the outbound mock's models.dev fixture serves and the allowlist admits. */
+const cataloguedModelId = "anthropic/claude-test-sonnet";
+
+/** ADR 0036: registering a provider key is what makes a workspace's models routable. */
+const keyWorkspaceForAnthropic = (workspaceId: string) =>
+  env.DB.prepare(
+    "INSERT INTO workspace_provider_key (workspace_id, provider, created_at) VALUES (?1, ?2, ?3)"
+  )
+    .bind(workspaceId, "anthropic", Date.now())
+    .run();
+
 const dispatchUrl = (input: {
   readonly channelId: string;
   readonly threadId: string;
@@ -23,6 +35,7 @@ const dispatchUrl = (input: {
 const seedChannel = async (input: {
   readonly channelId: string;
   readonly memberId: string;
+  readonly modelId?: string;
   readonly shapeId: string;
   readonly workspaceId: string;
 }) => {
@@ -36,6 +49,9 @@ const seedChannel = async (input: {
   });
   const shape = {
     ...makeShape({ id: input.shapeId }),
+    structure: makeShapeStructure({
+      modelId: input.modelId ?? cataloguedModelId,
+    }),
     workspaceId: brandWorkspaceId(input.workspaceId),
   };
   const channel = makeChannel({
@@ -97,21 +113,35 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatc
   });
 
   /**
-   * Pins where the production dispatch surface stops today: the flow composes and runs
-   * up to the placeholder ToolResolver seam. This test MUST go red when the ModelRouter
-   * slice lands — rewrite it into the dispatch happy path then (handoff step 4).
+   * The E1 read path end to end (ADR 0036): keyed workspace, catalogued model, real
+   * ToolResolver + ModelRouter, DO turn against the mock gateway. The receipt is captured
+   * at queue time, so its lifecycle is deterministically "queued" even though the turn
+   * itself proceeds against the outbound mock.
    */
-  it("carries a well-formed dispatch to the placeholder tool-resolution seam (500 not_implemented)", async () => {
+  it("dispatches end to end for a keyed workspace and returns the queued-run receipt", async () => {
     const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
-      email: "dispatch-seam@example.com",
-      slug: "dispatch-seam-space",
+      email: "dispatch-happy@example.com",
+      slug: "dispatch-happy-space",
     });
+    await keyWorkspaceForAnthropic(workspaceId);
     await seedChannel({
       channelId: "ds-ch-1",
       memberId,
       shapeId: "ds-shape-1",
       workspaceId,
     });
+    const created = await SELF.fetch(
+      `https://test.local/api/w/${workspaceId}/channels/ds-ch-1/threads/ds-th-1`,
+      {
+        body: JSON.stringify({
+          openingBody: "Dispatch me",
+          openingCommentId: "ds-comment-1",
+        }),
+        headers: { "content-type": "application/json", cookie },
+        method: "PUT",
+      }
+    );
+    expect(created.status).toBe(200);
 
     const response = await SELF.fetch(
       dispatchUrl({ channelId: "ds-ch-1", threadId: "ds-th-1", workspaceId }),
@@ -122,21 +152,29 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatc
       }
     );
 
-    expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({
-      error: {
-        kind: "not_implemented",
-        seam: "CatalogWorkspaceShapeToolResolver.resolve",
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      queuedRun: {
+        channelId: "ds-ch-1",
+        lifecycle: "queued",
+        threadId: "ds-th-1",
+        trigger: {
+          dispatch: { byMemberId: memberId, targetCommentId: "ds-comment-1" },
+          kind: "dispatch",
+        },
+        workspaceId,
       },
+      threadId: "ds-th-1",
     });
   });
 
-  /** Same pin for "create and ask": the PUT's ask block chains into the same placeholder seam. */
-  it("chains a create-and-ask PUT into the dispatch seam (500 not_implemented today)", async () => {
+  /** "Create and ask" rides the same real path: creation receipt plus the chained run. */
+  it("chains a create-and-ask PUT into a real dispatch and returns creation + run", async () => {
     const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
       email: "create-and-ask@example.com",
       slug: "create-and-ask-space",
     });
+    await keyWorkspaceForAnthropic(workspaceId);
     await seedChannel({
       channelId: "ca-ch-1",
       memberId,
@@ -157,11 +195,89 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatc
       }
     );
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(200);
+    const receipt = await response.json<{
+      run: Record<string, unknown>;
+      thread: Record<string, unknown>;
+    }>();
+    expect(receipt.thread).toMatchObject({ id: "ca-th-1" });
+    expect(receipt.run).toMatchObject({
+      queuedRun: {
+        channelId: "ca-ch-1",
+        lifecycle: "queued",
+        threadId: "ca-th-1",
+        trigger: {
+          dispatch: { byMemberId: memberId, targetCommentId: "ca-comment-1" },
+          kind: "dispatch",
+        },
+      },
+      threadId: "ca-th-1",
+    });
+  });
+
+  /** ADR 0036 / ADR 0035 §7: an unkeyed provider fails the byok gate before any catalog access. */
+  it("answers a dispatch for an unkeyed workspace with 409 byok_key_missing", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "dispatch-unkeyed@example.com",
+      slug: "dispatch-unkeyed-space",
+    });
+    await seedChannel({
+      channelId: "uk-ch-1",
+      memberId,
+      shapeId: "uk-shape-1",
+      workspaceId,
+    });
+
+    const response = await SELF.fetch(
+      dispatchUrl({ channelId: "uk-ch-1", threadId: "uk-th-1", workspaceId }),
+      {
+        body: JSON.stringify({ gestureId, targetCommentId: "uk-comment-1" }),
+        headers: { "content-type": "application/json", cookie },
+        method: "POST",
+      }
+    );
+
+    expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
       error: {
-        kind: "not_implemented",
-        seam: "CatalogWorkspaceShapeToolResolver.resolve",
+        kind: "byok_key_missing",
+        modelId: cataloguedModelId,
+        provider: "anthropic",
+        workspaceId,
+      },
+    });
+  });
+
+  /** A keyed provider whose model the live catalog does not carry is 409 model_not_in_catalog. */
+  it("answers a dispatch for a keyed but uncatalogued model with 409 model_not_in_catalog", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "dispatch-uncatalogued@example.com",
+      slug: "dispatch-uncatalogued-space",
+    });
+    await keyWorkspaceForAnthropic(workspaceId);
+    await seedChannel({
+      channelId: "nc-ch-1",
+      memberId,
+      modelId: "anthropic/not-in-catalog",
+      shapeId: "nc-shape-1",
+      workspaceId,
+    });
+
+    const response = await SELF.fetch(
+      dispatchUrl({ channelId: "nc-ch-1", threadId: "nc-th-1", workspaceId }),
+      {
+        body: JSON.stringify({ gestureId, targetCommentId: "nc-comment-1" }),
+        headers: { "content-type": "application/json", cookie },
+        method: "POST",
+      }
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: {
+        kind: "model_not_in_catalog",
+        modelId: "anthropic/not-in-catalog",
+        workspaceId,
       },
     });
   });

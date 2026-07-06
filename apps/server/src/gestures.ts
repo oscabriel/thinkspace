@@ -1,11 +1,12 @@
 import {
-  createAiGatewayByokModelRouterPlaceholder,
-  createCatalogWorkspaceShapeToolResolverPlaceholder,
+  createCatalogWorkspaceShapeToolResolver,
+  createD1ModelRouter,
   createD1TenantDataAccess,
   createProductionChannelHub,
   createProductionThreadAgentDirectory,
   createProductionWorkspaceHub,
   createWorkerMcpEgressPolicyPlaceholder,
+  modelCatalog,
 } from "@thinkspace/domain/adapters/production";
 import { createDispatchFlow } from "@thinkspace/domain/flows/dispatch";
 import { createThreadCreationFlow } from "@thinkspace/domain/flows/thread-creation";
@@ -56,7 +57,11 @@ const buildCreationFlow = (context: TenantContext) =>
     }),
   });
 
-/** ToolResolver / ModelRouter / McpEgressPolicy are placeholder seams until the ModelRouter slice lands. */
+/**
+ * ADR 0036: real ModelRouter (D1 registry + live catalog, fail-fast byok gate) and real
+ * ToolResolver (empty-catalog intersection). McpEgressPolicy stays a placeholder — vacuously
+ * unreachable behind the empty tool catalog until E6.3.
+ */
 const buildDispatchFlow = (context: TenantContext, channelId: ChannelId) =>
   createDispatchFlow({
     channelHub: createProductionChannelHub({
@@ -65,12 +70,16 @@ const buildDispatchFlow = (context: TenantContext, channelId: ChannelId) =>
       namespace: env.CHANNEL_HUB,
     }),
     mcpEgressPolicy: createWorkerMcpEgressPolicyPlaceholder(context),
-    modelRouter: createAiGatewayByokModelRouterPlaceholder(context),
+    modelRouter: createD1ModelRouter({
+      catalog: modelCatalog,
+      context,
+      db: env.DB,
+    }),
     tenantDataAccess: createD1TenantDataAccess({ context, db: env.DB }),
     threadAgents: createProductionThreadAgentDirectory({
       namespace: env.THREAD_AGENT,
     }),
-    toolResolver: createCatalogWorkspaceShapeToolResolverPlaceholder(context),
+    toolResolver: createCatalogWorkspaceShapeToolResolver({ context }),
   });
 
 /**
