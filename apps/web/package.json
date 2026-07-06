@@ -5,7 +5,9 @@
   "scripts": {
     "build": "vite build",
     "serve": "vite preview",
-    "dev:bare": "vite dev"
+    "dev:bare": "vite dev",
+    "generate-routes": "bun run scripts/generate-routes.ts",
+    "check-types": "bun run scripts/generate-routes.ts && tsc --noEmit"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.1",
@@ -30,6 +32,7 @@
     "@cloudflare/vite-plugin": "^1.17.1",
     "@tanstack/react-query-devtools": "^5.91.1",
     "@tanstack/react-router-devtools": "^1.166.13",
+    "@tanstack/router-generator": "^1.167.17",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@thinkspace/config": "workspace:*",
