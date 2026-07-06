@@ -1,6 +1,8 @@
 # ADR 0011 — Model routing: AI Gateway + BYOK-only (Secrets Store)
 
 **Status:** accepted (2026-06-29)
+**Superseded in part by:** ADR 0036 — three points below carry inline notes (curated→live
+catalog; per-provider tier→live cost; alias format). The rest of this ADR stands.
 **Source-grounded:** live web research on Cloudflare AI Gateway (2025–2026 docs/changelogs).
 
 ## Context
@@ -20,9 +22,19 @@ the key that authorized the request, and one gateway can carry N tenants' N keys
 - **Key storage: Cloudflare Secrets Store + per-tenant aliases.** Keys stored AES-encrypted,
   `ai_gateway`-scoped, RBAC + audit; selected per request via `cf-aig-byok-alias: <workspace>`.
   Raw key never travels in request traffic.
+  **[Superseded in part by ADR 0036 §4]** the alias format is frozen to
+  `byokSecretAlias(workspaceId, provider) = ws-<workspaceId>-<provider>` — the `<workspace>`
+  sketch here is superseded (the `-<provider>` suffix is for self-documenting uniqueness, not
+  collision avoidance; the Secrets Store name is `{gateway_id}_{provider_slug}_{alias}` and the
+  header carries only `{alias}`).
 - **Catalog:** curated, and **key-gated** — a shape may use only models from providers the
   workspace has keyed. Per-provider defaults (e.g. Anthropic → **Sonnet** default, **Opus**
   premium, **Haiku** cheap). Slots into ADR 0004's workspace-permission seam.
+  **[Superseded in part by ADR 0036 §6]** the catalog is no longer _curated_: it is assembled
+  **live** from models.dev ∩ provider allowlist ∩ keyed providers (edge-cached, memoized,
+  keep-last-good). **[Superseded in part by ADR 0036 §3]** the per-provider **tier** framing
+  (premium/cheap) is dropped — `Model.tier` is deleted and models carry live `cost`, `limits`,
+  and `capabilities` from models.dev; ranking is on real cost, not a tier label.
 
 ## Security boundary (load-bearing caveat)
 

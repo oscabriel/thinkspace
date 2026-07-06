@@ -147,6 +147,15 @@ email sender even with invitations unused.
   (`channel_not_visible` → 404, gate/authz → 403, rest → 500) lives in one shared
   translator module, not per-route.
 
+The ModelRouter slice (ADR 0036) adds four domain-error rows to that shared translator:
+
+| Domain error           | Meaning                                                    | Status |
+| ---------------------- | ---------------------------------------------------------- | ------ |
+| `model_not_in_catalog` | shape's `modelId` is not in the live key-gated catalog     | 409    |
+| `byok_key_missing`     | workspace has no `workspace_provider_key` for the provider | 409    |
+| `catalog_unavailable`  | cold catalog miss, no last-good to serve                   | 503    |
+| `mcp_host_not_allowed` | MCP host outside the ADR 0002 egress allowlist             | 403    |
+
 **Dispatch duplicate suppression: contract now, enforcement later.** ADR 0033 assigned
 suppression to the edge ("swallowed before the flow runs") and forbade solving it in the
 DO. The client-minted `gestureId` (UUIDv7, ADR 0033's minting rule) is **required on the
