@@ -202,6 +202,7 @@ _(ADRs land in `docs/adr/`; this table is the running index.)_
 | 0033 | ThreadAgent addressing = DO name is the injectively-encoded address triple (shared codec, no mapping table); address derived lazily from `this.name`, fail-closed `thread_agent_unaddressable`; RunId = submissionId, domain run row source of truth (refines 0009, 0015, 0017, 0028) | accepted             |
 | 0034 | Thread creation = idempotent flow keyed by edge-minted ids (ThreadId + opening CommentId); insert-if-absent D1 index row first, first-write-wins initialize second, workspace bump last (the only announce); `thread_agent_uninitialized` = the designed retryable half-crash state; `ChannelHub.createThread` superseded (refines 0007, 0009, 0016, 0017, 0020, 0030, 0033)  | accepted             |
 | 0035 | HTTP edge: path-scoped workspace identity → `resolveTenantContext` in apps/server (401/404/500 vocabulary); SystemContext union at the TenantDataAccess boundary only, member-visibility reads fail closed; DO lazily self-constructs its completion flow (`??=`, hibernation-proof); PUT-create + POST-dispatch gestures, `gestureId` contract-now/enforce-later; JWT/JWKS + invitations deferred (refines 0001, 0008, 0009, 0017, 0033, 0034) | accepted             |
+| 0036 | ModelRouter slice: design B (DO self-constructs gateway model from snapshot modelId + address workspaceId + env; edge `modelRouter.resolve` = fail-fast BYOK gate, order parse-provider→registry→catalog); composite `ModelId`; `Model` reshaped, tier→cost; `byokSecretAlias` frozen `ws-<ws>-<provider>`; `workspace_provider_key` registry (no alias col); live models.dev∩allowlist∩keyed catalog (edge-cache 3600 + memo + keep-last-good); four error kinds/statuses; empty-catalog ToolResolver v1; `@ai-sdk/anthropic@^3.0.93` gateway recipe; scheduled runs skip the gate; miniflare `outboundService` mock (supersedes 0011 in part; refines 0004, 0033, 0035; amends 0035 §7) | accepted             |
 
 ## Persistence tiers (locked)
 
@@ -293,17 +294,28 @@ source of truth over the SDK alarm row, skills/artifacts = adapter-owned D1 inde
 read-only R2 primitives. The doc ends with the 7 contract tests to pin once production
 adapters exist.
 
-**Next phase:** ModelRouter (ADR 0011 — deletes the DO's `modelOverride` + no-model
-gate, renegotiates the workers contract binder and the two pinned placeholder-seam
-edge tests), then the wake-path reconciliation sweep. The HTTP edge + auth slice is
-DONE (ADR 0035 accepted + implemented 2026-07-05): better-auth organization plugin +
+**Next phase:** the **ModelRouter slice (E1) is DONE** (ADR 0036 accepted + implemented
+2026-07-05): composite `ModelId`, reshaped `Model` (tier→live cost), frozen
+`byokSecretAlias`, `workspace_provider_key` registry (migration 0003), the live
+models.dev∩allowlist∩keyed catalog (edge-cache + memo + keep-last-good), the D1
+ModelRouter fail-fast BYOK gate (parse-provider→registry→catalog), the real
+empty-catalog ToolResolver, the DO's self-constructed AI-Gateway model
+(`@ai-sdk/anthropic@^3.0.93`), the edge wiring + four domain-error rows, and the AI
+Gateway IaC bindings. It deleted the DO's `modelOverride` + no-model gate and rewrote the
+two placeholder-seam edge tests into happy paths; the workers contract binder now drives
+the production adapters through a miniflare `outboundService` mock gateway. The HTTP edge +
+auth slice is DONE too (ADR 0035, 2026-07-05): better-auth organization plugin +
 org/member/invitation tables, `resolveTenantContext` + middleware in apps/server,
 PUT-create / POST-dispatch gestures over real HTTP, SystemContext union, DO completion
-flow self-construction. Recorded debt from 0035: dispatch-dedupe enforcement,
-invitations (needs an email sender), JWT/JWKS for hub WebSocket authz,
-`getWorkspaceGraph`. Remaining memory-only seams: CuratorAgent,
-ToolResolver/McpEgressPolicy, ArtifactStore (ADR 0032 reshape pending), SkillStore,
-ModelRouter.
+flow self-construction. **Next up per backlog sequencing: E2 — wake-path reconciliation
+sweep** (on DO wake, replay terminal-but-unsettled runs through the self-constructed
+completion flow; idempotent), then **E4 — hub WebSocket authz** (better-auth JWT/JWKS,
+hub-DO verification at WS upgrade). Recorded debt from 0035: dispatch-dedupe enforcement,
+invitations (needs an email sender), JWT/JWKS for hub WebSocket authz (E4),
+`getWorkspaceGraph`. Recorded risk from 0036: the Secrets Store 100-secret/account open-beta
+cap (fine for MVP; limit-increase form or alternative key store before GA). Remaining
+memory-only seams: CuratorAgent, McpEgressPolicy + ToolResolver v2 (E6.3),
+ArtifactStore (ADR 0032 reshape pending), SkillStore.
 
 ## Deferred / v2 / to-verify (explicit v1 boundary)
 
@@ -315,4 +327,7 @@ ModelRouter.
   per-shape doc selection across channels (0014), multiplayer-thread fan-out not architected out (0013).
 - **Escape hatches (documented, unbuilt):** per-tenant D1 for residency (0009) · WorkspaceHub
   sub-shard by member-bucket if band exceeded (0012) · fork/vendor SDK on blocking bug (0015).
-- **To verify with Cloudflare:** max BYOK stored keys per account (0011, undocumented).
+- **Recorded scale risk (0036):** Secrets Store open beta = 100 production secrets per account
+  (one store/account) — one secret per workspace×provider caps at ~100 single-provider
+  workspaces; fine for dev/MVP, pursue the Cloudflare limit-increase form or an alternative
+  key-storage architecture before GA. (Resolves 0011's "undocumented" BYOK-key-count note.)
