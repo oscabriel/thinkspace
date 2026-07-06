@@ -6,6 +6,11 @@ export {
   defineCuratorAgentContract,
 } from "./contracts/curator-agent";
 export {
+  defineModelRoutingContract,
+  type ModelRouterFactory,
+  type ModelRouterSeed,
+} from "./contracts/model-routing";
+export {
   defineTenantDataAccessContract,
   type TenantDataAccessFactory,
   type TenantDataAccessSeed,

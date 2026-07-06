@@ -1,4 +1,4 @@
-import { createNotImplementedError } from "../../errors";
+import { byokSecretAlias } from "../../byok";
 import type { ModelId } from "../../ids";
 import type { Model, ModelProvider } from "../../model";
 import type { SecretAlias } from "../../primitives";
@@ -13,9 +13,12 @@ export interface MemoryModelSecretAlias {
 }
 
 export interface MemoryModelRouterConfig {
+  readonly catalogUnavailable?: boolean;
   readonly context: TenantContext;
+  readonly keyedProviders?: readonly ModelProvider[];
   readonly models?: readonly Model[];
   readonly routes?: readonly ModelRoute[];
+  /** @deprecated Use keyedProviders; aliases are now derived via byokSecretAlias. */
   readonly secretAliases?: readonly MemoryModelSecretAlias[];
 }
 
@@ -30,22 +33,29 @@ export const createMemoryModelRouter = (
   const routes = new Map(
     (config.routes ?? []).map((route) => [modelRouteKey(route.model.id), route])
   );
-  const secretAliases = new Map(
-    (config.secretAliases ?? []).map((alias) => [
-      idKey(alias.provider),
-      alias.secretAlias,
-    ])
-  );
+  const keyedProviders = new Set([
+    ...(config.keyedProviders ?? []).map((provider) => idKey(provider)),
+    ...(config.secretAliases ?? []).map((alias) => idKey(alias.provider)),
+  ]);
 
   return {
     context: config.context,
-    listAvailableModels: async () =>
-      ok(
+    listAvailableModels: async () => {
+      if (config.catalogUnavailable === true) {
+        return err({ kind: "catalog_unavailable" });
+      }
+
+      return ok(
         (config.models ?? []).filter((model) =>
-          secretAliases.has(idKey(model.provider))
+          keyedProviders.has(idKey(model.provider))
         )
-      ),
+      );
+    },
     resolve: async (input) => {
+      if (config.catalogUnavailable === true) {
+        return err({ kind: "catalog_unavailable" });
+      }
+
       const seededRoute = routes.get(modelRouteKey(input.modelId));
       if (seededRoute !== undefined) {
         return hasSameId(
@@ -63,11 +73,14 @@ export const createMemoryModelRouter = (
 
       const model = models.get(modelRouteKey(input.modelId));
       if (model === undefined) {
-        return err(createNotImplementedError("MemoryModelRouter.resolve"));
+        return err({
+          kind: "model_not_in_catalog",
+          modelId: input.modelId,
+          workspaceId: config.context.workspaceId,
+        });
       }
 
-      const secretAlias = secretAliases.get(idKey(model.provider));
-      if (secretAlias === undefined) {
+      if (!keyedProviders.has(idKey(model.provider))) {
         return err({
           kind: "byok_key_missing",
           modelId: model.id,
@@ -82,7 +95,10 @@ export const createMemoryModelRouter = (
           workspaceId: config.context.workspaceId,
         },
         model,
-        secretAlias,
+        secretAlias: byokSecretAlias(
+          config.context.workspaceId,
+          model.provider
+        ),
       });
     },
   };

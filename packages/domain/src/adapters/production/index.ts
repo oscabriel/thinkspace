@@ -32,6 +32,7 @@ export {
   type ModelCatalogConfig,
   MODELS_DEV_API_URL,
 } from "./model-catalog";
+export { createD1ModelRouter, type D1ModelRouterConfig } from "./model-routing";
 export {
   createAiGatewayByokModelRouterPlaceholder,
   createCatalogWorkspaceShapeToolResolverPlaceholder,
