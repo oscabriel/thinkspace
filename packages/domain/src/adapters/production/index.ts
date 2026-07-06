@@ -13,6 +13,10 @@ export {
   type D1TenantDataAccessConfig,
 } from "./tenant-data-access";
 export {
+  type CatalogWorkspaceShapeToolResolverConfig,
+  createCatalogWorkspaceShapeToolResolver,
+} from "./tool-resolution";
+export {
   buildCompletionFlow,
   type CompletionFlowEnv,
   createProductionThreadAgentDirectory,
