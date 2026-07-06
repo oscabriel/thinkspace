@@ -24,6 +24,13 @@ export {
   ThreadAgentDurableObject,
 } from "./thread-agent";
 export {
+  createGatewayModel,
+  gatewayModelFactories,
+  type GatewayModelEnv,
+  type GatewayModelFactory,
+  type GatewayModelFactoryOptions,
+} from "./model-gateway";
+export {
   assembleCatalog,
   type CatalogFetch,
   createModelCatalog,
@@ -32,6 +39,7 @@ export {
   type ModelCatalogConfig,
   MODELS_DEV_API_URL,
 } from "./model-catalog";
+export { createD1ModelRouter, type D1ModelRouterConfig } from "./model-routing";
 export {
   createAiGatewayByokModelRouterPlaceholder,
   createCatalogWorkspaceShapeToolResolverPlaceholder,

@@ -102,8 +102,11 @@ describe("completion flow self-construction (ADR 0035 §2)", () => {
     await runInDurableObject(
       agentStub,
       (instance: ThreadAgentDurableObject) => {
-        instance.applyTestSeed({ address, nextRunId: () => runId("sc-run-1") });
-        instance.modelOverride = modelReplying("Self-constructed settle.");
+        instance.applyTestSeed({
+          address,
+          nextRunId: () => runId("sc-run-1"),
+          testModel: modelReplying("Self-constructed settle."),
+        });
       }
     );
 

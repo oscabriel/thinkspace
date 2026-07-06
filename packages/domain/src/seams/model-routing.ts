@@ -1,5 +1,7 @@
 import type {
   ByokKeyMissingError,
+  CatalogUnavailableError,
+  ModelNotInCatalogError,
   NotImplementedError,
   TenantGuardViolationError,
 } from "../errors";
@@ -11,6 +13,8 @@ import type { TenantContext } from "./tenant-data-access";
 
 export type ModelRoutingError =
   | ByokKeyMissingError
+  | CatalogUnavailableError
+  | ModelNotInCatalogError
   | NotImplementedError
   | TenantGuardViolationError;
 

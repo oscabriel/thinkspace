@@ -131,8 +131,8 @@ describe("dispatch→completion round trip (acceptance)", () => {
         instance.applyTestSeed({
           address,
           nextRunId: () => runId("rt-run-1"),
+          testModel: modelReplying("Round trip reply."),
         });
-        instance.modelOverride = modelReplying("Round trip reply.");
         instance.completionFlow = completionFlow;
       }
     );
