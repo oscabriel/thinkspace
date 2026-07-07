@@ -9,22 +9,24 @@ import {
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Toaster } from "@thinkspace/ui/components/sonner";
 
-import Header from "../components/header";
-
 import appCss from "../index.css?url";
 
 export interface RouterAppContext {
   queryClient: QueryClient;
 }
 
+/**
+ * The shell (routes/w/$workspaceId) owns its own sidebar + top-bar chrome, and the auth
+ * screens are standalone centered pages, so the root document is just the themed surface and
+ * a full-height Outlet — no global header rail.
+ */
 const RootDocument = () => (
   <html lang="en" className="dark">
     <head>
       <HeadContent />
     </head>
     <body>
-      <div className="grid h-svh grid-rows-[auto_1fr]">
-        <Header />
+      <div className="h-svh">
         <Outlet />
       </div>
       <Toaster richColors />
@@ -54,7 +56,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         name: "viewport",
       },
       {
-        title: "My App",
+        title: "Thinkspace",
       },
     ],
   }),
