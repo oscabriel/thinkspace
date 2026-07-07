@@ -3,6 +3,7 @@ import {
   AiGateway,
   D1Database,
   DurableObjectNamespace,
+  R2Bucket,
   TanStackStart,
   Worker,
 } from "alchemy/cloudflare";
@@ -36,6 +37,14 @@ const corsOrigin = required(
 
 const db = await D1Database("database", {
   migrationsDir: "../../packages/db/src/migrations",
+});
+
+/**
+ * ADR 0032: versioned artifact blobs live in R2 keyed by
+ * `${workspaceId}/artifacts/${artifactId}/${versionId}`; the D1 index carries head + history.
+ */
+const artifacts = await R2Bucket("artifacts", {
+  adopt: true,
 });
 
 /**
@@ -77,6 +86,7 @@ export const server = await Worker("server", {
       "AI_GATEWAY_TOKEN"
     ),
     AI_GATEWAY_URL: `https://gateway.ai.cloudflare.com/v1/${aiGateway.accountId}/${aiGateway.gatewayName}`,
+    ARTIFACTS: artifacts,
     BETTER_AUTH_SECRET: required(
       alchemy.secret.env.BETTER_AUTH_SECRET,
       "BETTER_AUTH_SECRET"

@@ -41,6 +41,10 @@ export type ScheduleId = z.infer<typeof scheduleIdSchema>;
 export const artifactIdSchema = nonEmptyIdSchema.brand<"ArtifactId">();
 export type ArtifactId = z.infer<typeof artifactIdSchema>;
 
+export const artifactVersionIdSchema =
+  nonEmptyIdSchema.brand<"ArtifactVersionId">();
+export type ArtifactVersionId = z.infer<typeof artifactVersionIdSchema>;
+
 export const toolIdSchema = nonEmptyIdSchema.brand<"ToolId">();
 export type ToolId = z.infer<typeof toolIdSchema>;
 

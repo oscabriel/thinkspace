@@ -1,5 +1,7 @@
 export {
+  createMemoryArtifactState,
   createMemoryArtifactStore,
+  type MemoryArtifactState,
   type MemoryArtifactStoreConfig,
 } from "./artifact-store";
 export {

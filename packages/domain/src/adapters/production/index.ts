@@ -63,9 +63,12 @@ export {
 } from "./model-catalog";
 export { createD1ModelRouter, type D1ModelRouterConfig } from "./model-routing";
 export {
+  createR2VirtualFsArtifactStore,
+  type R2VirtualFsArtifactStoreConfig,
+} from "./artifact-store";
+export {
   createCuratorThinkAgentPlaceholder,
   createR2MarkdownSkillStorePlaceholder,
-  createR2VirtualFsArtifactStorePlaceholder,
   createThinkThreadAgentPlaceholder,
   createWorkerMcpEgressPolicyPlaceholder,
 } from "./placeholders";
