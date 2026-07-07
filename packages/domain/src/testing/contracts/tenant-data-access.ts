@@ -129,6 +129,106 @@ export const defineTenantDataAccessContract = (input: {
         workspaceId: testWorkspaceId,
       });
     });
+
+    test("the workspace graph (sidebar) fails closed with an AuthzError", async () => {
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testSystemContext,
+        workspace: testWorkspace,
+      });
+
+      expect(unwrapErr(await data.getWorkspaceGraph())).toEqual({
+        kind: "not_workspace_member",
+        workspaceId: testWorkspaceId,
+      });
+    });
+  });
+
+  describe("TenantDataAccess.getWorkspaceGraph — sidebar payload (ADR 0035 §6 / ADR 0027)", () => {
+    test("returns the workspace plus the visible, non-deleted channels the member can see", async () => {
+      const sharedChannel = makeChannel({ id: "channel-shared" });
+      const ownPrivateChannel = makeChannel({
+        id: "channel-own-private",
+        visibility: { kind: "private" },
+      });
+      const foreignPrivateChannel = makeChannel({
+        id: "channel-foreign-private",
+        ownerMemberId: memberId("member-2"),
+        visibility: { kind: "private" },
+      });
+      const deletedChannel = makeChannel({
+        id: "channel-deleted",
+        lifecycle: {
+          archivedAt: null,
+          deletedAt: new Date("2026-06-30T00:00:00Z"),
+          state: "deleted",
+        },
+      });
+
+      const data = await makeTenantDataAccess({
+        channels: [
+          sharedChannel,
+          ownPrivateChannel,
+          foreignPrivateChannel,
+          deletedChannel,
+        ],
+        context: testTenantContext,
+        workspace: testWorkspace,
+      });
+
+      const graph = unwrapOk(await data.getWorkspaceGraph());
+
+      expect(graph.workspaceId).toEqual(testWorkspaceId);
+      expect(
+        graph.channels.map((entry) => entry.channelId).toSorted()
+      ).toEqual([channelId("channel-own-private"), channelId("channel-shared")]);
+      const shared = graph.channels.find(
+        (entry) => entry.channelId === channelId("channel-shared")
+      );
+      expect(shared).toEqual({
+        channelId: sharedChannel.id,
+        goal: sharedChannel.goal,
+        lifecycle: sharedChannel.lifecycle,
+        ownerMemberId: sharedChannel.ownerMemberId,
+        visibility: sharedChannel.visibility,
+      });
+    });
+  });
+
+  describe("TenantDataAccess.listChannelThreads — recency-ordered (ADR 0020)", () => {
+    test("lists a channel's threads most-recent-activity first — the bump order", async () => {
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testTenantContext,
+        threads: [
+          makeThread({
+            channelId: "channel-1",
+            id: "thread-oldest",
+            lastActivityAt: new Date("2026-06-30T10:00:00Z"),
+          }),
+          makeThread({
+            channelId: "channel-1",
+            id: "thread-newest",
+            lastActivityAt: new Date("2026-06-30T12:00:00Z"),
+          }),
+          makeThread({
+            channelId: "channel-1",
+            id: "thread-middle",
+            lastActivityAt: new Date("2026-06-30T11:00:00Z"),
+          }),
+        ],
+        workspace: testWorkspace,
+      });
+
+      const index = unwrapOk(
+        await data.listChannelThreads({ channelId: channelId("channel-1") })
+      );
+      expect(index.threads.map((thread) => thread.id)).toEqual([
+        threadId("thread-newest"),
+        threadId("thread-middle"),
+        threadId("thread-oldest"),
+      ]);
+    });
   });
 
   describe("TenantDataAccess.listRecentThreads — home feed (ADR 0020/0027)", () => {

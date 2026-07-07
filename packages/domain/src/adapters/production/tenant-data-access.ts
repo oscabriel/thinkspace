@@ -4,6 +4,7 @@ import type {
 } from "@cloudflare/workers-types";
 
 import type { Channel } from "../../channel";
+import type { ChannelDirectoryEntry } from "../../directory";
 import { createNotImplementedError } from "../../errors";
 import type { ShapeOwnershipViolationError } from "../../errors";
 import type { ChannelId, WorkspaceId } from "../../ids";
@@ -135,6 +136,14 @@ const rowToWorkspaceToolDisable = (
     toolId: row.tool_id,
     workspaceId: row.workspace_id,
   }) as WorkspaceToolDisable;
+
+const toDirectoryEntry = (channel: Channel): ChannelDirectoryEntry => ({
+  channelId: channel.id,
+  goal: channel.goal,
+  lifecycle: channel.lifecycle,
+  ownerMemberId: channel.ownerMemberId,
+  visibility: channel.visibility,
+});
 
 const isVisibleToMember = (context: TenantContext, channel: Channel): boolean =>
   channel.visibility.kind === "shared" ||
@@ -460,8 +469,19 @@ export const createD1TenantDataAccess = <
       return guardedRow(context, row, rowToShape);
     },
     getSkill: async (_input) => notImplemented("D1TenantDataAccess.getSkill"),
-    getWorkspaceGraph: async () =>
-      notImplemented("D1TenantDataAccess.getWorkspaceGraph"),
+    getWorkspaceGraph: async () => {
+      const member = requireMemberContext(context);
+      if (!member.ok) {
+        return member;
+      }
+
+      const channels = (await listTenantChannels())
+        .filter((channel) => channel.lifecycle.state !== "deleted")
+        .filter((channel) => isVisibleToMember(member.value, channel))
+        .map(toDirectoryEntry);
+
+      return ok({ channels, workspaceId: context.workspaceId });
+    },
     listArtifacts: async () =>
       notImplemented("D1TenantDataAccess.listArtifacts"),
     listChannelFavorites: async (_input) =>
@@ -469,7 +489,7 @@ export const createD1TenantDataAccess = <
     listChannelThreads: async (input) => {
       const rows = await db
         .prepare(
-          "SELECT * FROM thread WHERE workspace_id = ?1 AND channel_id = ?2"
+          "SELECT * FROM thread WHERE workspace_id = ?1 AND channel_id = ?2 ORDER BY last_activity_at DESC"
         )
         .bind(context.workspaceId, input.channelId)
         .all<ThreadRow>();
