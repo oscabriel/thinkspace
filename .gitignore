@@ -54,3 +54,6 @@ tmp
 temp
 
 .impeccable
+
+# Claude Code local state (worktrees, personal settings)
+.claude/
