@@ -2,11 +2,12 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   fetchChannel,
+  fetchChannelShape,
   fetchChannelThreads,
   fetchHomeFeed,
+  fetchModels,
   fetchUnread,
   fetchWorkspaceGraph,
-  type ShapeStructure,
 } from "./api";
 
 /**
@@ -26,10 +27,14 @@ export const workspaceKeys = {
   all: (workspaceId: string) => ["workspace", workspaceId] as const,
   channel: (workspaceId: string, channelId: string) =>
     ["workspace", workspaceId, "channel", channelId] as const,
+  channelShape: (workspaceId: string, channelId: string) =>
+    ["workspace", workspaceId, "channel", channelId, "shape"] as const,
   channelThreads: (workspaceId: string, channelId: string) =>
     ["workspace", workspaceId, "channel", channelId, "threads"] as const,
   graph: (workspaceId: string) => ["workspace", workspaceId, "graph"] as const,
   home: (workspaceId: string) => ["workspace", workspaceId, "home"] as const,
+  models: (workspaceId: string) =>
+    ["workspace", workspaceId, "models"] as const,
   unread: (workspaceId: string) =>
     ["workspace", workspaceId, "unread"] as const,
 };
@@ -69,21 +74,24 @@ export const channelThreadsQuery = (workspaceId: string, channelId: string) =>
   });
 
 /**
- * A channel cannot be created without a shape (ADR 0030), and a shape cannot be authored
- * without the model picker that is sibling #29's deliverable. The shell therefore seeds a
- * minimal default structure so the "New channel" affordance is functional end-to-end. The
- * default model is the run-card's reference id; if the workspace has no BYOK key for it or
- * the catalog lacks it, the ModelRouter fails the create fast (ADR 0036) and the shell
- * surfaces that error verbatim — the teaching moment that a provider key / real shape is
- * needed (key-first onboarding, ADR 0011). Replace this whole path when #29 lands.
+ * The model picker's data source (E7.5): the live catalog ∩ the workspace's keyed providers
+ * (ADR 0011 / 0036). Stable per workspace — a provider key registration changes it, so it is
+ * refetched on window focus rather than a timer; an empty list is the honest "no key yet" signal.
  */
-export const DEFAULT_MODEL_ID = "anthropic/claude-sonnet-5";
+export const modelsQuery = (workspaceId: string) =>
+  queryOptions({
+    queryFn: () => fetchModels(workspaceId),
+    queryKey: workspaceKeys.models(workspaceId),
+    select: (data) => data.models,
+  });
 
-export const defaultShapeStructure = (goal: string): ShapeStructure => ({
-  artifactSelection: [],
-  mcpServerSelection: [],
-  modelId: DEFAULT_MODEL_ID,
-  skillSelection: [],
-  systemPrompt: `You are the agent for a channel whose goal is: ${goal}`,
-  toolSelection: [],
-});
+/**
+ * A channel's live shape structure (ADR 0007 config-as-data) — the edit form's prefill so an
+ * owner re-authors from real values. Read on demand when the shape route mounts; invalidated by
+ * an edit alongside the channel/graph queries.
+ */
+export const channelShapeQuery = (workspaceId: string, channelId: string) =>
+  queryOptions({
+    queryFn: () => fetchChannelShape(workspaceId, channelId),
+    queryKey: workspaceKeys.channelShape(workspaceId, channelId),
+  });
