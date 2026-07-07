@@ -38,8 +38,9 @@ export default function SignUpForm({
             toast.error(error.error.message || error.error.statusText);
           },
           onSuccess: () => {
+            // "/" routes a signed-in user into their workspace shell (or onboarding).
             navigate({
-              to: "/dashboard",
+              to: "/",
             });
             toast.success("Sign up successful");
           },

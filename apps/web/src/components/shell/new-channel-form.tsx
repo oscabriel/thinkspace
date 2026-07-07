@@ -81,14 +81,14 @@ export const NewChannelForm = ({
       }
       toast.error(createErrorMessage(kind));
     },
-    onSuccess: (channel) => {
+    onSuccess: (created) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.graph(workspaceId),
       });
       toast.success("Channel created");
       onDone();
       navigate({
-        params: { channelId: channel.id, workspaceId },
+        params: { channelId: created.channel.id, workspaceId },
         to: "/w/$workspaceId/channels/$channelId",
       });
     },

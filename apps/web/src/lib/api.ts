@@ -208,7 +208,8 @@ export interface ShapeStructure {
 }
 
 export const createChannel = (workspaceId: string, input: CreateChannelInput) =>
-  apiFetch<Channel>(
+  // The wire response is the flow's ChannelCreation envelope, not a bare Channel.
+  apiFetch<{ channel: Channel; shape: Shape }>(
     workspaceId,
     `/channels/${encodeURIComponent(input.channelId)}`,
     {

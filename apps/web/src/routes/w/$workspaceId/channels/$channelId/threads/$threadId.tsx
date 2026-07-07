@@ -60,7 +60,7 @@ const depthOf = (comment: Comment, byId: Map<string, Comment>): number => {
 
 const ThreadView = () => {
   const { channelId, threadId, workspaceId } = Route.useParams();
-  const { root } = Route.useSearch();
+  const { root, run } = Route.useSearch();
   const queryClient = useQueryClient();
 
   const channel = useQuery(channelQuery(workspaceId, channelId));
@@ -109,6 +109,7 @@ const ThreadView = () => {
       {hasRoot ? (
         <ThreadConversation
           channelId={channelId}
+          initialRunId={run}
           rootCommentId={root}
           threadId={threadId}
           workspaceId={workspaceId}
@@ -129,11 +130,13 @@ const ThreadView = () => {
  */
 const ThreadConversation = ({
   channelId,
+  initialRunId,
   rootCommentId,
   threadId,
   workspaceId,
 }: {
   readonly channelId: string;
+  readonly initialRunId?: string;
   readonly rootCommentId: string;
   readonly threadId: string;
   readonly workspaceId: string;
@@ -142,7 +145,13 @@ const ThreadConversation = ({
   const branch = useQuery(
     branchQuery(workspaceId, { channelId, rootCommentId, threadId })
   );
-  const [activeRuns, setActiveRuns] = useState<readonly ActiveRun[]>([]);
+  // The create-and-ask run rides in on ?run= (the receipt does not survive navigation) so the
+  // opening dispatch gets a live card exactly like an in-thread one.
+  const [activeRuns, setActiveRuns] = useState<readonly ActiveRun[]>(() =>
+    initialRunId
+      ? [{ runId: initialRunId, startedAt: Date.now(), status: "running" }]
+      : []
+  );
 
   const comments = useMemo<readonly Comment[]>(
     () =>
@@ -337,7 +346,10 @@ export const Route = createFileRoute(
   "/w/$workspaceId/channels/$channelId/threads/$threadId"
 )({
   component: ThreadView,
-  validateSearch: (search: Record<string, unknown>): { root?: string } => ({
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { root?: string; run?: string } => ({
     root: typeof search.root === "string" ? search.root : undefined,
+    run: typeof search.run === "string" ? search.run : undefined,
   }),
 });

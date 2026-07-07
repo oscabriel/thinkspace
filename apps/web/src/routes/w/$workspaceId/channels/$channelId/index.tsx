@@ -91,7 +91,7 @@ const ChannelView = () => {
       });
       navigate({
         params: { channelId, threadId: receipt.thread.id, workspaceId },
-        search: { root: receipt.openingComment.id },
+        search: { root: receipt.openingComment.id, run: receipt.run?.runId },
         to: "/w/$workspaceId/channels/$channelId/threads/$threadId",
       });
     },
