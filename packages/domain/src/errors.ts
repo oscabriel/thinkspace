@@ -136,6 +136,19 @@ export type ShapeOwnershipViolationError = z.infer<
 >;
 
 /**
+ * ADR 0018: hard-delete is a distinct, deliberate action reached only from the archived
+ * state ("archived-first"). Deleting a still-active channel is a lifecycle conflict, not an
+ * authz failure — the edge maps it to 409.
+ */
+export const channelNotArchivedErrorSchema = z.object({
+  channelId: channelIdSchema,
+  kind: z.literal("channel_not_archived"),
+});
+export type ChannelNotArchivedError = z.infer<
+  typeof channelNotArchivedErrorSchema
+>;
+
+/**
  * A ThreadAgent address always resolves (DO-namespace semantics), so dispatching at a thread
  * that was never created lands on an agent with no resident state; it must fail closed rather
  * than mint runs at a bogus address (ADR 0016/0028).
@@ -194,6 +207,7 @@ export const domainErrorSchema = z.discriminatedUnion("kind", [
   curatorExecutionFailedErrorSchema,
   curatorSessionNotFoundErrorSchema,
   shapeOwnershipViolationErrorSchema,
+  channelNotArchivedErrorSchema,
   threadAgentUnaddressableErrorSchema,
   threadAgentUninitializedErrorSchema,
   realtimeHubUnavailableErrorSchema,
