@@ -196,49 +196,60 @@ describe("dispatch→completion round trip (acceptance)", () => {
     ]);
 
     // 3. Hub events observed: channel hub announced the comment and the lifecycle turn…
+    // (Settle-side hub publishes are fire-and-forget, so poll rather than read-once.)
     const channelHubStub = env.CHANNEL_HUB.get(
       env.CHANNEL_HUB.idFromName(
         encodeChannelHubName(context, { channelId: address.channelId })
       )
     );
-    const channelEvents = await runInDurableObject(
-      channelHubStub,
-      (instance: ChannelHubDurableObject) => instance.listRecentEvents()
+    await vi.waitFor(
+      async () => {
+        const channelEvents = await runInDurableObject(
+          channelHubStub,
+          (instance: ChannelHubDurableObject) => instance.listRecentEvents()
+        );
+        expect(channelEvents).toEqual([
+          {
+            commentId: settled.outputCommentId,
+            kind: "comment_added",
+            threadId: address.threadId,
+          },
+          {
+            kind: "run_lifecycle_changed",
+            runId: settled.id,
+            threadId: address.threadId,
+          },
+        ]);
+      },
+      { interval: 50, timeout: 5000 }
     );
-    expect(channelEvents).toEqual([
-      {
-        commentId: settled.outputCommentId,
-        kind: "comment_added",
-        threadId: address.threadId,
-      },
-      {
-        kind: "run_lifecycle_changed",
-        runId: settled.id,
-        threadId: address.threadId,
-      },
-    ]);
 
     // …and the workspace hub announced the bump.
     const workspaceHubStub = env.WORKSPACE_HUB.get(
       env.WORKSPACE_HUB.idFromName(encodeWorkspaceHubName(context))
     );
-    const activity = await runInDurableObject(
-      workspaceHubStub,
-      (instance: WorkspaceHubDurableObject) => instance.listRecentActivity()
+    await vi.waitFor(
+      async () => {
+        const activity = await runInDurableObject(
+          workspaceHubStub,
+          (instance: WorkspaceHubDurableObject) => instance.listRecentActivity()
+        );
+        expect(activity).toEqual([
+          {
+            bumpedAt: thread.lastActivityAt,
+            channelId: address.channelId,
+            kind: "thread_bumped",
+            threadId: address.threadId,
+          },
+          {
+            bumpedAt: settled.completedAt,
+            channelId: address.channelId,
+            kind: "thread_bumped",
+            threadId: address.threadId,
+          },
+        ]);
+      },
+      { interval: 50, timeout: 5000 }
     );
-    expect(activity).toEqual([
-      {
-        bumpedAt: thread.lastActivityAt,
-        channelId: address.channelId,
-        kind: "thread_bumped",
-        threadId: address.threadId,
-      },
-      {
-        bumpedAt: settled.completedAt,
-        channelId: address.channelId,
-        kind: "thread_bumped",
-        threadId: address.threadId,
-      },
-    ]);
   });
 });

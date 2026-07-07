@@ -146,19 +146,25 @@ describe("completion flow self-construction (ADR 0035 §2)", () => {
     );
     expect(unread.map((row) => row.threadId)).toEqual([address.threadId]);
 
-    // …and announced the bump on the real workspace hub.
+    // …and announced the bump on the real workspace hub. (Settle-side hub publishes are
+    // fire-and-forget, so poll rather than read-once.)
     const hubStub = env.WORKSPACE_HUB.get(
       env.WORKSPACE_HUB.idFromName(encodeWorkspaceHubName(context))
     );
-    const activity = await runInDurableObject(
-      hubStub,
-      (instance: WorkspaceHubDurableObject) => instance.listRecentActivity()
+    await vi.waitFor(
+      async () => {
+        const activity = await runInDurableObject(
+          hubStub,
+          (instance: WorkspaceHubDurableObject) => instance.listRecentActivity()
+        );
+        expect(activity).toContainEqual({
+          bumpedAt: settled.completedAt,
+          channelId: address.channelId,
+          kind: "thread_bumped",
+          threadId: address.threadId,
+        });
+      },
+      { interval: 50, timeout: 5000 }
     );
-    expect(activity).toContainEqual({
-      bumpedAt: settled.completedAt,
-      channelId: address.channelId,
-      kind: "thread_bumped",
-      threadId: address.threadId,
-    });
   });
 });
