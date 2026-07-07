@@ -8,6 +8,7 @@ import {
   fetchChannelShape,
   fetchChannelThreads,
   fetchHomeFeed,
+  fetchMembers,
   fetchProviders,
 
   fetchModels,
@@ -55,6 +56,8 @@ export const workspaceKeys = {
     ["workspace", workspaceId, "channel", channelId, "threads"] as const,
   graph: (workspaceId: string) => ["workspace", workspaceId, "graph"] as const,
   home: (workspaceId: string) => ["workspace", workspaceId, "home"] as const,
+  members: (workspaceId: string) =>
+    ["workspace", workspaceId, "members"] as const,
   providers: (workspaceId: string) =>
     ["workspace", workspaceId, "providers"] as const,
 
@@ -75,6 +78,20 @@ export const homeQuery = (workspaceId: string) =>
     queryFn: () => fetchHomeFeed(workspaceId),
     queryKey: workspaceKeys.home(workspaceId),
     refetchInterval: HOME_POLL_MS,
+  });
+
+/**
+ * The workspace roster as a memberId → display name lookup (E8.6). Feeds and directory rows
+ * label owners/authors by name; a member absent from the roster (or the roster still loading)
+ * falls back to the truncated id at the call site. Read-through like the graph — no realtime
+ * event fires on membership changes, so it refetches on focus rather than a timer.
+ */
+export const membersQuery = (workspaceId: string) =>
+  queryOptions({
+    queryFn: () => fetchMembers(workspaceId),
+    queryKey: workspaceKeys.members(workspaceId),
+    select: (data) =>
+      new Map(data.members.map((member) => [member.memberId, member.displayName])),
   });
 
 export const unreadQuery = (workspaceId: string) =>

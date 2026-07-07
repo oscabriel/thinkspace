@@ -2,6 +2,7 @@ import type { Channel } from "../../channel";
 import type {
   DataAccessContext,
   TenantDataAccess,
+  WorkspaceMember,
 } from "../../seams/tenant-data-access";
 import type { Shape } from "../../shape";
 import type { Thread } from "../../thread";
@@ -16,6 +17,7 @@ import {
   makeShape,
   makeThread,
   makeUnread,
+  makeWorkspaceMember,
   makeWorkspaceToolDisable,
   mcpHost,
   mcpServerId,
@@ -37,6 +39,7 @@ import {
 export interface TenantDataAccessSeed {
   readonly channels?: readonly Channel[];
   readonly context: DataAccessContext;
+  readonly members?: readonly WorkspaceMember[];
   readonly shapes?: readonly Shape[];
   readonly threads?: readonly Thread[];
   readonly unread?: readonly Unread[];
@@ -354,6 +357,65 @@ export const defineTenantDataAccessContract = (input: {
       );
       expect(secondPage.threads.map((thread) => thread.id)).toEqual([
         threadId("thread-1"),
+      ]);
+    });
+  });
+
+  describe("TenantDataAccess.listMembers — workspace roster (E8.6, ADR 0008)", () => {
+    test("returns memberId + display name for each member of the acting workspace", async () => {
+      const data = await makeTenantDataAccess({
+        context: testTenantContext,
+        members: [
+          makeWorkspaceMember({
+            displayName: "Ada Lovelace",
+            memberId: "member-1",
+          }),
+          makeWorkspaceMember({
+            displayName: "Alan Turing",
+            memberId: "member-2",
+          }),
+        ],
+        workspace: testWorkspace,
+      });
+
+      const roster = unwrapOk(await data.listMembers());
+
+      expect(roster.workspaceId).toEqual(testWorkspaceId);
+      expect(
+        roster.members
+          .map((profile) => ({
+            displayName: profile.displayName,
+            memberId: profile.memberId,
+          }))
+          .toSorted((left, right) => left.memberId.localeCompare(right.memberId))
+      ).toEqual([
+        { displayName: "Ada Lovelace", memberId: memberId("member-1") },
+        { displayName: "Alan Turing", memberId: memberId("member-2") },
+      ]);
+    });
+
+    test("fails closed on tenancy: a member of another workspace is invisible", async () => {
+      const data = await makeTenantDataAccess({
+        context: testTenantContext,
+        members: [
+          makeWorkspaceMember({
+            displayName: "Home Member",
+            memberId: "member-1",
+          }),
+          makeWorkspaceMember({
+            displayName: "Foreign Member",
+            memberId: "member-foreign",
+            userId: "user-foreign",
+            workspaceId: otherWorkspaceId,
+          }),
+        ],
+        workspace: testWorkspace,
+      });
+
+      const roster = unwrapOk(await data.listMembers());
+
+      expect(roster.members.map((profile) => profile.memberId)).toEqual([
+        memberId("member-1"),
       ]);
     });
   });

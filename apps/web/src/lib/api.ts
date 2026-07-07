@@ -549,3 +549,22 @@ export const fetchArtifactVersionContent = async (
   }
   return await response.blob();
 };
+
+/**
+ * The workspace roster (E8.6): each member's id paired with the display name from its
+ * better-auth user row (ADR 0008), the label the feeds and directory join against to name
+ * owners and authors instead of a truncated member id. Mirrors MemberRoster in
+ * packages/domain/src/seams/tenant-data-access.ts; display name only, never email/avatar.
+ */
+export interface WorkspaceMemberProfile {
+  readonly displayName: string;
+  readonly memberId: string;
+}
+
+export interface MemberRoster {
+  readonly members: readonly WorkspaceMemberProfile[];
+  readonly workspaceId: string;
+}
+
+export const fetchMembers = (workspaceId: string) =>
+  apiFetch<MemberRoster>(workspaceId, "/members");

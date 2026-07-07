@@ -12,6 +12,7 @@ import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { signUpWithWorkspace } from "./auth-fixtures";
+import { addWorkspaceMember, signUpUser } from "./auth-fixtures";
 
 const base = (workspaceId: string) => `https://test.local/api/w/${workspaceId}`;
 
@@ -229,6 +230,60 @@ describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
     expect(response.status).toBe(200);
     const body = await response.json<{ unread: { threadId: string }[] }>();
     expect(body.unread.map((row) => row.threadId)).toEqual(["ur-th-1"]);
+  });
+
+  it("serves the workspace member roster — memberId + display name (E8.6)", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "roster-owner@example.com",
+      slug: "roster-owner-space",
+    });
+    const teammate = await signUpUser({ email: "roster-teammate@example.com" });
+    const { memberId: teammateMemberId } = await addWorkspaceMember({
+      role: "member",
+      userId: teammate.userId,
+      workspaceId,
+    });
+
+    const response = await get(`${base(workspaceId)}/members`, cookie);
+    expect(response.status).toBe(200);
+    const roster = await response.json<{
+      members: { displayName: string; memberId: string }[];
+      workspaceId: string;
+    }>();
+    expect(roster.workspaceId).toBe(workspaceId);
+    expect(roster.members.map((profile) => profile.memberId).toSorted()).toEqual(
+      [memberId, teammateMemberId].toSorted()
+    );
+    for (const profile of roster.members) {
+      expect(profile.displayName).toBe("Test Member");
+    }
+  });
+
+  it("rejects the roster read without a session as 401", async () => {
+    const { workspaceId } = await signUpWithWorkspace({
+      email: "roster-no-session@example.com",
+      slug: "roster-no-session-space",
+    });
+
+    const response = await get(`${base(workspaceId)}/members`);
+    expect(response.status).toBe(401);
+  });
+
+  it("answers the roster of a workspace the caller is not a member of with 404", async () => {
+    const { workspaceId: foreignWorkspaceId } = await signUpWithWorkspace({
+      email: "roster-foreign@example.com",
+      slug: "roster-foreign-space",
+    });
+    const { cookie } = await signUpWithWorkspace({
+      email: "roster-outsider@example.com",
+      slug: "roster-outsider-space",
+    });
+
+    const response = await get(
+      `${base(foreignWorkspaceId)}/members`,
+      cookie
+    );
+    expect(response.status).toBe(404);
   });
 
   it("serves a branch snapshot from the thread DO after a creation gesture", async () => {

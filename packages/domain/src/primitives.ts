@@ -7,6 +7,10 @@ export const workspaceNameSchema =
   nonEmptyStringSchema.brand<"WorkspaceName">();
 export type WorkspaceName = z.infer<typeof workspaceNameSchema>;
 
+/** A workspace member's display name — the better-auth user.name (ADR 0008), label only. */
+export const displayNameSchema = nonEmptyStringSchema.brand<"DisplayName">();
+export type DisplayName = z.infer<typeof displayNameSchema>;
+
 export const goalSchema = nonEmptyStringSchema.brand<"Goal">();
 export type Goal = z.infer<typeof goalSchema>;
 

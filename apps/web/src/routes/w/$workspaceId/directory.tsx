@@ -14,7 +14,7 @@ import { Archive, Compass, Hash, Lock } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { ChannelDirectoryEntry } from "@/lib/api";
-import { graphQuery } from "@/lib/workspace-queries";
+import { graphQuery, membersQuery } from "@/lib/workspace-queries";
 
 type StatusFilter = "active" | "archived" | "all";
 
@@ -24,11 +24,13 @@ type StatusFilter = "active" | "archived" | "all";
  * jump into channels they are not already tracking. There is no dedicated directory HTTP read
  * yet (the seam's directory listing is unrouted), so v1 filters the GET /graph payload — the
  * same visibility model as the sidebar (shared channels plus the member's own private ones).
- * Owner is shown as its member id; the id→name roster mapping is deferred §6 debt.
+ * Owner is labelled by display name from the roster read (GET /members, E8.6), falling back to
+ * the truncated member id while the roster loads or for a member absent from it.
  */
 const Directory = () => {
   const { workspaceId } = useParams({ from: "/w/$workspaceId" });
   const graph = useQuery(graphQuery(workspaceId));
+  const members = useQuery(membersQuery(workspaceId));
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("active");
 
@@ -87,6 +89,7 @@ const Directory = () => {
             <DirectoryCard
               entry={entry}
               key={entry.channelId}
+              ownerName={members.data?.get(entry.ownerMemberId)}
               workspaceId={workspaceId}
             />
           ))}
@@ -111,9 +114,11 @@ const Directory = () => {
 
 const DirectoryCard = ({
   entry,
+  ownerName,
   workspaceId,
 }: {
   readonly entry: ChannelDirectoryEntry;
+  readonly ownerName?: string;
   readonly workspaceId: string;
 }) => {
   const archived = entry.lifecycle.state === "archived";
@@ -143,7 +148,9 @@ const DirectoryCard = ({
         <span aria-hidden="true">·</span>
         <span>{archived ? "archived" : "active"}</span>
         <span aria-hidden="true">·</span>
-        <span className="truncate">owner {entry.ownerMemberId.slice(0, 8)}</span>
+        <span className="truncate">
+          owner {ownerName ?? entry.ownerMemberId.slice(0, 8)}
+        </span>
       </div>
     </Link>
   );

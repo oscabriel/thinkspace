@@ -21,10 +21,11 @@ import type {
   SkillId,
   ThreadId,
   ToolId,
+  UserId,
   WorkspaceId,
 } from "../ids";
 import type { McpHostApproval, McpServer } from "../mcp";
-import type { McpHost } from "../primitives";
+import type { DisplayName, McpHost } from "../primitives";
 import type { AsyncResult } from "../result";
 import type { Schedule } from "../run";
 import type { Shape } from "../shape";
@@ -73,6 +74,31 @@ export interface WorkspaceGraph {
 export interface ThreadIndex {
   readonly channelId: ChannelId;
   readonly threads: readonly Thread[];
+  readonly workspaceId: WorkspaceId;
+}
+
+/**
+ * E8.6: a workspace member paired with the display name from its better-auth user row (ADR
+ * 0008). The roster join the directory/home surfaces need to label owners and authors by name
+ * instead of a truncated member id. The adapter owns the member→user join; the seam stays in
+ * domain vocabulary and exposes display name only — never email or avatar (§6 scope guard).
+ */
+export interface WorkspaceMember {
+  readonly displayName: DisplayName;
+  readonly memberId: MemberId;
+  readonly userId: UserId;
+  readonly workspaceId: WorkspaceId;
+}
+
+/** A roster entry as exposed to callers: identity + label, nothing else from the user row. */
+export interface WorkspaceMemberProfile {
+  readonly displayName: DisplayName;
+  readonly memberId: MemberId;
+}
+
+/** The workspace roster payload — member profiles for the acting member's workspace. */
+export interface MemberRoster {
+  readonly members: readonly WorkspaceMemberProfile[];
   readonly workspaceId: WorkspaceId;
 }
 
@@ -210,6 +236,7 @@ export interface TenantDataAccess<
   readonly listMemberUnread: (input: {
     readonly memberId: MemberId;
   }) => AsyncResult<readonly Unread[], TenantDataAccessError>;
+  readonly listMembers: () => AsyncResult<MemberRoster, TenantDataAccessError>;
   readonly listRecentThreads: (
     input: HomeFeedRequest
   ) => AsyncResult<HomeFeed, TenantDataAccessError>;

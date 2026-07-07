@@ -7,8 +7,9 @@ import type { Channel } from "../../channel";
 import type { ChannelDirectoryEntry } from "../../directory";
 import { createNotImplementedError } from "../../errors";
 import type { ShapeOwnershipViolationError } from "../../errors";
-import type { ChannelId, WorkspaceId } from "../../ids";
+import type { ChannelId, MemberId, WorkspaceId } from "../../ids";
 import type { McpHostApproval, McpServer } from "../../mcp";
+import type { DisplayName } from "../../primitives";
 import { err, ok } from "../../result";
 import type { Result } from "../../result";
 import type {
@@ -97,6 +98,11 @@ interface McpHostApprovalRow {
   readonly approved_by_owner_member_id: string;
   readonly host: string;
   readonly workspace_id: string;
+}
+
+interface MemberProfileRow {
+  readonly display_name: string;
+  readonly member_id: string;
 }
 
 const rowToChannel = (row: ChannelRow): Channel =>
@@ -619,6 +625,30 @@ export const createD1TenantDataAccess = <
         .bind(context.workspaceId, input.memberId)
         .all<UnreadRow>();
       return ok(rows.results.map(rowToUnread));
+    },
+    listMembers: async () => {
+      /**
+       * E8.6: the roster join crosses into better-auth's member/user tables read-only (ADR
+       * 0008) — organization_id is the workspaceId (ADR 0035). Tenant-scoped by the WHERE, so
+       * no row from another workspace can leak; display name only, never email/avatar.
+       */
+      const rows = await db
+        .prepare(
+          `SELECT member.id AS member_id, user.name AS display_name
+             FROM member
+             JOIN user ON user.id = member.user_id
+            WHERE member.organization_id = ?1
+            ORDER BY member.id`
+        )
+        .bind(context.workspaceId)
+        .all<MemberProfileRow>();
+      return ok({
+        members: rows.results.map((row) => ({
+          displayName: row.display_name as DisplayName,
+          memberId: row.member_id as MemberId,
+        })),
+        workspaceId: context.workspaceId,
+      });
     },
     listRecentThreads: async (input) => {
       const member = requireMemberContext(context);

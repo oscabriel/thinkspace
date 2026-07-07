@@ -12,7 +12,12 @@ import { Inbox } from "lucide-react";
 import { useMemo } from "react";
 
 import { ThreadRow } from "@/components/shell/thread-row";
-import { homeQuery, unreadQuery } from "@/lib/workspace-queries";
+import {
+  graphQuery,
+  homeQuery,
+  membersQuery,
+  unreadQuery,
+} from "@/lib/workspace-queries";
 
 /**
  * The landing surface (ADR 0020): "what moved while I was away" — bumped threads across every
@@ -24,10 +29,26 @@ const HomeFeed = () => {
   const { workspaceId } = useParams({ from: "/w/$workspaceId" });
   const home = useQuery(homeQuery(workspaceId));
   const unread = useQuery(unreadQuery(workspaceId));
+  // E8.6: client-side context join. The channel label comes from the sidebar graph already in
+  // cache (goal-as-label, ADR 0027 directory entries); the author name from the roster read.
+  // Neither blocks the feed — a still-loading lookup just omits that fragment of the row.
+  const graph = useQuery(graphQuery(workspaceId));
+  const members = useQuery(membersQuery(workspaceId));
 
   const unreadThreadIds = useMemo(
     () => new Set((unread.data ?? []).map((u) => u.threadId)),
     [unread.data]
+  );
+
+  const channelGoals = useMemo(
+    () =>
+      new Map(
+        (graph.data?.channels ?? []).map((channel) => [
+          channel.channelId,
+          channel.goal,
+        ])
+      ),
+    [graph.data]
   );
 
   return (
@@ -47,6 +68,8 @@ const HomeFeed = () => {
         <div className="flex flex-col">
           {home.data.threads.map((thread) => (
             <ThreadRow
+              authorName={members.data?.get(thread.createdByMemberId)}
+              channelLabel={channelGoals.get(thread.channelId)}
               key={thread.id}
               thread={thread}
               unread={unreadThreadIds.has(thread.id)}
