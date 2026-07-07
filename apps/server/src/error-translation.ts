@@ -8,7 +8,16 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
  */
 export const domainErrorStatus = (error: DomainError): ContentfulStatusCode => {
   switch (error.kind) {
-    case "channel_not_visible": {
+    case "channel_not_visible":
+    case "tenant_guard_violation": {
+      /**
+       * ADR 0035 §7: invisibility-as-nonexistence outranks the original "rest → 500"
+       * row. A cross-tenant channel-id probe trips the domain tenant guard
+       * (`tenant_guard_violation`); surfacing it as 500 would distinguish a
+       * foreign-but-real channel from an invisible 404 and confirm its existence to a
+       * non-holder. Both collapse to 404 so a probe learns nothing. The domain guard
+       * still throws — only this edge translation changes.
+       */
       return 404;
     }
     case "unauthenticated": {

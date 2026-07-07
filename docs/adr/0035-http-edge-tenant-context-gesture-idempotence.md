@@ -156,6 +156,16 @@ The ModelRouter slice (ADR 0036) adds four domain-error rows to that shared tran
 | `catalog_unavailable`  | cold catalog miss, no last-good to serve                   | 503    |
 | `mcp_host_not_allowed` | MCP host outside the ADR 0002 egress allowlist             | 403    |
 
+**Amendment (2026-07-06, E5.4 — baked decision 1): `tenant_guard_violation` → 404.** A
+cross-tenant channel-id probe trips the domain tenant guard, which surfaces
+`tenant_guard_violation`. Under the "rest → 500" default above that read as a 500,
+distinguishable from the invisible-channel 404 — a 500-vs-404 oracle that confirms a
+foreign-but-real channel's existence to a non-holder. Invisibility-as-nonexistence (§4)
+outranks the default row: the edge translator maps `tenant_guard_violation` → 404 so a
+probe cannot tell a foreign channel from a nonexistent one. The domain guard keeps
+throwing `tenant_guard_violation` unchanged (fail-closed writes, ADR 0009); only this edge
+translation moves.
+
 **Dispatch duplicate suppression: contract now, enforcement later.** ADR 0033 assigned
 suppression to the edge ("swallowed before the flow runs") and forbade solving it in the
 DO. The client-minted `gestureId` (UUIDv7, ADR 0033's minting rule) is **required on the
