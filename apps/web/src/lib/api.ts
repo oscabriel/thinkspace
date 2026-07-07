@@ -190,3 +190,149 @@ export const archiveChannel = (workspaceId: string, channelId: string) =>
     `/channels/${encodeURIComponent(channelId)}/archive`,
     { method: "POST" }
   );
+
+/* ── E7.4 thread surface ─────────────────────────────────────────────────────
+ * The thread interior: the branch read (ADR 0025 ancestors + subtree), the two write
+ * gestures (PUT create / POST dispatch, both idempotent on client-minted ids), unread
+ * clearing (ADR 0027), and the short-lived hub-connect token (baked decision 5). Mirrors
+ * packages/domain/src/{thread,run}.ts and seams/thread-agent.ts by hand — Dates are ISO
+ * strings on the wire. */
+
+export type CommentAuthor =
+  | { readonly kind: "member"; readonly memberId: string }
+  | {
+      readonly channelId: string;
+      readonly facet:
+        | { readonly kind: "channel_agent" }
+        | {
+            readonly kind: "sub_agent";
+            readonly name: string;
+            readonly runId: string;
+          };
+      readonly kind: "agent";
+    };
+
+export type CommentParent =
+  | { readonly kind: "top_level" }
+  | { readonly kind: "nested"; readonly parentCommentId: string };
+
+export interface Comment {
+  readonly author: CommentAuthor;
+  readonly body: string;
+  readonly createdAt: string;
+  readonly id: string;
+  readonly parent: CommentParent;
+  readonly threadId: string;
+  readonly workspaceId: string;
+}
+
+/** ADR 0025: the dispatch context slice — ancestor path (oldest first) + the branch subtree. */
+export interface BranchSnapshot {
+  readonly ancestors: readonly Comment[];
+  readonly branch: { readonly rootCommentId: string; readonly threadId: string };
+  readonly subtree: readonly Comment[];
+}
+
+/** The dispatch receipt (ThreadAgentRunReceipt): a queued run the client can render at once. */
+export interface RunReceipt {
+  readonly queuedRun: {
+    readonly channelId: string;
+    readonly id: string;
+    readonly lifecycle: "queued";
+    readonly queuedAt: string;
+    readonly threadId: string;
+    readonly workspaceId: string;
+  };
+  readonly runId: string;
+  readonly threadId: string;
+}
+
+/** The creation receipt; `run` is present only when the gesture was "create and ask". */
+export interface ThreadCreationReceipt {
+  readonly openingComment: Comment;
+  readonly run?: RunReceipt;
+  readonly thread: Thread;
+}
+
+export const fetchBranch = (
+  workspaceId: string,
+  input: {
+    readonly channelId: string;
+    readonly rootCommentId: string;
+    readonly threadId: string;
+  }
+) =>
+  apiFetch<BranchSnapshot>(
+    workspaceId,
+    `/channels/${encodeURIComponent(input.channelId)}/threads/${encodeURIComponent(
+      input.threadId
+    )}/branches/${encodeURIComponent(input.rootCommentId)}`
+  );
+
+/**
+ * PUT create-and-ask (ADR 0034 §6): mints the opening comment and, when `askGestureId` is
+ * given, chains a dispatch at it. The client mints threadId, openingCommentId and the gesture
+ * id; a replay of the same ids converges on the same thread-plus-run receipt.
+ */
+export const createThread = (
+  workspaceId: string,
+  input: {
+    readonly askGestureId?: string;
+    readonly channelId: string;
+    readonly openingBody: string;
+    readonly openingCommentId: string;
+    readonly threadId: string;
+  }
+) =>
+  apiFetch<ThreadCreationReceipt>(
+    workspaceId,
+    `/channels/${encodeURIComponent(input.channelId)}/threads/${encodeURIComponent(
+      input.threadId
+    )}`,
+    {
+      body: JSON.stringify({
+        openingBody: input.openingBody,
+        openingCommentId: input.openingCommentId,
+        ...(input.askGestureId
+          ? { ask: { gestureId: input.askGestureId } }
+          : {}),
+      }),
+      method: "PUT",
+    }
+  );
+
+/** POST dispatch: re-run the channel agent at an existing target comment (baked decision 8). */
+export const dispatchThread = (
+  workspaceId: string,
+  input: {
+    readonly channelId: string;
+    readonly gestureId: string;
+    readonly targetCommentId: string;
+    readonly threadId: string;
+  }
+) =>
+  apiFetch<RunReceipt>(
+    workspaceId,
+    `/channels/${encodeURIComponent(input.channelId)}/threads/${encodeURIComponent(
+      input.threadId
+    )}/dispatch`,
+    {
+      body: JSON.stringify({
+        gestureId: input.gestureId,
+        targetCommentId: input.targetCommentId,
+      }),
+      method: "POST",
+    }
+  );
+
+/** ADR 0027: clear the acting member's unread for a thread when they open it. */
+export const clearThreadUnread = (workspaceId: string, threadId: string) =>
+  apiFetch<{ ok: true }>(
+    workspaceId,
+    `/threads/${encodeURIComponent(threadId)}/read`,
+    { method: "POST" }
+  );
+
+/** Baked decision 5: the short-lived hub-connect JWT the WS client rides in `?token=`. */
+export const fetchHubToken = (workspaceId: string) =>
+  apiFetch<{ token: string }>(workspaceId, "/token");

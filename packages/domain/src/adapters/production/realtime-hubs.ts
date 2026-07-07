@@ -290,6 +290,23 @@ export interface ProductionChannelHubConfig {
   readonly namespace: DurableObjectNamespace<ChannelHubDurableObject>;
 }
 
+/**
+ * E7.4: the DO stub for a channel hub, addressed by the same injective name the publish path
+ * uses (`encodeChannelHubName`). The HTTP edge proxies a browser WS upgrade through this stub's
+ * `fetch` (baked decision 5); the DO verifies the connect JWT itself, so the edge only needs
+ * to route to the correctly-addressed hub. Kept beside `createProductionChannelHub` so the
+ * agents-SDK addressing (getAgentByName + name storage) lives in one place.
+ */
+export const getChannelHubStub = (
+  config: ProductionChannelHubConfig
+): ReturnType<
+  typeof getAgentByName<Cloudflare.Env, ChannelHubDurableObject>
+> =>
+  getAgentByName(
+    config.namespace,
+    encodeChannelHubName(config.context, config.address)
+  );
+
 export const createProductionChannelHub = (
   config: ProductionChannelHubConfig
 ): ChannelHub => {

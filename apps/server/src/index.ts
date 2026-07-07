@@ -7,10 +7,12 @@ import { artifactRoutes } from "./artifacts";
 import { createAuth } from "./auth";
 import { channelRoutes } from "./channels";
 import { gestureRoutes } from "./gestures";
+import { hubWsRoutes } from "./hub-ws";
 import { providerKeyRoutes } from "./providers";
 import { readRoutes } from "./reads";
 import { tenantContextMiddleware } from "./tenant-context";
 import { tokenRoutes } from "./token";
+import { unreadRoutes } from "./unread";
 
 const app = new Hono();
 
@@ -31,9 +33,11 @@ app.use("/api/w/:workspaceId/*", tenantContextMiddleware);
 app.route("/api/w/:workspaceId", artifactRoutes);
 app.route("/api/w/:workspaceId", channelRoutes);
 app.route("/api/w/:workspaceId", gestureRoutes);
+app.route("/api/w/:workspaceId", hubWsRoutes);
 app.route("/api/w/:workspaceId", providerKeyRoutes);
 app.route("/api/w/:workspaceId", readRoutes);
 app.route("/api/w/:workspaceId", tokenRoutes);
+app.route("/api/w/:workspaceId", unreadRoutes);
 
 app.get("/", (c) => c.text("OK"));
 

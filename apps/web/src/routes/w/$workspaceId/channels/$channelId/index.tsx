@@ -3,7 +3,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { createFileRoute, useParams } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button } from "@thinkspace/ui/components/button";
 import {
   Empty,
@@ -18,7 +18,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { ThreadRow } from "@/components/shell/thread-row";
-import { ApiRequestError, archiveChannel } from "@/lib/api";
+import { ThreadComposer } from "@/components/thread/thread-composer";
+import { ApiRequestError, archiveChannel, createThread } from "@/lib/api";
+import { uuidv7 } from "@/lib/ids";
+import { recallThreadRoot, rememberThreadRoot } from "@/lib/thread-roots";
 import {
   channelQuery,
   channelThreadsQuery,
@@ -26,20 +29,20 @@ import {
 } from "@/lib/workspace-queries";
 
 /**
- * The channel container: the channel's header plus its thread index rendered as the recency
- * feed scoped to one channel (ADR 0020 "the same feed scoped to one channel"). This is the
- * shell-level channel surface — the thread tree view, composer, and gesture dispatch are the
- * thread surface, sibling #28, which mounts under this route. Archive is the one lifecycle
- * affordance wired here (POST /channels/:id/archive); it invalidates the sidebar graph so the
- * channel drops into the Archived group without a socket event (recorded staleness gap).
+ * The channel container (E7.4, owning the E7.3 read-only scaffold wholesale): the channel
+ * header + archive affordance, the recency-sorted thread index (ADR 0020, "the same feed scoped
+ * to one channel"), and the "start a thread" composer. Creating a thread is a create-and-ask
+ * gesture (ADR 0034 §6): one PUT mints the opening comment *and* dispatches the channel agent
+ * at it, so a member's first message and the agent's first turn are one atomic, replayable
+ * action. On success we navigate into the thread view carrying the client-minted root comment
+ * id (the branch anchor the read surface cannot otherwise recover — see thread-roots.ts).
  */
 const ChannelView = () => {
-  const { channelId, workspaceId } = useParams({
-    from: "/w/$workspaceId/channels/$channelId",
-  });
+  const { channelId, workspaceId } = Route.useParams();
   const channel = useQuery(channelQuery(workspaceId, channelId));
   const threads = useQuery(channelThreadsQuery(workspaceId, channelId));
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [confirmingArchive, setConfirmingArchive] = useState(false);
 
   const archive = useMutation({
@@ -58,6 +61,39 @@ const ChannelView = () => {
       });
       toast.success("Channel archived");
       setConfirmingArchive(false);
+    },
+  });
+
+  const startThread = useMutation({
+    mutationFn: (openingBody: string) => {
+      const threadId = uuidv7();
+      const openingCommentId = uuidv7();
+      return createThread(workspaceId, {
+        askGestureId: uuidv7(),
+        channelId,
+        openingBody,
+        openingCommentId,
+        threadId,
+      });
+    },
+    onError: (error) => {
+      const kind =
+        error instanceof ApiRequestError ? error.kind : "unknown_error";
+      toast.error(`Could not start thread: ${kind}`);
+    },
+    onSuccess: (receipt) => {
+      rememberThreadRoot(receipt.thread.id, receipt.openingComment.id);
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.channelThreads(workspaceId, channelId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.home(workspaceId),
+      });
+      navigate({
+        params: { channelId, threadId: receipt.thread.id, workspaceId },
+        search: { root: receipt.openingComment.id },
+        to: "/w/$workspaceId/channels/$channelId/threads/$threadId",
+      });
     },
   });
 
@@ -90,8 +126,7 @@ const ChannelView = () => {
   }
 
   const archived = channel.data.lifecycle.state === "archived";
-  const GlyphIcon =
-    channel.data.visibility.kind === "private" ? Lock : Hash;
+  const GlyphIcon = channel.data.visibility.kind === "private" ? Lock : Hash;
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-8">
@@ -153,12 +188,29 @@ const ChannelView = () => {
         </div>
       </header>
 
+      {archived ? null : (
+        <ThreadComposer
+          onSubmit={(body) => startThread.mutate(body)}
+          pending={startThread.isPending}
+          placeholder="Start a thread — describe the work and ask the channel agent…"
+          submitLabel="Start thread"
+        />
+      )}
+
       {threads.isPending ? (
         <FeedSkeleton />
       ) : threads.data && threads.data.threads.length > 0 ? (
         <div className="flex flex-col">
           {threads.data.threads.map((thread) => (
-            <ThreadRow key={thread.id} thread={thread} unread={false} />
+            <Link
+              className="rounded-md transition-colors hover:bg-muted/50"
+              key={thread.id}
+              params={{ channelId, threadId: thread.id, workspaceId }}
+              search={{ root: recallThreadRoot(thread.id) }}
+              to="/w/$workspaceId/channels/$channelId/threads/$threadId"
+            >
+              <ThreadRow thread={thread} unread={false} />
+            </Link>
           ))}
         </div>
       ) : (
@@ -169,8 +221,8 @@ const ChannelView = () => {
             </EmptyMedia>
             <EmptyTitle>No threads yet</EmptyTitle>
             <EmptyDescription>
-              Threads are where the work happens. The thread composer is coming
-              soon — start a conversation and dispatch the channel&apos;s agent.
+              Threads are where the work happens. Start one above — your message
+              opens the thread and dispatches the channel&apos;s agent.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -187,6 +239,8 @@ const FeedSkeleton = () => (
   </div>
 );
 
-export const Route = createFileRoute("/w/$workspaceId/channels/$channelId")({
+export const Route = createFileRoute(
+  "/w/$workspaceId/channels/$channelId/"
+)({
   component: ChannelView,
 });
