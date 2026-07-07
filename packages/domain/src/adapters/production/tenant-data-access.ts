@@ -19,6 +19,7 @@ import type {
   TenantWriteCommand,
 } from "../../seams/tenant-data-access";
 import type { Shape } from "../../shape";
+import type { Skill } from "../../skill";
 import type { Thread } from "../../thread";
 import type { WorkspaceToolDisable } from "../../tool";
 import type { Unread } from "../../unread";
@@ -89,6 +90,16 @@ interface McpServerRow {
   readonly id: string;
   readonly name: string;
   readonly url: string;
+  readonly workspace_id: string;
+}
+
+/** Adapter-owned skill index row (ADR 0029): D1 owns the lookup table, R2 the markdown body. */
+interface SkillRow {
+  readonly created_at: number;
+  readonly id: string;
+  readonly name: string;
+  readonly r2_key: string;
+  readonly updated_at: number;
   readonly workspace_id: string;
 }
 
@@ -177,6 +188,16 @@ const rowToMcpHostApproval = (row: McpHostApprovalRow): McpHostApproval =>
     host: row.host,
     workspaceId: row.workspace_id,
   }) as McpHostApproval;
+
+const rowToSkill = (row: SkillRow): Skill =>
+  ({
+    createdAt: new Date(row.created_at),
+    id: row.id,
+    name: row.name,
+    storage: { kind: "r2_markdown", r2Key: row.r2_key },
+    updatedAt: new Date(row.updated_at),
+    workspaceId: row.workspace_id,
+  }) as Skill;
 
 const isVisibleToMember = (context: TenantContext, channel: Channel): boolean =>
   channel.visibility.kind === "shared" ||
@@ -656,7 +677,13 @@ export const createD1TenantDataAccess = <
 
       return ok({ threads, workspaceId: context.workspaceId });
     },
-    listSkills: async () => notImplemented("D1TenantDataAccess.listSkills"),
+    listSkills: async () => {
+      const rows = await db
+        .prepare("SELECT * FROM skill WHERE workspace_id = ?1")
+        .bind(context.workspaceId)
+        .all<SkillRow>();
+      return ok(rows.results.map(rowToSkill));
+    },
     listWorkspaceToolDisables: async () => {
       const rows = await db
         .prepare("SELECT * FROM workspace_tool_disable WHERE workspace_id = ?1")

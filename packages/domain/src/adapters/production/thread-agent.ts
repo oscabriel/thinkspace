@@ -1,6 +1,6 @@
 import { Think } from "@cloudflare/think";
 import type { ThinkSubmissionInspection } from "@cloudflare/think";
-import { getAgentByName } from "agents";
+import { getAgentByName, normalizeServerId } from "agents";
 import type { AgentContext } from "agents";
 import type { LanguageModel, ToolSet, UIMessage } from "ai";
 
@@ -12,9 +12,12 @@ import type {
   RunCompletionFlow,
   RunSettlement,
 } from "../../flows/run-completion";
-import type { GestureId } from "../../ids";
+import type { RunFailureError } from "../../errors";
+import type { GestureId, McpServerId } from "../../ids";
 import { commentIdSchema, runIdSchema } from "../../ids";
+import type { McpServer } from "../../mcp";
 import { commentBodySchema, failureReasonSchema } from "../../primitives";
+import type { FailureReason } from "../../primitives";
 import { err, ok } from "../../result";
 import type { AsyncResult } from "../../result";
 import type {
@@ -31,6 +34,10 @@ import type {
 import type { SkillContent } from "../../seams/skill-store";
 import type { SystemContext } from "../../seams/tenant-data-access";
 import type {
+  ToolResolutionError,
+  ToolResolutionRequest,
+} from "../../seams/tool-resolution";
+import type {
   BranchSnapshot,
   RunDetail,
   ThreadAgent,
@@ -42,7 +49,7 @@ import type {
   ThreadAgentRunReceipt,
   ThreadAgentSnapshot,
 } from "../../seams/thread-agent";
-import type { ShapeSnapshot } from "../../shape";
+import type { ShapeSnapshot, ShapeStructure } from "../../shape";
 import type { ThreadAgentSeed } from "../../testing/contracts/thread-agent";
 import type { Comment } from "../../thread";
 import { ancestorComments, branchComments } from "../comment-tree";
@@ -62,6 +69,10 @@ import type {
 } from "./realtime-hubs";
 import { loadSelectedSkillContents } from "./skill-store";
 import { createD1TenantDataAccess } from "./tenant-data-access";
+import {
+  createCatalogWorkspaceShapeToolResolver,
+  createWorkerMcpEgressPolicy,
+} from "./tool-resolution";
 
 const defaultClock = (): Date => new Date();
 
@@ -174,6 +185,40 @@ const renderSystemPromptWithSkills = (
 };
 
 /**
+ * The per-turn tool-resolution request (ADR 0037 decision 1), built from the resident shape
+ * snapshot's frozen selections: the turn runs with every selected tool active (no runtime
+ * narrowing) plus the shape's cross-channel artifact opt-ins. The home channel's artifact set
+ * resolves dynamically and is not needed to reconcile MCP connections.
+ */
+const toolResolutionRequestFor = (
+  structure: ShapeStructure
+): ToolResolutionRequest => ({
+  artifactAccessScope: {
+    artifactIds: structure.artifactSelection,
+    homeChannelArtifactIds: [],
+    kind: "shape_artifact_selection",
+  },
+  beforeTurnAdditions: { addedToolIds: [], kind: "additive_tools_only" },
+  runtimeNarrowing: {
+    activeToolIds: structure.toolSelection,
+    kind: "active_tools_allowlist",
+  },
+  shape: structure,
+});
+
+/** ADR 0037 decision 3: a resolution/egress error becomes a RunFailure, never a silent empty set. */
+const resolutionFailureReason = (error: ToolResolutionError): FailureReason =>
+  failureReasonSchema.parse(
+    error.kind === "mcp_host_not_allowed"
+      ? `MCP host not approved: ${error.host}`
+      : `tool resolution failed: ${error.kind}`
+  );
+
+/** The DO-SQLite connection id the SDK derives for a domain MCP server (ADR 0037 decision 2). */
+const mcpConnectionId = (mcpServerId: McpServerId): string =>
+  normalizeServerId(idKey(mcpServerId));
+
+/**
  * ADR 0035 §2: production wiring of the settlement fan-out. Everything needed survives a
  * hibernation wake — env and the name-derived address. No member acts at settle time, so
  * the D1 adapter runs under a SystemContext built from the address's workspaceId; the
@@ -229,6 +274,10 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
   constructor(ctx: AgentContext, env: Cloudflare.Env) {
     super(ctx, env);
     this.ensureSeamTables();
+    // ADR 0037: MCP tools reach the turn by connection reconciliation, not getTools(). Waiting
+    // for reconciled connections (SDK default 10s) keeps a first turn from racing setup so the
+    // model sees the resolved MCP tools rather than an empty set on a cold connect.
+    this.waitForMcpConnections = true;
   }
 
   /**
@@ -320,7 +369,13 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     return renderSystemPromptWithSkills(base, this.effectiveSkills);
   }
 
-  // eslint-disable-next-line class-methods-use-this -- tool resolution (ADR 0004) will read shape config here
+  /**
+   * ADR 0037 decision 2: v1's first-party catalog is empty by design (baked decision 7) — all
+   * tools are MCP-provided, delivered by connection reconciliation in `run` (the SDK merges an
+   * connected server's tools into the turn's set) rather than returned here. So `{}` is the
+   * deliberate first-party-catalog mapping, not a stub; a first-party tool later returns from here.
+   */
+  // eslint-disable-next-line class-methods-use-this -- deliberate empty first-party catalog (ADR 0037)
   override getTools(): ToolSet {
     return {};
   }
@@ -569,6 +624,14 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     // the selection is frozen structure, the markdown is live content.
     await this.loadEffectiveSkills(address);
 
+    // Resolve the effective toolset per turn (ADR 0037): reconcile MCP connections against the
+    // fresh layer-2 registry/allowlist before submitting, so dispatched AND scheduled runs pick
+    // up added/revoked servers. A resolution or egress failure fails the run closed.
+    const reconciled = await this.reconcileEffectiveToolset(queuedRun, address);
+    if (!reconciled.ok) {
+      return reconciled;
+    }
+
     const submitted = await this.submitRunTurn(queuedRun);
     if (!submitted.ok) {
       return submitted;
@@ -607,6 +670,108 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       console.error("[ThreadAgent] skill load failed", error);
       this.effectiveSkills = [];
     }
+  }
+
+  /**
+   * ADR 0037 decisions 1-3: resolve the effective toolset for the turn under the address-derived
+   * SystemContext (the completion-flow trust boundary — enforcement never rides a trigger
+   * payload), then reconcile MCP connections against the SDK's live set: connect newly resolved
+   * servers (each re-authorized through McpEgressPolicy immediately before connect, so an
+   * unapproved host fails closed at the worker edge), disconnect servers no longer resolved. A
+   * resolution or egress error terminalizes the queued run as failed rather than running toolless.
+   */
+  private async reconcileEffectiveToolset(
+    run: QueuedRun,
+    address: ThreadAgentAddress
+  ): AsyncResult<undefined, ThreadAgentError> {
+    const snapshot = this.readSnapshot();
+    if (snapshot === null) {
+      return ok();
+    }
+
+    const context: SystemContext = {
+      kind: "system",
+      workspaceId: address.workspaceId,
+    };
+    const dataAccess = createD1TenantDataAccess({
+      context,
+      db: (this.env as CompletionFlowEnv).DB,
+    });
+    const resolver = createCatalogWorkspaceShapeToolResolver({
+      context,
+      dataAccess,
+    });
+
+    const resolved = await resolver.resolve(
+      toolResolutionRequestFor(snapshot.structure)
+    );
+    if (!resolved.ok) {
+      return err(this.failClosed(run, resolutionFailureReason(resolved.error)));
+    }
+
+    const egressPolicy = createWorkerMcpEgressPolicy({ context, dataAccess });
+    const desiredByConnectionId = new Map<string, McpServer>();
+    for (const server of resolved.value.mcpServers) {
+      const authorized = await egressPolicy.authorize({
+        host: server.host,
+        mcpServerId: server.id,
+      });
+      if (!authorized.ok) {
+        return err(
+          this.failClosed(run, resolutionFailureReason(authorized.error))
+        );
+      }
+      desiredByConnectionId.set(mcpConnectionId(server.id), server);
+    }
+
+    const live = this.getMcpServers().servers;
+    // Drop connections no longer resolved (a revoked server, or a selection the shape dropped).
+    for (const connectionId of Object.keys(live)) {
+      if (!desiredByConnectionId.has(connectionId)) {
+        await this.removeMcpServer(connectionId);
+      }
+    }
+    // Connect newly resolved servers under their stable id — the id is the cf_agents_mcp_servers
+    // primary key, so the diff stays deterministic across hibernation restores.
+    for (const [connectionId, server] of desiredByConnectionId) {
+      if (!Object.hasOwn(live, connectionId)) {
+        await this.addMcpServer(server.name, server.url, { id: connectionId });
+      }
+    }
+
+    return ok();
+  }
+
+  /** Terminalize a queued run as failed (ADR 0037 decision 3) and yield the run_failure error. */
+  private failClosed(
+    run: QueuedRun,
+    failureReason: FailureReason
+  ): RunFailureError {
+    this.putRun({
+      ...run,
+      failure: { failedAt: this.clock(), failureReason, from: "queued" },
+      lifecycle: "failed",
+    });
+    return { failureReason, kind: "run_failure", runId: run.id };
+  }
+
+  /**
+   * Seam ThreadAgent.removeMcpServer — renamed because the agents SDK reserves
+   * `removeMcpServer(id)` for its own connection API (which this drives, like `scheduleRun` vs
+   * `schedule`). Revoke fan-out (ADR 0037 decision 4): severs the named server's live connection
+   * if present so a revoked host is dropped at revoke time; a no-op success otherwise.
+   */
+  async dropMcpServer(input: {
+    readonly mcpServerId: McpServerId;
+  }): AsyncResult<void, ThreadAgentError> {
+    if (this.deriveAddress() === null) {
+      return err(this.unaddressable());
+    }
+    const connectionId = mcpConnectionId(input.mcpServerId);
+    if (Object.hasOwn(this.getMcpServers().servers, connectionId)) {
+      await this.removeMcpServer(connectionId);
+    }
+    return ok();
   }
 
   /**
@@ -970,10 +1135,14 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
 
 /**
  * Compile-time proof the DO satisfies the seam. `address` is carried by the caller-side
- * wrapper; seam `schedule` maps to `scheduleRun` because the agents SDK base class
- * reserves the `schedule` name for its alarm API.
+ * wrapper; seam `schedule`/`removeMcpServer` map to `scheduleRun`/`dropMcpServer` because the
+ * agents SDK base class reserves those names for its alarm and MCP-connection APIs.
  */
-type SeamMethods = Omit<ThreadAgent, "address" | "schedule"> & {
+type SeamMethods = Omit<
+  ThreadAgent,
+  "address" | "removeMcpServer" | "schedule"
+> & {
+  readonly dropMcpServer: ThreadAgent["removeMcpServer"];
   readonly scheduleRun: ThreadAgent["schedule"];
 };
 type AssertSeam<T extends SeamMethods> = T;
@@ -1024,6 +1193,10 @@ export const createProductionThreadAgentDirectory = (
       loadBranch: async (input) => {
         const agent = await stub();
         return agent.loadBranch(input);
+      },
+      removeMcpServer: async (input) => {
+        const agent = await stub();
+        return agent.dropMcpServer(input);
       },
       resnapshot: async (input) => {
         const agent = await stub();

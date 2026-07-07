@@ -29,6 +29,7 @@ beforeEach(async () => {
     [
       "mcp_host_approval",
       "mcp_server",
+      "skill",
       "workspace",
       "workspace_tool_disable",
     ].map((table) => env.DB.prepare(`DELETE FROM ${table}`))
@@ -77,6 +78,28 @@ const resolverCommands = (s: ToolResolverSeed): TenantWriteCommand[] => [
   ),
 ];
 
+/**
+ * The `skill` index is adapter-owned (ADR 0029) — R2MarkdownSkillStore writes it directly, so
+ * there is no `put_skill` write command on TenantDataAccess. Seed the D1 index rows raw here so
+ * the resolver's new `listSkills()` layer (ADR 0037 decision 5) reads them over real D1.
+ */
+const seedSkills = async (s: ToolResolverSeed): Promise<void> => {
+  for (const skill of s.skills ?? []) {
+    await env.DB.prepare(
+      "INSERT INTO skill (id, created_at, name, r2_key, updated_at, workspace_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
+    )
+      .bind(
+        skill.id,
+        skill.createdAt.getTime(),
+        skill.name,
+        skill.storage.r2Key,
+        skill.updatedAt.getTime(),
+        skill.workspaceId
+      )
+      .run();
+  }
+};
+
 const egressCommands = (s: McpEgressPolicySeed): TenantWriteCommand[] =>
   (s.approvedHosts ?? []).map(
     (host) =>
@@ -109,6 +132,7 @@ defineToolResolutionContract({
       db: env.DB,
     });
     await seedRows(data, resolverCommands(resolverSeed));
+    await seedSkills(resolverSeed);
     return createCatalogWorkspaceShapeToolResolver({
       context: resolverSeed.context,
       dataAccess: data,

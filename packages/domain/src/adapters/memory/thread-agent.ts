@@ -300,6 +300,9 @@ export const createMemoryThreadAgent = (
 
       return ok(snapshot);
     },
+    // The memory adapter holds no live SDK connections (that is DO substrate), so the revoke
+    // fan-out (ADR 0037 decision 4) is a no-op success — the seam contract's idle-case pin.
+    removeMcpServer: async () => ok(),
     resnapshot: async (input) => {
       state.shapeSnapshot = input.shapeSnapshot;
       return ok({

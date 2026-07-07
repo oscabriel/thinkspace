@@ -169,7 +169,11 @@ const defineMcpResolutionPins = (input: {
   });
 };
 
-/** v1 MCP-only catalog semantics (E6.3): first-party tools + skills silently intersect to empty. */
+/**
+ * v1 MCP-only catalog semantics (E6.3): first-party tools still silently intersect to empty
+ * (baked decision 7 froze the catalog), but the skills layer is now the tenant-guarded
+ * `listSkills()` read (ADR 0037 decision 5) — so a shape-selected skill DOES resolve.
+ */
 const defineMcpOnlyCatalogPins = (input: {
   readonly api: ContractTestApi;
   readonly makeToolResolver: ToolResolverFactory;
@@ -200,10 +204,11 @@ const defineMcpOnlyCatalogPins = (input: {
       expect(toolset.selectedToolIds).toEqual([]);
     });
 
-    test("shape-selected skills resolve to nothing (no workspace skill pool yet — E6.1)", async () => {
+    test("shape-selected skills resolve out of the tenant-guarded workspace pool (ADR 0037 decision 5)", async () => {
+      const playbook = makeSkill({ id: "skill-playbook" });
       const resolver = await makeToolResolver({
         context: testTenantContext,
-        skills: [makeSkill({ id: "skill-playbook" })],
+        skills: [playbook, makeSkill({ id: "skill-unselected" })],
       });
 
       const toolset = unwrapOk(
@@ -214,7 +219,7 @@ const defineMcpOnlyCatalogPins = (input: {
         )
       );
 
-      expect(toolset.skills).toEqual([]);
+      expect(toolset.skills).toEqual([playbook]);
     });
   });
 };
