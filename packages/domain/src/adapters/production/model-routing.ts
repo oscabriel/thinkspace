@@ -124,3 +124,50 @@ export const createD1ModelRouter = (
     },
   };
 };
+
+export interface D1ProviderKeyRegistryConfig {
+  readonly clock?: () => Date;
+  readonly context: TenantContext;
+  readonly db: D1Database;
+}
+
+/**
+ * The write half of the `workspace_provider_key` registry the D1 router reads directly (E3.2,
+ * baked decision 3). The router has no write seam and reads the table itself, so this is the
+ * smallest tenant-guarded write path that lives beside the reader and shares its scoping
+ * discipline: every statement binds `workspace_id = context.workspaceId`, so a write can only
+ * ever touch the resident tenant's row. `put` is the idempotent upsert a re-registration
+ * converges on; `remove` is the idempotent delete a revocation (or a retried one) converges on.
+ * The registry stores only `(workspace_id, provider, created_at)` — never key material (the key
+ * lives solely in Secrets Store), so these writes carry nothing redaction-sensitive.
+ */
+export interface ProviderKeyRegistry {
+  readonly context: TenantContext;
+  readonly put: (provider: ModelProvider) => Promise<void>;
+  readonly remove: (provider: ModelProvider) => Promise<void>;
+}
+
+export const createD1ProviderKeyRegistry = (
+  config: D1ProviderKeyRegistryConfig
+): ProviderKeyRegistry => {
+  const clock = config.clock ?? (() => new Date());
+  return {
+    context: config.context,
+    put: async (provider) => {
+      await config.db
+        .prepare(
+          "INSERT INTO workspace_provider_key (workspace_id, provider, created_at) VALUES (?1, ?2, ?3) ON CONFLICT (workspace_id, provider) DO NOTHING"
+        )
+        .bind(config.context.workspaceId, provider, clock().getTime())
+        .run();
+    },
+    remove: async (provider) => {
+      await config.db
+        .prepare(
+          "DELETE FROM workspace_provider_key WHERE workspace_id = ?1 AND provider = ?2"
+        )
+        .bind(config.context.workspaceId, provider)
+        .run();
+    },
+  };
+};

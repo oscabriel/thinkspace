@@ -61,7 +61,13 @@ export {
   type ModelCatalogConfig,
   MODELS_DEV_API_URL,
 } from "./model-catalog";
-export { createD1ModelRouter, type D1ModelRouterConfig } from "./model-routing";
+export {
+  createD1ModelRouter,
+  createD1ProviderKeyRegistry,
+  type D1ModelRouterConfig,
+  type D1ProviderKeyRegistryConfig,
+  type ProviderKeyRegistry,
+} from "./model-routing";
 export {
   createCuratorThinkAgentPlaceholder,
   createR2MarkdownSkillStorePlaceholder,

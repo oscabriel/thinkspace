@@ -82,6 +82,23 @@ export const server = await Worker("server", {
       "BETTER_AUTH_SECRET"
     ),
     BETTER_AUTH_URL: authUrl,
+    /**
+     * E3.2 (baked decision 3): the write-half config for BYOK provider-key registration. The
+     * account id and gateway id ride the same AI Gateway resource the read path already binds
+     * (the secret NAME embeds `{gateway_id}`); the Secrets Store id and the account-scoped API
+     * token are documented `.env` secrets kept out of source. The API token must never appear in
+     * logs — it authorizes Secrets Store writes.
+     */
+    BYOK_CF_ACCOUNT_ID: aiGateway.accountId,
+    BYOK_CF_API_TOKEN: required(
+      alchemy.secret.env.BYOK_CF_API_TOKEN,
+      "BYOK_CF_API_TOKEN"
+    ),
+    BYOK_CF_GATEWAY_ID: required(aiGateway.gatewayName, "aiGateway.gatewayName"),
+    BYOK_CF_STORE_ID: required(
+      alchemy.env.BYOK_CF_STORE_ID,
+      "BYOK_CF_STORE_ID"
+    ),
     CHANNEL_HUB: channelHub,
     CORS_ORIGIN: corsOrigin,
     DB: db,
