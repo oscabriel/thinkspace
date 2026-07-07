@@ -300,6 +300,9 @@ export const createMemoryThreadAgent = (
 
       return ok(snapshot);
     },
+    // ADR 0037 decision 4 (wave-8 merge dedupe: E8.1 owns the real body): the memory agent
+    // holds no live MCP connections, so revoke-time reconciliation is a no-op here.
+    removeMcpServer: async () => ok(undefined),
     resnapshot: async (input) => {
       state.shapeSnapshot = input.shapeSnapshot;
       return ok({

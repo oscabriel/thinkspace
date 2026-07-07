@@ -9,6 +9,7 @@ import type {
 import type {
   ChannelId,
   CommentId,
+  McpServerId,
   RunId,
   ThreadId,
   WorkspaceId,
@@ -99,6 +100,16 @@ export interface ThreadAgent {
   readonly loadBranch: (input: {
     readonly rootCommentId: CommentId;
   }) => AsyncResult<BranchSnapshot, ThreadAgentError>;
+  /**
+   * ADR 0037 decision 4: sever a since-revoked MCP server's live SDK connection at revoke
+   * time (the edge registry delete / host-revoke route fans this out over the workspace's
+   * threads). Idle DOs self-heal by per-turn pull; this closes the window for live ones.
+   * NOTE (wave-8 merge dedupe): E8.1 (#31) adds this identical declaration + DO reconciliation
+   * in a parallel worktree — keep one copy on merge.
+   */
+  readonly removeMcpServer: (input: {
+    readonly mcpServerId: McpServerId;
+  }) => AsyncResult<void, ThreadAgentError>;
   readonly resnapshot: (
     input: ThreadAgentResnapshotRequest
   ) => AsyncResult<ThreadAgentSnapshot, ThreadAgentError>;

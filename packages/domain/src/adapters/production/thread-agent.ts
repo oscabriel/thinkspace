@@ -12,7 +12,7 @@ import type {
   RunCompletionFlow,
   RunSettlement,
 } from "../../flows/run-completion";
-import type { GestureId } from "../../ids";
+import type { GestureId, McpServerId } from "../../ids";
 import { commentIdSchema, runIdSchema } from "../../ids";
 import { commentBodySchema, failureReasonSchema } from "../../primitives";
 import { err, ok } from "../../result";
@@ -506,6 +506,25 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     });
   }
 
+  /**
+   * ADR 0037 decision 4: revoke-time connection reconciliation. The RPC name is deliberately NOT
+   * `removeMcpServer` — the SDK `Agent` base already owns `removeMcpServer(id: string)` (the
+   * persisted-row delete the hibernation contract exercises), so the seam maps `removeMcpServer`
+   * to this method exactly as it maps `schedule` → `scheduleRun`. NOTE (wave-8 merge dedupe):
+   * E8.1 (#31) lands the real diff-against-live-connections body in a parallel worktree; this
+   * E8.2 copy is an addressable-guarded no-op so the edge revoke fan-out and the seam type line
+   * up now. Keep E8.1's implementation on merge.
+   */
+  async disconnectMcpServer(input: {
+    readonly mcpServerId: McpServerId;
+  }): AsyncResult<void, ThreadAgentError> {
+    void input;
+    if (this.deriveAddress() === null) {
+      return err(this.unaddressable());
+    }
+    return ok(undefined);
+  }
+
   async resnapshot(
     input: ThreadAgentResnapshotRequest
   ): AsyncResult<ThreadAgentSnapshot, ThreadAgentError> {
@@ -970,10 +989,15 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
 
 /**
  * Compile-time proof the DO satisfies the seam. `address` is carried by the caller-side
- * wrapper; seam `schedule` maps to `scheduleRun` because the agents SDK base class
- * reserves the `schedule` name for its alarm API.
+ * wrapper; seam `schedule` maps to `scheduleRun` and seam `removeMcpServer` maps to
+ * `disconnectMcpServer` because the agents SDK base class reserves both the `schedule` (alarm
+ * API) and `removeMcpServer` (persisted-connection delete) names for itself.
  */
-type SeamMethods = Omit<ThreadAgent, "address" | "schedule"> & {
+type SeamMethods = Omit<
+  ThreadAgent,
+  "address" | "removeMcpServer" | "schedule"
+> & {
+  readonly disconnectMcpServer: ThreadAgent["removeMcpServer"];
   readonly scheduleRun: ThreadAgent["schedule"];
 };
 type AssertSeam<T extends SeamMethods> = T;
@@ -1024,6 +1048,12 @@ export const createProductionThreadAgentDirectory = (
       loadBranch: async (input) => {
         const agent = await stub();
         return agent.loadBranch(input);
+      },
+      removeMcpServer: async (input) => {
+        // Seam `removeMcpServer` → DO `disconnectMcpServer`: the SDK reserves the DO's own
+        // `removeMcpServer(id)` (same mapping rationale as `schedule` → `scheduleRun`).
+        const agent = await stub();
+        return agent.disconnectMcpServer(input);
       },
       resnapshot: async (input) => {
         const agent = await stub();
