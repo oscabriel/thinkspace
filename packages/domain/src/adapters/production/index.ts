@@ -15,6 +15,7 @@ export {
   decodeWorkspaceHubName,
   encodeChannelHubName,
   encodeWorkspaceHubName,
+  getChannelHubStub,
   type ProductionChannelHubConfig,
   type ProductionWorkspaceHubConfig,
   WorkspaceHubDurableObject,
