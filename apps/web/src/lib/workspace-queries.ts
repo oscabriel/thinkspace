@@ -1,6 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import {
+  fetchArtifact,
+  fetchArtifacts,
+  fetchArtifactVersionContent,
   fetchChannel,
   fetchChannelShape,
   fetchChannelThreads,
@@ -27,6 +30,23 @@ const HOME_POLL_MS = 30_000;
 
 export const workspaceKeys = {
   all: (workspaceId: string) => ["workspace", workspaceId] as const,
+  artifact: (workspaceId: string, artifactId: string) =>
+    ["workspace", workspaceId, "artifact", artifactId] as const,
+  artifactContent: (
+    workspaceId: string,
+    artifactId: string,
+    versionId: string
+  ) =>
+    [
+      "workspace",
+      workspaceId,
+      "artifact",
+      artifactId,
+      "content",
+      versionId,
+    ] as const,
+  artifacts: (workspaceId: string) =>
+    ["workspace", workspaceId, "artifacts"] as const,
   channel: (workspaceId: string, channelId: string) =>
     ["workspace", workspaceId, "channel", channelId] as const,
   channelShape: (workspaceId: string, channelId: string) =>
@@ -95,6 +115,46 @@ export const channelThreadsQuery = (workspaceId: string, channelId: string) =>
  * The model picker's data source (E7.5): the live catalog ∩ the workspace's keyed providers
  * (ADR 0011 / 0036). Stable per workspace — a provider key registration changes it, so it is
  * refetched on window focus rather than a timer; an empty list is the honest "no key yet" signal.
+
+ * The Library reads (E7.6). Artifact writes come from agent runs only — there is no browser
+ * write path — so these are read-only and, like the sidebar graph, have no realtime socket
+ * (ADR 0010 pushes thread/run deltas, not artifact writes). They refetch on window focus; a
+ * run that lands a new artifact surfaces on the next Library visit rather than live. Content
+ * is addressed by immutable version id (ADR 0032), so `artifactContentQuery` never goes stale.
+ */
+export const artifactsQuery = (workspaceId: string) =>
+  queryOptions({
+    queryFn: () => fetchArtifacts(workspaceId),
+    queryKey: workspaceKeys.artifacts(workspaceId),
+    select: (data) => data.artifacts,
+  });
+
+export const artifactQuery = (workspaceId: string, artifactId: string) =>
+  queryOptions({
+    queryFn: () => fetchArtifact(workspaceId, artifactId),
+    queryKey: workspaceKeys.artifact(workspaceId, artifactId),
+  });
+
+export const artifactContentQuery = (
+  workspaceId: string,
+  artifactId: string,
+  versionId: string
+) =>
+  queryOptions({
+    queryFn: () =>
+      fetchArtifactVersionContent(workspaceId, artifactId, versionId),
+    queryKey: workspaceKeys.artifactContent(workspaceId, artifactId, versionId),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+/**
+ * A channel cannot be created without a shape (ADR 0030), and a shape cannot be authored
+ * without the model picker that is sibling #29's deliverable. The shell therefore seeds a
+ * minimal default structure so the "New channel" affordance is functional end-to-end. The
+ * default model is the run-card's reference id; if the workspace has no BYOK key for it or
+ * the catalog lacks it, the ModelRouter fails the create fast (ADR 0036) and the shell
+ * surfaces that error verbatim — the teaching moment that a provider key / real shape is
+ * needed (key-first onboarding, ADR 0011). Replace this whole path when #29 lands.
  */
 export const modelsQuery = (workspaceId: string) =>
   queryOptions({
