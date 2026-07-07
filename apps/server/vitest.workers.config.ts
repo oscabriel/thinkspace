@@ -19,6 +19,9 @@ export default defineConfig({
           BETTER_AUTH_SECRET: "test-secret-for-workers-tests-0123456789",
           BETTER_AUTH_URL: "https://test.local",
           CORS_ORIGIN: "https://test.local",
+          INVITATION_FROM: "Thinkspace <no-reply@test.local>",
+          INVITATION_ORIGIN: "https://test.local",
+          RESEND_API_KEY: "test-resend-key-0123456789",
           TEST_MIGRATIONS: await readD1Migrations(
             path.join(import.meta.dirname, "../../packages/db/src/migrations")
           ),
