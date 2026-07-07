@@ -9,10 +9,11 @@ import {
   Empty,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
-import { ArrowLeft } from "lucide-react";
+import { Archive, ArrowLeft, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -129,6 +130,9 @@ const ShapeEditView = () => {
         {backLink}
         <Empty className="border">
           <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <TriangleAlert />
+            </EmptyMedia>
             <EmptyTitle>Shape unavailable</EmptyTitle>
             <EmptyDescription>
               This channel does not exist or is not visible to you ({kind}).
@@ -165,6 +169,9 @@ const ShapeEditView = () => {
       {archived ? (
         <Empty className="border">
           <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Archive />
+            </EmptyMedia>
             <EmptyTitle>Channel is archived</EmptyTitle>
             <EmptyDescription>
               An archived or deleted channel&apos;s shape can no longer be

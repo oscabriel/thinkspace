@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useParams } from "@tanstack/react-router";
+import { Link, createFileRoute, useParams } from "@tanstack/react-router";
 import {
   Empty,
   EmptyDescription,
@@ -67,13 +67,24 @@ const HomeFeed = () => {
       ) : home.data && home.data.threads.length > 0 ? (
         <div className="flex flex-col">
           {home.data.threads.map((thread) => (
-            <ThreadRow
-              authorName={members.data?.get(thread.createdByMemberId)}
-              channelLabel={channelGoals.get(thread.channelId)}
+            <Link
+              className="rounded-md transition-colors hover:bg-muted/50"
               key={thread.id}
-              thread={thread}
-              unread={unreadThreadIds.has(thread.id)}
-            />
+              params={{
+                channelId: thread.channelId,
+                threadId: thread.id,
+                workspaceId,
+              }}
+              search={{ root: thread.rootCommentId ?? undefined }}
+              to="/w/$workspaceId/channels/$channelId/threads/$threadId"
+            >
+              <ThreadRow
+                authorName={members.data?.get(thread.createdByMemberId)}
+                channelLabel={channelGoals.get(thread.channelId)}
+                thread={thread}
+                unread={unreadThreadIds.has(thread.id)}
+              />
+            </Link>
           ))}
         </div>
       ) : (

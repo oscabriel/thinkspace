@@ -9,7 +9,15 @@ import {
 } from "@thinkspace/ui/components/empty";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
 import { cn } from "@thinkspace/ui/lib/utils";
-import { Brain, Check, KeyRound, Sparkles, Wrench } from "lucide-react";
+import {
+  Boxes,
+  Brain,
+  Check,
+  Eye,
+  KeyRound,
+  TriangleAlert,
+  Wrench,
+} from "lucide-react";
 
 import { ApiRequestError, type Model } from "@/lib/api";
 import { modelsQuery } from "@/lib/workspace-queries";
@@ -56,6 +64,9 @@ export const ModelPicker = ({
     return (
       <Empty className="border">
         <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <TriangleAlert />
+          </EmptyMedia>
           <EmptyTitle>
             {unavailable ? "Model catalog unavailable" : "Could not load models"}
           </EmptyTitle>
@@ -182,10 +193,10 @@ const ModelRow = ({
         <CapabilityChip icon={Brain} label="Reasoning" />
       )}
       {model.capabilities.attachment && (
-        <CapabilityChip icon={Sparkles} label="Vision" />
+        <CapabilityChip icon={Eye} label="Vision" />
       )}
       {model.capabilities.structuredOutput && (
-        <CapabilityChip icon={Sparkles} label="Structured" />
+        <CapabilityChip icon={Boxes} label="Structured" />
       )}
     </div>
   </button>

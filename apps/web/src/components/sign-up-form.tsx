@@ -42,14 +42,14 @@ export default function SignUpForm({
             navigate({
               to: "/",
             });
-            toast.success("Sign up successful");
+            toast.success("Account created");
           },
         }
       );
     },
     validators: {
       onSubmit: z.object({
-        email: z.email("Invalid email address"),
+        email: z.email("Enter a valid email address"),
         name: z.string().min(2, "Name must be at least 2 characters"),
         password: z.string().min(8, "Password must be at least 8 characters"),
       }),
@@ -61,8 +61,18 @@ export default function SignUpForm({
   }
 
   return (
-    <div className="mx-auto w-full mt-10 max-w-md p-6">
-      <h1 className="mb-6 text-center text-3xl font-bold">Create Account</h1>
+    <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col justify-center gap-8 px-6 py-10">
+      <div className="flex flex-col gap-2 text-center">
+        <span className="font-semibold text-muted-foreground text-sm tracking-tight">
+          Thinkspace
+        </span>
+        <h1 className="font-semibold text-foreground text-xl tracking-tight">
+          Create your account
+        </h1>
+        <p className="text-muted-foreground text-sm">
+          A calm workspace where channels are agents and threads are the work.
+        </p>
+      </div>
 
       <form
         onSubmit={(e) => {
@@ -70,75 +80,70 @@ export default function SignUpForm({
           e.stopPropagation();
           form.handleSubmit();
         }}
-        className="space-y-4"
+        className="flex flex-col gap-4"
       >
-        <div>
-          <form.Field name="name">
-            {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor={field.name}>Name</Label>
-                <Input
-                  id={field.name}
-                  name={field.name}
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-                {field.state.meta.errors.map((error) => (
-                  <p key={error?.message} className="text-red-500">
-                    {error?.message}
-                  </p>
-                ))}
-              </div>
-            )}
-          </form.Field>
-        </div>
+        <form.Field name="name">
+          {(field) => (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={field.name}>Name</Label>
+              <Input
+                autoFocus
+                id={field.name}
+                name={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+              />
+              {field.state.meta.errors.map((error) => (
+                <p key={error?.message} className="text-destructive text-xs">
+                  {error?.message}
+                </p>
+              ))}
+            </div>
+          )}
+        </form.Field>
 
-        <div>
-          <form.Field name="email">
-            {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor={field.name}>Email</Label>
-                <Input
-                  id={field.name}
-                  name={field.name}
-                  type="email"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-                {field.state.meta.errors.map((error) => (
-                  <p key={error?.message} className="text-red-500">
-                    {error?.message}
-                  </p>
-                ))}
-              </div>
-            )}
-          </form.Field>
-        </div>
+        <form.Field name="email">
+          {(field) => (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={field.name}>Email</Label>
+              <Input
+                id={field.name}
+                name={field.name}
+                type="email"
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+              />
+              {field.state.meta.errors.map((error) => (
+                <p key={error?.message} className="text-destructive text-xs">
+                  {error?.message}
+                </p>
+              ))}
+            </div>
+          )}
+        </form.Field>
 
-        <div>
-          <form.Field name="password">
-            {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor={field.name}>Password</Label>
-                <Input
-                  id={field.name}
-                  name={field.name}
-                  type="password"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-                {field.state.meta.errors.map((error) => (
-                  <p key={error?.message} className="text-red-500">
-                    {error?.message}
-                  </p>
-                ))}
-              </div>
-            )}
-          </form.Field>
-        </div>
+        <form.Field name="password">
+          {(field) => (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={field.name}>Password</Label>
+              <Input
+                id={field.name}
+                name={field.name}
+                type="password"
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+              />
+              {field.state.meta.errors.map((error) => (
+                <p key={error?.message} className="text-destructive text-xs">
+                  {error?.message}
+                </p>
+              ))}
+            </div>
+          )}
+        </form.Field>
 
         <form.Subscribe
           selector={(state) => ({
@@ -149,24 +154,25 @@ export default function SignUpForm({
           {({ canSubmit, isSubmitting }) => (
             <Button
               type="submit"
-              className="w-full"
+              className="mt-1 w-full"
               disabled={!canSubmit || isSubmitting}
             >
-              {isSubmitting ? "Submitting..." : "Sign Up"}
+              {isSubmitting ? "Creating account…" : "Create account"}
             </Button>
           )}
         </form.Subscribe>
       </form>
 
-      <div className="mt-4 text-center">
-        <Button
-          variant="link"
+      <p className="text-center text-muted-foreground text-sm">
+        Already have an account?{" "}
+        <button
+          className="font-medium text-primary underline-offset-4 hover:underline"
           onClick={onSwitchToSignIn}
-          className="text-indigo-600 hover:text-indigo-800"
+          type="button"
         >
-          Already have an account? Sign In
-        </Button>
-      </div>
+          Sign in
+        </button>
+      </p>
     </div>
   );
 }
