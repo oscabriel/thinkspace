@@ -1,6 +1,10 @@
 import type { Artifact } from "../artifact";
 import type { Channel, ChannelFavorite } from "../channel";
-import type { ChannelDirectory, DirectorySearch } from "../directory";
+import type {
+  ChannelDirectory,
+  ChannelDirectoryEntry,
+  DirectorySearch,
+} from "../directory";
 import type {
   AuthzError,
   NotImplementedError,
@@ -28,7 +32,7 @@ import type { Skill } from "../skill";
 import type { Thread } from "../thread";
 import type { WorkspaceToolDisable } from "../tool";
 import type { Unread } from "../unread";
-import type { Member, Role, Workspace } from "../workspace";
+import type { Role } from "../workspace";
 
 export type TenantDataAccessError =
   | AuthzError
@@ -54,9 +58,16 @@ export interface SystemContext {
 
 export type DataAccessContext = SystemContext | TenantContext;
 
+/**
+ * ADR 0035 §6 / ADR 0027: the sidebar payload — the visible, non-deleted channels the
+ * acting member can see (directory-entry shape). A member-visibility read, so it fails
+ * closed under a system context. Carries only workspaceId (like ThreadIndex/HomeFeed); the
+ * workspace name and member roster live in better-auth's org/member tables (ADR 0008) whose
+ * mapping stays deferred §6 debt, not read here yet.
+ */
 export interface WorkspaceGraph {
-  readonly members: readonly Member[];
-  readonly workspace: Workspace;
+  readonly channels: readonly ChannelDirectoryEntry[];
+  readonly workspaceId: WorkspaceId;
 }
 
 export interface ThreadIndex {

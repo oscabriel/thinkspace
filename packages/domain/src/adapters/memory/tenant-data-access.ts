@@ -20,7 +20,7 @@ import type { Skill } from "../../skill";
 import type { Thread } from "../../thread";
 import type { WorkspaceToolDisable } from "../../tool";
 import type { Unread } from "../../unread";
-import type { Member, Workspace } from "../../workspace";
+import type { Workspace } from "../../workspace";
 import {
   hasSameId,
   idKey,
@@ -39,7 +39,6 @@ export interface MemoryTenantDataAccessConfig<
   readonly context: Context;
   readonly mcpHostApprovals?: readonly McpHostApproval[];
   readonly mcpServers?: readonly McpServer[];
-  readonly members?: readonly Member[];
   readonly schedules?: readonly Schedule[];
   readonly shapes?: readonly Shape[];
   readonly skills?: readonly Skill[];
@@ -55,13 +54,11 @@ interface MemoryTenantDataAccessState {
   readonly channels: Map<string, Channel>;
   readonly mcpHostApprovals: Map<string, McpHostApproval>;
   readonly mcpServers: Map<string, McpServer>;
-  readonly members: Map<string, Member>;
   readonly schedules: Map<string, Schedule>;
   readonly shapes: Map<string, Shape>;
   readonly skills: Map<string, Skill>;
   readonly threads: Map<string, Thread>;
   readonly unread: Map<string, Unread>;
-  readonly workspace: Workspace;
   readonly workspaceToolDisables: Map<string, WorkspaceToolDisable>;
 }
 
@@ -349,7 +346,6 @@ export const createMemoryTenantDataAccess = <
       ])
     ),
     mcpServers: mapById(config.mcpServers ?? []),
-    members: mapById(config.members ?? []),
     schedules: mapById(config.schedules ?? []),
     shapes: mapById(config.shapes ?? []),
     skills: mapById(config.skills ?? []),
@@ -357,7 +353,6 @@ export const createMemoryTenantDataAccess = <
     unread: new Map(
       (config.unread ?? []).map((unread) => [unreadKey(unread), unread])
     ),
-    workspace: config.workspace,
     workspaceToolDisables: new Map(
       (config.workspaceToolDisables ?? []).map((toolDisable) => [
         idKey(toolDisable.toolId),
@@ -435,15 +430,18 @@ export const createMemoryTenantDataAccess = <
     getSkill: async (input) =>
       getTenantScoped(config.context, state.skills.get(idKey(input.skillId))),
     getWorkspaceGraph: async () => {
-      if (!hasSameId(state.workspace.id, config.context.workspaceId)) {
-        return err(tenantGuardViolation(config.context, state.workspace.id));
+      const member = requireMemberContext(config.context);
+      if (!member.ok) {
+        return member;
       }
 
       return ok({
-        members: [...state.members.values()].filter((member) =>
-          isInTenant(config.context, member)
-        ),
-        workspace: state.workspace,
+        channels: [...state.channels.values()]
+          .filter((channel) => isInTenant(config.context, channel))
+          .filter((channel) => channel.lifecycle.state !== "deleted")
+          .filter((channel) => isVisibleToMember(member.value, channel))
+          .map(toDirectoryEntry),
+        workspaceId: config.context.workspaceId,
       });
     },
     listArtifacts: async () =>
@@ -464,11 +462,17 @@ export const createMemoryTenantDataAccess = <
     listChannelThreads: async (input) =>
       ok({
         channelId: input.channelId,
-        threads: [...state.threads.values()].filter(
-          (thread) =>
-            isInTenant(config.context, thread) &&
-            hasSameId(thread.channelId, input.channelId)
-        ),
+        /** ADR 0020: recency-ordered — the bump order, most recent activity first. */
+        threads: [...state.threads.values()]
+          .filter(
+            (thread) =>
+              isInTenant(config.context, thread) &&
+              hasSameId(thread.channelId, input.channelId)
+          )
+          .toSorted(
+            (left, right) =>
+              right.lastActivityAt.getTime() - left.lastActivityAt.getTime()
+          ),
         workspaceId: config.context.workspaceId,
       }),
     listChannels: async (input) => {

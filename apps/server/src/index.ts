@@ -6,6 +6,7 @@ import { logger } from "hono/logger";
 import { createAuth } from "./auth";
 import { gestureRoutes } from "./gestures";
 import { providerKeyRoutes } from "./providers";
+import { readRoutes } from "./reads";
 import { tenantContextMiddleware } from "./tenant-context";
 import { tokenRoutes } from "./token";
 
@@ -27,6 +28,7 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => createAuth().handler(c.req.raw));
 app.use("/api/w/:workspaceId/*", tenantContextMiddleware);
 app.route("/api/w/:workspaceId", gestureRoutes);
 app.route("/api/w/:workspaceId", providerKeyRoutes);
+app.route("/api/w/:workspaceId", readRoutes);
 app.route("/api/w/:workspaceId", tokenRoutes);
 
 app.get("/", (c) => c.text("OK"));
