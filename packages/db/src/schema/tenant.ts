@@ -94,6 +94,29 @@ export const workspaceProviderKey = sqliteTable(
   ]
 );
 
+export const mcpServer = sqliteTable(
+  "mcp_server",
+  {
+    host: text("host").notNull(),
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    url: text("url").notNull(),
+    workspaceId: text("workspace_id").notNull(),
+  },
+  (table) => [index("mcp_server_workspaceId_idx").on(table.workspaceId)]
+);
+
+export const mcpHostApproval = sqliteTable(
+  "mcp_host_approval",
+  {
+    approvedAt: integer("approved_at", { mode: "timestamp_ms" }).notNull(),
+    approvedByOwnerMemberId: text("approved_by_owner_member_id").notNull(),
+    host: text("host").notNull(),
+    workspaceId: text("workspace_id").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.workspaceId, table.host] })]
+);
+
 export const workspaceToolDisable = sqliteTable(
   "workspace_tool_disable",
   {

@@ -188,6 +188,14 @@ export interface TenantDataAccess<
   readonly listChannelThreads: (input: {
     readonly channelId: ChannelId;
   }) => AsyncResult<ThreadIndex, TenantDataAccessError>;
+  readonly listMcpHostApprovals: () => AsyncResult<
+    readonly McpHostApproval[],
+    TenantDataAccessError
+  >;
+  readonly listMcpServers: () => AsyncResult<
+    readonly McpServer[],
+    TenantDataAccessError
+  >;
   readonly listMemberUnread: (input: {
     readonly memberId: MemberId;
   }) => AsyncResult<readonly Unread[], TenantDataAccessError>;

@@ -7,6 +7,7 @@ import type { Channel } from "../../channel";
 import { createNotImplementedError } from "../../errors";
 import type { ShapeOwnershipViolationError } from "../../errors";
 import type { ChannelId, WorkspaceId } from "../../ids";
+import type { McpHostApproval, McpServer } from "../../mcp";
 import { err, ok } from "../../result";
 import type { Result } from "../../result";
 import type {
@@ -82,6 +83,21 @@ interface WorkspaceToolDisableRow {
   readonly workspace_id: string;
 }
 
+interface McpServerRow {
+  readonly host: string;
+  readonly id: string;
+  readonly name: string;
+  readonly url: string;
+  readonly workspace_id: string;
+}
+
+interface McpHostApprovalRow {
+  readonly approved_at: number;
+  readonly approved_by_owner_member_id: string;
+  readonly host: string;
+  readonly workspace_id: string;
+}
+
 const rowToChannel = (row: ChannelRow): Channel =>
   ({
     createdAt: new Date(row.created_at),
@@ -136,6 +152,23 @@ const rowToWorkspaceToolDisable = (
     workspaceId: row.workspace_id,
   }) as WorkspaceToolDisable;
 
+const rowToMcpServer = (row: McpServerRow): McpServer =>
+  ({
+    host: row.host,
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    workspaceId: row.workspace_id,
+  }) as McpServer;
+
+const rowToMcpHostApproval = (row: McpHostApprovalRow): McpHostApproval =>
+  ({
+    approvedAt: new Date(row.approved_at),
+    approvedByOwnerMemberId: row.approved_by_owner_member_id,
+    host: row.host,
+    workspaceId: row.workspace_id,
+  }) as McpHostApproval;
+
 const isVisibleToMember = (context: TenantContext, channel: Channel): boolean =>
   channel.visibility.kind === "shared" ||
   hasSameId(channel.ownerMemberId, context.memberId);
@@ -150,6 +183,12 @@ const commandScopedValue = (
     }
     case "put_channel": {
       return command.channel;
+    }
+    case "put_mcp_host_approval": {
+      return command.hostApproval;
+    }
+    case "put_mcp_server": {
+      return command.mcpServer;
     }
     case "put_shape": {
       return command.shape;
@@ -200,6 +239,13 @@ const commandToStatement = (
         )
         .bind(context.workspaceId, command.memberId, command.threadId);
     }
+    case "delete_mcp_host_approval": {
+      return db
+        .prepare(
+          "DELETE FROM mcp_host_approval WHERE workspace_id = ?1 AND host = ?2"
+        )
+        .bind(context.workspaceId, command.host);
+    }
     case "delete_workspace_tool_disable": {
       return db
         .prepare(
@@ -225,6 +271,38 @@ const commandToStatement = (
           command.channel.shapeId,
           JSON.stringify(command.channel.visibility),
           command.channel.workspaceId
+        );
+    }
+    case "put_mcp_host_approval": {
+      return db
+        .prepare(
+          `INSERT INTO mcp_host_approval (workspace_id, host, approved_at, approved_by_owner_member_id)
+           VALUES (?1, ?2, ?3, ?4)
+           ON CONFLICT (workspace_id, host) DO UPDATE SET
+             approved_at = excluded.approved_at,
+             approved_by_owner_member_id = excluded.approved_by_owner_member_id`
+        )
+        .bind(
+          command.hostApproval.workspaceId,
+          command.hostApproval.host,
+          command.hostApproval.approvedAt.getTime(),
+          command.hostApproval.approvedByOwnerMemberId
+        );
+    }
+    case "put_mcp_server": {
+      return db
+        .prepare(
+          `INSERT INTO mcp_server (id, host, name, url, workspace_id)
+           VALUES (?1, ?2, ?3, ?4, ?5)
+           ON CONFLICT (id) DO UPDATE SET host = excluded.host, name = excluded.name,
+             url = excluded.url, workspace_id = excluded.workspace_id`
+        )
+        .bind(
+          command.mcpServer.id,
+          command.mcpServer.host,
+          command.mcpServer.name,
+          command.mcpServer.url,
+          command.mcpServer.workspaceId
         );
     }
     case "put_shape": {
@@ -446,10 +524,22 @@ export const createD1TenantDataAccess = <
         .first<ChannelRow>();
       return guardedRow(context, row, rowToChannel);
     },
-    getMcpHostApproval: async (_input) =>
-      notImplemented("D1TenantDataAccess.getMcpHostApproval"),
-    getMcpServer: async (_input) =>
-      notImplemented("D1TenantDataAccess.getMcpServer"),
+    getMcpHostApproval: async (input) => {
+      const row = await db
+        .prepare(
+          "SELECT * FROM mcp_host_approval WHERE workspace_id = ?1 AND host = ?2"
+        )
+        .bind(context.workspaceId, input.host)
+        .first<McpHostApprovalRow>();
+      return guardedRow(context, row, rowToMcpHostApproval);
+    },
+    getMcpServer: async (input) => {
+      const row = await db
+        .prepare("SELECT * FROM mcp_server WHERE id = ?1")
+        .bind(input.mcpServerId)
+        .first<McpServerRow>();
+      return guardedRow(context, row, rowToMcpServer);
+    },
     getSchedule: async (_input) =>
       notImplemented("D1TenantDataAccess.getSchedule"),
     getShape: async (input) => {
@@ -486,6 +576,20 @@ export const createD1TenantDataAccess = <
       }
 
       return notImplemented("D1TenantDataAccess.listChannels");
+    },
+    listMcpHostApprovals: async () => {
+      const rows = await db
+        .prepare("SELECT * FROM mcp_host_approval WHERE workspace_id = ?1")
+        .bind(context.workspaceId)
+        .all<McpHostApprovalRow>();
+      return ok(rows.results.map(rowToMcpHostApproval));
+    },
+    listMcpServers: async () => {
+      const rows = await db
+        .prepare("SELECT * FROM mcp_server WHERE workspace_id = ?1")
+        .bind(context.workspaceId)
+        .all<McpServerRow>();
+      return ok(rows.results.map(rowToMcpServer));
     },
     listMemberUnread: async (input) => {
       const rows = await db
