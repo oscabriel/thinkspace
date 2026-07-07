@@ -247,6 +247,7 @@ describe("Run completion — hub deltas fan out after the bump is durable (ADR 0
 
     expect(harness.publishedChannelEvents).toEqual([
       {
+        authorKind: "agent",
         commentId: commentId("comment-run-output"),
         kind: "comment_added",
         threadId: testThreadId,

@@ -11,6 +11,14 @@ import { z } from "zod";
 
 import { createAuth } from "./auth";
 
+/**
+ * Owner/admin may perform workspace-registry writes (BYOK keys, skills, MCP servers); a
+ * member is 403 (insufficient_role). One shared constant so the write-gate policy cannot
+ * drift per route file. Owner-ONLY gates (host approvals) stay local to their route.
+ */
+export const WORKSPACE_MANAGER_ROLES: ReadonlySet<TenantContext["role"]> =
+  new Set(["admin", "owner"]);
+
 /** ADR 0035 §4: the edge's whole error vocabulary — unauthenticated→401, not_a_member→404, malformed_identity→500. */
 export type TenantResolutionError =
   | { readonly kind: "malformed_identity" }

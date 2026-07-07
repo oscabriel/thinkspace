@@ -134,6 +134,7 @@ describe("Comment append flow — member reply appends + bumps (E8.4)", () => {
 
     expect(harness.publishedChannelEvents).toEqual([
       {
+        authorKind: "member",
         commentId: commentId("comment-reply"),
         kind: "comment_added",
         threadId: testThreadId,

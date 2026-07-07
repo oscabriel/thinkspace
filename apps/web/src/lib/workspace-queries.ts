@@ -80,19 +80,38 @@ export const homeQuery = (workspaceId: string) =>
     refetchInterval: HOME_POLL_MS,
   });
 
+export interface MemberDirectory {
+  readonly labels: ReadonlyMap<string, string>;
+  readonly selfMemberId: string;
+}
+
 /**
- * The workspace roster as a memberId → display name lookup (E8.6). Feeds and directory rows
- * label owners/authors by name; a member absent from the roster (or the roster still loading)
- * falls back to the truncated id at the call site. Read-through like the graph — no realtime
- * event fires on membership changes, so it refetches on focus rather than a timer.
+ * The workspace roster as a memberId → display name lookup plus the caller's own member id
+ * (E8.6). Feeds and directory rows label owners/authors via {@link memberLabel}; optimistic
+ * writes author as `selfMemberId`. Read-through like the graph — no realtime event fires on
+ * membership changes, so it refetches on focus rather than a timer.
  */
 export const membersQuery = (workspaceId: string) =>
   queryOptions({
     queryFn: () => fetchMembers(workspaceId),
     queryKey: workspaceKeys.members(workspaceId),
-    select: (data) =>
-      new Map(data.members.map((member) => [member.memberId, member.displayName])),
+    select: (data): MemberDirectory => ({
+      labels: new Map(
+        data.members.map((member) => [member.memberId, member.displayName])
+      ),
+      selfMemberId: data.selfMemberId,
+    }),
   });
+
+/**
+ * The one place the "unknown member" presentation is decided: display name when the roster
+ * has a non-empty one, else the truncated id. `||` (not `??`) so an empty-string display
+ * name — better-auth does not forbid one — still falls back instead of rendering blank.
+ */
+export const memberLabel = (
+  members: MemberDirectory | undefined,
+  memberId: string
+): string => members?.labels.get(memberId) || memberId.slice(0, 8);
 
 export const unreadQuery = (workspaceId: string) =>
   queryOptions({

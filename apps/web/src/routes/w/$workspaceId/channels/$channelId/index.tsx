@@ -31,6 +31,7 @@ import { uuidv7 } from "@/lib/ids";
 import {
   channelQuery,
   channelThreadsQuery,
+  memberLabel,
   membersQuery,
   workspaceKeys,
 } from "@/lib/workspace-queries";
@@ -212,8 +213,7 @@ const ChannelView = () => {
           <span aria-hidden="true">·</span>
           <span>
             owner{" "}
-            {members.data?.get(channel.data.ownerMemberId) ??
-              channel.data.ownerMemberId.slice(0, 8)}
+            {memberLabel(members.data, channel.data.ownerMemberId)}
           </span>
         </div>
       </header>
@@ -240,7 +240,7 @@ const ChannelView = () => {
               to="/w/$workspaceId/channels/$channelId/threads/$threadId"
             >
               <ThreadRow
-                authorName={members.data?.get(thread.createdByMemberId)}
+                authorName={memberLabel(members.data, thread.createdByMemberId)}
                 thread={thread}
                 unread={false}
               />

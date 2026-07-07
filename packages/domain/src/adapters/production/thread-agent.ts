@@ -494,9 +494,15 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       });
     }
 
-    this.putComment(input.comment);
+    // First-write-wins on the edge-minted commentId (mirrors initialize): a replayed append
+    // returns the ORIGINAL comment, so the flow's bump/unread/hub fan-out re-runs with the
+    // original timestamps instead of re-bumping the thread to the retry instant.
+    const existing = this.readComment(input.comment.id);
+    if (existing === null) {
+      this.putComment(input.comment);
+    }
     return ok({
-      comment: input.comment,
+      comment: existing ?? input.comment,
       participants: collectThreadParticipants({
         comments: [...this.loadComments().values()],
         runs: this.readRuns(),
@@ -729,20 +735,12 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       return err(this.failClosed(run, resolutionFailureReason(resolved.error)));
     }
 
-    const egressPolicy = createWorkerMcpEgressPolicy({ context, dataAccess });
-    const desiredByConnectionId = new Map<string, McpServer>();
-    for (const server of resolved.value.mcpServers) {
-      const authorized = await egressPolicy.authorize({
-        host: server.host,
-        mcpServerId: server.id,
-      });
-      if (!authorized.ok) {
-        return err(
-          this.failClosed(run, resolutionFailureReason(authorized.error))
-        );
-      }
-      desiredByConnectionId.set(mcpConnectionId(server.id), server);
-    }
+    const desiredByConnectionId = new Map<string, McpServer>(
+      resolved.value.mcpServers.map((server) => [
+        mcpConnectionId(server.id),
+        server,
+      ])
+    );
 
     const live = this.getMcpServers().servers;
     // Drop connections no longer resolved (a revoked server, or a selection the shape dropped).
@@ -752,9 +750,23 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       }
     }
     // Connect newly resolved servers under their stable id — the id is the cf_agents_mcp_servers
-    // primary key, so the diff stays deterministic across hibernation restores.
+    // primary key, so the diff stays deterministic across hibernation restores. Egress is
+    // re-authorized immediately before each NEW connect (ADR 0037 decision 2); already-live
+    // connections were authorized at their own connect time and resolution above just
+    // re-proved their hosts against the same allowlist read, so re-checking them per turn
+    // would only duplicate that I/O.
+    const egressPolicy = createWorkerMcpEgressPolicy({ context, dataAccess });
     for (const [connectionId, server] of desiredByConnectionId) {
       if (!Object.hasOwn(live, connectionId)) {
+        const authorized = await egressPolicy.authorize({
+          host: server.host,
+          mcpServerId: server.id,
+        });
+        if (!authorized.ok) {
+          return err(
+            this.failClosed(run, resolutionFailureReason(authorized.error))
+          );
+        }
         await this.addMcpServer(server.name, server.url, { id: connectionId });
       }
     }

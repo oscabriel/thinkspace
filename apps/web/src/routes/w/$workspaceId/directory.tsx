@@ -14,7 +14,7 @@ import { Archive, Compass, Hash, Lock } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { ChannelDirectoryEntry } from "@/lib/api";
-import { graphQuery, membersQuery } from "@/lib/workspace-queries";
+import { graphQuery, memberLabel, membersQuery } from "@/lib/workspace-queries";
 
 type StatusFilter = "active" | "archived" | "all";
 
@@ -89,7 +89,7 @@ const Directory = () => {
             <DirectoryCard
               entry={entry}
               key={entry.channelId}
-              ownerName={members.data?.get(entry.ownerMemberId)}
+              ownerName={memberLabel(members.data, entry.ownerMemberId)}
               workspaceId={workspaceId}
             />
           ))}
@@ -118,7 +118,7 @@ const DirectoryCard = ({
   workspaceId,
 }: {
   readonly entry: ChannelDirectoryEntry;
-  readonly ownerName?: string;
+  readonly ownerName: string;
   readonly workspaceId: string;
 }) => {
   const archived = entry.lifecycle.state === "archived";
@@ -149,7 +149,7 @@ const DirectoryCard = ({
         <span>{archived ? "archived" : "active"}</span>
         <span aria-hidden="true">·</span>
         <span className="truncate">
-          owner {ownerName ?? entry.ownerMemberId.slice(0, 8)}
+          owner {ownerName}
         </span>
       </div>
     </Link>

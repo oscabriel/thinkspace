@@ -131,7 +131,10 @@ export const readRoutes = new Hono<{ Variables: TenantVariables }>()
     if (!roster.ok) {
       return c.json({ error: roster.error }, domainErrorStatus(roster.error));
     }
-    return c.json(roster.value, 200);
+    // selfMemberId is edge-resident session identity (who is asking), so it rides the
+    // response here rather than widening the domain roster read — the client needs it to
+    // author optimistic comments as itself instead of a sentinel id.
+    return c.json({ ...roster.value, selfMemberId: context.memberId }, 200);
   })
   .get("/unread", async (c) => {
     const context = c.get("tenantContext");

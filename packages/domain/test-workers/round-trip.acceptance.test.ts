@@ -210,6 +210,7 @@ describe("dispatch→completion round trip (acceptance)", () => {
         );
         expect(channelEvents).toEqual([
           {
+            authorKind: "agent",
             commentId: settled.outputCommentId,
             kind: "comment_added",
             threadId: address.threadId,

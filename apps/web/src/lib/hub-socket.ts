@@ -19,6 +19,8 @@ import { fetchHubToken } from "./api";
 
 export type ChannelHubEvent =
   | {
+      /** Who authored the landed comment — run cards retire on agent output, never member replies. */
+      readonly authorKind: "agent" | "member";
       readonly commentId: string;
       readonly kind: "comment_added";
       readonly threadId: string;

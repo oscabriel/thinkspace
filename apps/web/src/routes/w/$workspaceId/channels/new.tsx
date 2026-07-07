@@ -70,7 +70,8 @@ const NewChannelView = () => {
       const kind =
         error instanceof ApiRequestError ? error.kind : "unknown_error";
       // Key-first teaching (ADR 0011): an unkeyed workspace gets a pointer to the provider-key
-      // settings, not a dead end on copy alone.
+      // settings, not a dead end on copy alone. Only this actionable case toasts — every
+      // failure already renders once, inline, via `errorMessage` below.
       if (kind === "byok_key_missing") {
         toast.error(createErrorMessage(kind), {
           action: {
@@ -82,9 +83,7 @@ const NewChannelView = () => {
               }),
           },
         });
-        return;
       }
-      toast.error(createErrorMessage(kind));
     },
     onSuccess: (created) => {
       queryClient.invalidateQueries({

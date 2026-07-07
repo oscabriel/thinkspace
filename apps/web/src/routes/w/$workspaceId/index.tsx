@@ -15,6 +15,7 @@ import { ThreadRow } from "@/components/shell/thread-row";
 import {
   graphQuery,
   homeQuery,
+  memberLabel,
   membersQuery,
   unreadQuery,
 } from "@/lib/workspace-queries";
@@ -79,7 +80,7 @@ const HomeFeed = () => {
               to="/w/$workspaceId/channels/$channelId/threads/$threadId"
             >
               <ThreadRow
-                authorName={members.data?.get(thread.createdByMemberId)}
+                authorName={memberLabel(members.data, thread.createdByMemberId)}
                 channelLabel={channelGoals.get(thread.channelId)}
                 thread={thread}
                 unread={unreadThreadIds.has(thread.id)}

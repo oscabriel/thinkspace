@@ -149,6 +149,7 @@ export const createRunCompletionFlow = (
     }
 
     const commentAnnounced = await deps.channelHub.publishEvent({
+      authorKind: "agent",
       commentId: input.outputComment.id,
       kind: "comment_added",
       threadId: run.threadId,

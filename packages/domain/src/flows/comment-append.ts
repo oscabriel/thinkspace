@@ -105,6 +105,11 @@ export const createCommentAppendFlow = (
       return appended;
     }
 
+    // First-write-wins convergence: the DO returns the ORIGINAL comment on a replayed
+    // commentId, so every downstream timestamp (bump, unread, hub) derives from it and a
+    // retry re-fans-out the same instants instead of re-bumping the thread to "now".
+    const landed = appended.value.comment;
+
     // The bump reads the D1 index row and rewrites its lastActivityAt, exactly as run
     // settlement does — participants (minus the author, who just posted) get a
     // co-participant unread. The whole bump is one atomic batch (ADR 0027).
@@ -130,11 +135,9 @@ export const createCommentAppendFlow = (
         (participant): TenantWriteCommand => ({
           kind: "put_unread",
           unread: {
-            bumpedAt: createdAt,
+            bumpedAt: landed.createdAt,
             memberId: participant,
-            reasons: [
-              { commentId: comment.id, kind: "co_participant_activity" },
-            ],
+            reasons: [{ commentId: landed.id, kind: "co_participant_activity" }],
             threadId: input.threadId,
             workspaceId: context.workspaceId,
           },
@@ -145,7 +148,7 @@ export const createCommentAppendFlow = (
       commands: [
         {
           kind: "put_thread_index",
-          thread: { ...thread, lastActivityAt: createdAt },
+          thread: { ...thread, lastActivityAt: landed.createdAt },
         },
         ...unreadWrites,
       ],
@@ -156,7 +159,8 @@ export const createCommentAppendFlow = (
     }
 
     const commentAnnounced = await deps.channelHub.publishEvent({
-      commentId: comment.id,
+      authorKind: "member",
+      commentId: landed.id,
       kind: "comment_added",
       threadId: input.threadId,
     });
@@ -165,7 +169,7 @@ export const createCommentAppendFlow = (
     }
 
     const bumpAnnounced = await deps.workspaceHub.publishActivity({
-      bumpedAt: createdAt,
+      bumpedAt: landed.createdAt,
       channelId: channel.id,
       kind: "thread_bumped",
       threadId: input.threadId,
@@ -174,6 +178,6 @@ export const createCommentAppendFlow = (
       return bumpAnnounced;
     }
 
-    return ok(comment);
+    return ok(landed);
   },
 });

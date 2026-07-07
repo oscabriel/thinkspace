@@ -46,6 +46,7 @@ import { branchQuery } from "@/lib/thread-queries";
 import {
   channelQuery,
   channelThreadsQuery,
+  membersQuery,
   workspaceKeys,
 } from "@/lib/workspace-queries";
 
@@ -131,16 +132,21 @@ const ThreadView = () => {
           workspaceId={workspaceId}
         />
       ) : threads.isPending ? (
-        <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-6 py-6">
-          <Skeleton className="h-16 w-3/4" />
-          <Skeleton className="h-24 w-full" />
-        </div>
+        <BranchSkeleton />
       ) : (
         <MissingRootNotice />
       )}
     </div>
   );
 };
+
+/** The thread-loading placeholder, shared by the root-resolution and branch-read phases. */
+const BranchSkeleton = () => (
+  <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-6 py-6">
+    <Skeleton className="h-16 w-3/4" />
+    <Skeleton className="h-24 w-full" />
+  </div>
+);
 
 /**
  * The full thread, anchored at its root comment (ADR 0025 ancestors + subtree). The branch read
@@ -166,6 +172,8 @@ const ThreadConversation = ({
   const branch = useQuery(
     branchQuery(workspaceId, { channelId, rootCommentId, threadId })
   );
+  // The roster's selfMemberId authors the optimistic reply as the real member, not a sentinel.
+  const members = useQuery(membersQuery(workspaceId));
   // The create-and-ask run rides in on ?run= (the receipt does not survive navigation) so the
   // opening dispatch gets a live card exactly like an in-thread one.
   const [activeRuns, setActiveRuns] = useState<readonly ActiveRun[]>(() =>
@@ -203,8 +211,9 @@ const ThreadConversation = ({
         return;
       }
       refetchBranch();
-      if (event.kind === "comment_added") {
+      if (event.kind === "comment_added" && event.authorKind === "agent") {
         // The output comment for the oldest in-flight run has landed — retire that card.
+        // Member replies also announce comment_added (E8.4) and must not retire anything.
         setActiveRuns((runs) => runs.slice(1));
       }
     },
@@ -292,7 +301,7 @@ const ThreadConversation = ({
       const previous =
         queryClient.getQueryData<BranchSnapshot>(branchKey);
       const optimistic: Comment = {
-        author: { kind: "member", memberId: "" },
+        author: { kind: "member", memberId: members.data?.selfMemberId ?? "" },
         body: input.body,
         createdAt: new Date().toISOString(),
         id: input.commentId,
@@ -312,12 +321,7 @@ const ThreadConversation = ({
   });
 
   if (branch.isPending) {
-    return (
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-6 py-6">
-        <Skeleton className="h-16 w-3/4" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-    );
+    return <BranchSkeleton />;
   }
 
   if (branch.isError) {

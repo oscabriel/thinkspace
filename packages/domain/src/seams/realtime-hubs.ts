@@ -61,6 +61,11 @@ export type WorkspaceActivityEvent =
 
 export type ChannelHubEvent =
   | {
+      /**
+       * Who authored the landed comment. Clients infer run lifecycle from agent output
+       * (E7.4 run cards retire on it); a member reply (E8.4) must not read as run output.
+       */
+      readonly authorKind: "agent" | "member";
       readonly commentId: CommentId;
       readonly kind: "comment_added";
       readonly threadId: ThreadId;

@@ -601,6 +601,8 @@ export interface WorkspaceMemberProfile {
 
 export interface MemberRoster {
   readonly members: readonly WorkspaceMemberProfile[];
+  /** The requesting member's own id — the author identity optimistic writes render as. */
+  readonly selfMemberId: string;
   readonly workspaceId: string;
 }
 

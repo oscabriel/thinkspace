@@ -258,9 +258,14 @@ export const createMemoryThreadAgent = (
         });
       }
 
-      state.comments.set(idKey(input.comment.id), input.comment);
+      // First-write-wins on the edge-minted commentId (mirrors initialize): a replay
+      // returns the ORIGINAL comment so downstream fan-out converges on its timestamps.
+      const existing = state.comments.get(idKey(input.comment.id)) ?? null;
+      if (existing === null) {
+        state.comments.set(idKey(input.comment.id), input.comment);
+      }
       return ok({
-        comment: input.comment,
+        comment: existing ?? input.comment,
         participants: collectThreadParticipants({
           comments: [...state.comments.values()],
           runs: [...state.runs.values()],

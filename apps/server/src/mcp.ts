@@ -23,6 +23,7 @@ import { z } from "zod";
 
 import { domainErrorStatus } from "./error-translation";
 import type { TenantVariables } from "./tenant-context";
+import { WORKSPACE_MANAGER_ROLES } from "./tenant-context";
 
 /**
  * E8.2: the HTTP surface for the workspace MCP registry (ADR 0002, wave-7 debt). Reads are
@@ -30,7 +31,7 @@ import type { TenantVariables } from "./tenant-context";
  * BEFORE any row is persisted — the SDK's hibernation-restore path reconnects straight from
  * persisted rows, so a disallowed host must never reach D1). Role gating is the edge's job:
  *
- *  - server register / delete: owner/admin (mirrors the E3.2 BYOK KEY_MANAGER_ROLES pattern);
+ *  - server register / delete: owner/admin (the shared WORKSPACE_MANAGER_ROLES gate, as E3.2 BYOK);
  *  - host approve / revoke: owner-ONLY. The `mcp_host_approval.approved_by_owner_member_id`
  *    column records the acting member, and ADR 0002 frames growing the allowlist as the
  *    deliberate, auditable OWNER action — admitting an admin there would record an admin id in
@@ -41,11 +42,6 @@ import type { TenantVariables } from "./tenant-context";
  * DO. Idle DOs self-heal by per-turn pull; the durable registry write has already landed, so a
  * fan-out failure is logged-and-swallowed — it must never fail the revoke.
  */
-
-const MCP_MANAGER_ROLES: ReadonlySet<TenantContext["role"]> = new Set([
-  "admin",
-  "owner",
-]);
 
 const HOST_APPROVER_ROLES: ReadonlySet<TenantContext["role"]> = new Set([
   "owner",
@@ -147,7 +143,7 @@ export const mcpRoutes = new Hono<{ Variables: TenantVariables }>()
    */
   .post("/mcp/servers", async (c) => {
     const context = c.get("tenantContext");
-    if (!MCP_MANAGER_ROLES.has(context.role)) {
+    if (!WORKSPACE_MANAGER_ROLES.has(context.role)) {
       return c.json({ error: { kind: "insufficient_role" } }, 403);
     }
 
@@ -182,7 +178,7 @@ export const mcpRoutes = new Hono<{ Variables: TenantVariables }>()
    */
   .delete("/mcp/servers/:mcpServerId", async (c) => {
     const context = c.get("tenantContext");
-    if (!MCP_MANAGER_ROLES.has(context.role)) {
+    if (!WORKSPACE_MANAGER_ROLES.has(context.role)) {
       return c.json({ error: { kind: "insufficient_role" } }, 403);
     }
 

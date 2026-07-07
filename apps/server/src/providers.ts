@@ -12,6 +12,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
 
 import type { TenantVariables } from "./tenant-context";
+import { WORKSPACE_MANAGER_ROLES } from "./tenant-context";
 
 /**
  * E3.2 (baked decision 3): the write half of the BYOK read path. Owner/admin register or revoke
@@ -32,12 +33,6 @@ import type { TenantVariables } from "./tenant-context";
  *    and the (idempotent) secret delete and converges, at worst leaving a harmless orphan secret
  *    in the transient window — never a live registry row over a dead secret.
  */
-
-/** Owner/admin may manage provider keys; a member is 403 (insufficient_role). */
-const KEY_MANAGER_ROLES: ReadonlySet<TenantContext["role"]> = new Set([
-  "admin",
-  "owner",
-]);
 
 /** The raw key is opaque here: a non-empty string, validated only for presence, never inspected. */
 const keyBodySchema = z.object({ key: z.string().min(1) });
@@ -106,7 +101,7 @@ export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
   })
   .post("/providers/:provider/key", async (c) => {
     const context = c.get("tenantContext");
-    if (!KEY_MANAGER_ROLES.has(context.role)) {
+    if (!WORKSPACE_MANAGER_ROLES.has(context.role)) {
       return c.json({ error: { kind: "insufficient_role" } }, 403);
     }
 
@@ -139,7 +134,7 @@ export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
   })
   .delete("/providers/:provider/key", async (c) => {
     const context = c.get("tenantContext");
-    if (!KEY_MANAGER_ROLES.has(context.role)) {
+    if (!WORKSPACE_MANAGER_ROLES.has(context.role)) {
       return c.json({ error: { kind: "insufficient_role" } }, 403);
     }
 

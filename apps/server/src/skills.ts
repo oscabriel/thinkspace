@@ -14,6 +14,7 @@ import { z } from "zod";
 
 import { domainErrorStatus } from "./error-translation";
 import type { TenantVariables } from "./tenant-context";
+import { WORKSPACE_MANAGER_ROLES } from "./tenant-context";
 
 /**
  * E8.2: the HTTP surface for the R2-markdown skill registry (ADR 0029), a wave-7 debt item.
@@ -22,12 +23,6 @@ import type { TenantVariables } from "./tenant-context";
  * has no delete (a shape's frozen skillSelection may still reference a skill), so deletion
  * semantics stay future work.
  */
-
-/** Owner/admin may author skills; a member is 403 (insufficient_role). Mirrors KEY_MANAGER_ROLES. */
-const SKILL_AUTHOR_ROLES: ReadonlySet<TenantContext["role"]> = new Set([
-  "admin",
-  "owner",
-]);
 
 const skillPathSchema = z.object({ skillId: skillIdSchema });
 
@@ -81,7 +76,7 @@ export const skillRoutes = new Hono<{ Variables: TenantVariables }>()
   /** Author a new skill (owner/admin): the adapter mints the id and R2 key. */
   .post("/skills", async (c) => {
     const context = c.get("tenantContext");
-    if (!SKILL_AUTHOR_ROLES.has(context.role)) {
+    if (!WORKSPACE_MANAGER_ROLES.has(context.role)) {
       return c.json({ error: { kind: "insufficient_role" } }, 403);
     }
 
@@ -105,7 +100,7 @@ export const skillRoutes = new Hono<{ Variables: TenantVariables }>()
   /** Re-author a skill's markdown (owner/admin); editing re-indexes it. A missing id is 404. */
   .put("/skills/:skillId", async (c) => {
     const context = c.get("tenantContext");
-    if (!SKILL_AUTHOR_ROLES.has(context.role)) {
+    if (!WORKSPACE_MANAGER_ROLES.has(context.role)) {
       return c.json({ error: { kind: "insufficient_role" } }, 403);
     }
 

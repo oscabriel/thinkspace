@@ -91,6 +91,7 @@ describe("Production realtime hubs — custom DOs, name is the tenant boundary (
 
     unwrapOk(
       await hubA.publishEvent({
+        authorKind: "agent",
         commentId: commentId("comment-hub-a"),
         kind: "comment_added",
         threadId: threadId("hub-th-a"),
