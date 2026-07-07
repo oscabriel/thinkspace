@@ -92,7 +92,14 @@ export const artifactRoutes = new Hono<{ Variables: TenantVariables }>()
       return c.json({ error: { kind: "not_found" } }, 404);
     }
 
+    // ADR 0031: rendered artifact content belongs on the sandbox origin, not here. Until the
+    // viewer Worker exists, `sandbox` (script-less, opaque-origin) keeps agent-authored HTML
+    // inert when this URL is navigated directly — fetch()-based rendering is unaffected.
     return new Response(blob.value.bytes.data, {
-      headers: { "Content-Type": blob.value.version.contentType },
+      headers: {
+        "Content-Security-Policy": "sandbox",
+        "Content-Type": blob.value.version.contentType,
+        "X-Content-Type-Options": "nosniff",
+      },
     });
   });
