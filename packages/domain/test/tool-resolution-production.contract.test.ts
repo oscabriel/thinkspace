@@ -28,6 +28,8 @@ const dataAccessForResolver = (seed: ToolResolverSeed) =>
       makeMcpHostApproval({ host, workspaceId: seed.context.workspaceId })
     ),
     mcpServers: seed.mcpServers ?? [],
+    // ADR 0037 decision 5: the resolver's skills layer is the tenant-guarded listSkills() read.
+    skills: seed.skills ?? [],
     workspace: testWorkspace,
     workspaceToolDisables: seed.workspaceToolDisables ?? [],
   });

@@ -9,6 +9,7 @@ import type {
 import type {
   ChannelId,
   CommentId,
+  McpServerId,
   RunId,
   ThreadId,
   WorkspaceId,
@@ -99,6 +100,14 @@ export interface ThreadAgent {
   readonly loadBranch: (input: {
     readonly rootCommentId: CommentId;
   }) => AsyncResult<BranchSnapshot, ThreadAgentError>;
+  /**
+   * Revoke fan-out (ADR 0037 decision 4): drops the named server's live SDK connection if
+   * present, so a revoked/removed MCP server is severed immediately rather than only self-
+   * healing at the thread's next turn. A no-op success when no such connection is live.
+   */
+  readonly removeMcpServer: (input: {
+    readonly mcpServerId: McpServerId;
+  }) => AsyncResult<void, ThreadAgentError>;
   readonly resnapshot: (
     input: ThreadAgentResnapshotRequest
   ) => AsyncResult<ThreadAgentSnapshot, ThreadAgentError>;

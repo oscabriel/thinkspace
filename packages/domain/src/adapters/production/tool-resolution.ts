@@ -1,7 +1,7 @@
 import { createNotImplementedError } from "../../errors";
 import { err, ok } from "../../result";
 import type {
-  TenantContext,
+  DataAccessContext,
   TenantDataAccess,
   TenantDataAccessError,
 } from "../../seams/tenant-data-access";
@@ -37,26 +37,28 @@ const asToolResolutionError = (
       );
 
 export interface CatalogWorkspaceShapeToolResolverConfig {
-  readonly context: TenantContext;
-  readonly dataAccess: TenantDataAccess;
+  readonly context: DataAccessContext;
+  readonly dataAccess: TenantDataAccess<DataAccessContext>;
 }
 
 /**
  * v2 production ToolResolver (E6.3). ADR 0004 three-layer resolution sourced from D1:
  * layer 1 = {@link FIRST_PARTY_CATALOG} (empty in v1), layer 2 = the workspace MCP registry
  * + host allowlist (ADR 0002) + per-tool disables, layer 3 = the shape's selections. The MCP
- * host allowlist fails the whole resolution closed on an unapproved host. Skills stay empty
- * pending E6.1 (the workspace skill pool); wire `dataAccess.listSkills()` in here when it lands.
+ * host allowlist fails the whole resolution closed on an unapproved host. The skills layer is
+ * the tenant-guarded `listSkills()` read (ADR 0037 decision 5) narrowed by the shape's
+ * selection; the R2 `skill` index stays a storage detail behind the seam.
  */
 export const createCatalogWorkspaceShapeToolResolver = (
   config: CatalogWorkspaceShapeToolResolverConfig
 ): ToolResolver => ({
   context: config.context,
   resolve: async (input) => {
-    const [servers, approvals, disables] = await Promise.all([
+    const [servers, approvals, disables, skills] = await Promise.all([
       config.dataAccess.listMcpServers(),
       config.dataAccess.listMcpHostApprovals(),
       config.dataAccess.listWorkspaceToolDisables(),
+      config.dataAccess.listSkills(),
     ]);
     if (!servers.ok) {
       return err(asToolResolutionError(servers.error));
@@ -67,6 +69,9 @@ export const createCatalogWorkspaceShapeToolResolver = (
     if (!disables.ok) {
       return err(asToolResolutionError(disables.error));
     }
+    if (!skills.ok) {
+      return err(asToolResolutionError(skills.error));
+    }
 
     return resolveEffectiveToolset({
       context: config.context,
@@ -74,7 +79,7 @@ export const createCatalogWorkspaceShapeToolResolver = (
         approvedMcpHosts: approvals.value.map((approval) => approval.host),
         catalogTools: FIRST_PARTY_CATALOG,
         mcpServers: servers.value,
-        skills: [],
+        skills: skills.value,
         workspaceToolDisables: disables.value,
       },
       request: input,
@@ -83,8 +88,8 @@ export const createCatalogWorkspaceShapeToolResolver = (
 });
 
 export interface WorkerMcpEgressPolicyConfig {
-  readonly context: TenantContext;
-  readonly dataAccess: TenantDataAccess;
+  readonly context: DataAccessContext;
+  readonly dataAccess: TenantDataAccess<DataAccessContext>;
 }
 
 /**

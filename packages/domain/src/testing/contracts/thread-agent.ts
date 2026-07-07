@@ -10,6 +10,7 @@ import {
   makeRunningSubAgentActivity,
   makeShapeSnapshot,
   makeShapeStructure,
+  mcpServerId,
   otherWorkspaceId,
   runId,
   threadAgentAddress,
@@ -47,6 +48,18 @@ export const defineThreadAgentContract = (input: {
 }): void => {
   const { describe, expect, test } = input.api;
   const { makeThreadAgent } = input;
+
+  describe("ThreadAgent.removeMcpServer — revoke fan-out (ADR 0037 decision 4)", () => {
+    test("severing a server with no live connection is a no-op success", async () => {
+      const agent = await makeThreadAgent({ address: threadAgentAddress });
+
+      const result = await agent.removeMcpServer({
+        mcpServerId: mcpServerId("mcp-not-connected"),
+      });
+
+      expect(unwrapOk(result)).toBe(undefined);
+    });
+  });
 
   describe("ThreadAgent.loadBranch — dispatch context window (ADR 0025)", () => {
     test("returns the ancestor path (oldest first) plus the subtree rooted at the dispatch comment, excluding ancestor-siblings and other top-level branches", async () => {

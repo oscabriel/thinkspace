@@ -5,7 +5,7 @@ import type { McpServer } from "./mcp";
 import type { McpHost } from "./primitives";
 import type { Result } from "./result";
 import { err, ok } from "./result";
-import type { TenantContext } from "./seams/tenant-data-access";
+import type { DataAccessContext } from "./seams/tenant-data-access";
 import type {
   EffectiveToolset,
   ToolResolutionRequest,
@@ -30,11 +30,11 @@ export interface ToolResolutionWorkspaceData {
 const idSet = (ids: readonly string[]): Set<string> =>
   new Set(ids.map((id) => idKey(id)));
 
-const inTenant = (context: TenantContext, value: TenantScoped): boolean =>
+const inTenant = (context: DataAccessContext, value: TenantScoped): boolean =>
   isInTenant(context, value);
 
 const mcpHostNotAllowed = (
-  context: TenantContext,
+  context: DataAccessContext,
   server: Pick<McpServer, "host" | "id">
 ): McpHostNotAllowedError => ({
   host: server.host,
@@ -51,7 +51,7 @@ const mcpHostNotAllowed = (
  * the async data-gathering is the adapter's job.
  */
 export const resolveEffectiveToolset = (input: {
-  readonly context: TenantContext;
+  readonly context: DataAccessContext;
   readonly data: ToolResolutionWorkspaceData;
   readonly request: ToolResolutionRequest;
 }): Result<EffectiveToolset, McpHostNotAllowedError> => {

@@ -10,7 +10,7 @@ import type { AsyncResult } from "../result";
 import type { ShapeStructure } from "../shape";
 import type { Skill } from "../skill";
 import type { CatalogTool } from "../tool";
-import type { TenantContext } from "./tenant-data-access";
+import type { DataAccessContext } from "./tenant-data-access";
 
 export type ToolResolutionError =
   | McpHostNotAllowedError
@@ -61,9 +61,14 @@ export type AllowedMcpEgress = McpEgressRequest & {
   readonly workspaceId: WorkspaceId;
 };
 
-/** Three-layer tool model seam: catalog ∩ workspace permission ∩ shape selection, plus runtime narrowing. */
+/**
+ * Three-layer tool model seam: catalog ∩ workspace permission ∩ shape selection, plus runtime
+ * narrowing. Context is a `DataAccessContext` (ADR 0037): the edge resolves under a member's
+ * `TenantContext`, the ThreadAgent DO resolves per turn under the address-derived
+ * `SystemContext` — resolution reads only workspace-scoped facts, never member visibility.
+ */
 export interface ToolResolver {
-  readonly context: TenantContext;
+  readonly context: DataAccessContext;
   readonly resolve: (
     input: ToolResolutionRequest
   ) => AsyncResult<EffectiveToolset, ToolResolutionError>;
@@ -74,5 +79,5 @@ export interface McpEgressPolicy {
   readonly authorize: (
     input: McpEgressRequest
   ) => AsyncResult<AllowedMcpEgress, ToolResolutionError>;
-  readonly context: TenantContext;
+  readonly context: DataAccessContext;
 }

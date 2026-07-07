@@ -53,6 +53,7 @@ defineThreadAgentContract({
       initialize: (input) => inAgent((i) => i.initialize(input)),
       listRuns: () => inAgent((i) => i.listRuns()),
       loadBranch: (input) => inAgent((i) => i.loadBranch(input)),
+      removeMcpServer: (input) => inAgent((i) => i.dropMcpServer(input)),
       resnapshot: (input) => inAgent((i) => i.resnapshot(input)),
       run: (input) => inAgent((i) => i.run(input)),
       schedule: (input) => inAgent((i) => i.scheduleRun(input)),
