@@ -43,7 +43,7 @@ const defaultSessionId = (): CuratorSessionId =>
  * into a ModelId — per-workspace curator model selection is deferred (see notes). getModel
  * self-constructs the gateway model from this, exactly like ThreadAgent.getModel.
  */
-const defaultCuratorModelId = () => {
+export const defaultCuratorModelId = () => {
   const [entry] = providerAllowlist;
   if (entry === undefined) {
     throw new Error("defaultCuratorModelId: provider allowlist is empty");
