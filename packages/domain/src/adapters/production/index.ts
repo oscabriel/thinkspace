@@ -31,6 +31,17 @@ export {
   type GatewayModelFactoryOptions,
 } from "./model-gateway";
 export {
+  AI_GATEWAY_SECRET_SCOPE,
+  type ByokFetch,
+  type ByokRegistrationError,
+  type ByokRegistrationOperation,
+  byokSecretName,
+  CLOUDFLARE_API_BASE_URL,
+  type CloudflareByokClient,
+  type CloudflareByokConfig,
+  createCloudflareByokClient,
+} from "./cloudflare-byok";
+export {
   assembleCatalog,
   type CatalogFetch,
   createModelCatalog,
