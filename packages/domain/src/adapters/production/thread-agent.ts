@@ -28,6 +28,7 @@ import type {
   Schedule,
   SubAgentActivity,
 } from "../../run";
+import type { SkillContent } from "../../seams/skill-store";
 import type { SystemContext } from "../../seams/tenant-data-access";
 import type {
   BranchSnapshot,
@@ -59,6 +60,7 @@ import type {
   ChannelHubDurableObject,
   WorkspaceHubDurableObject,
 } from "./realtime-hubs";
+import { loadSelectedSkillContents } from "./skill-store";
 import { createD1TenantDataAccess } from "./tenant-data-access";
 
 const defaultClock = (): Date => new Date();
@@ -146,6 +148,31 @@ export interface CompletionFlowEnv {
   readonly WORKSPACE_HUB: DurableObjectNamespace<WorkspaceHubDurableObject>;
 }
 
+/** Skill turn-assembly bindings (ADR 0005/0029): the D1 index + the R2 markdown bucket. */
+interface SkillTurnEnv {
+  readonly DB: D1Database;
+  readonly SKILLS: R2Bucket;
+}
+
+/**
+ * Renders the shape's selected skills (ADR 0005/0029) into the effective system prompt. The
+ * selection is frozen into the snapshot (structure); the markdown stays live (content), so it
+ * is reloaded each turn. Empty selection leaves the base prompt untouched.
+ */
+const renderSystemPromptWithSkills = (
+  base: string,
+  skills: readonly SkillContent[]
+): string => {
+  if (skills.length === 0) {
+    return base;
+  }
+  const blocks = skills
+    .map((content) => `## ${content.skill.name}\n\n${content.markdown}`)
+    .join("\n\n");
+  const skillSection = `# Skills\n\n${blocks}`;
+  return base.length === 0 ? skillSection : `${base}\n\n${skillSection}`;
+};
+
 /**
  * ADR 0035 §2: production wiring of the settlement fan-out. Everything needed survives a
  * hibernation wake — env and the name-derived address. No member acts at settle time, so
@@ -189,6 +216,8 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
    */
   completionFlow: RunCompletionFlow | null = null;
   private address: ThreadAgentAddress | null = null;
+  /** Effective skills for the turn in flight (ADR 0005/0029), reloaded per turn in `run`. */
+  private effectiveSkills: readonly SkillContent[] = [];
   private clock: () => Date = defaultClock;
   private mintCommentId: () => Comment["id"] = defaultCommentId;
   private mintRunId: () => QueuedRun["id"] = defaultRunId;
@@ -281,9 +310,14 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     });
   }
 
-  /** Config-as-data (ADR 0007): behavior reads the resident shape snapshot every turn. */
+  /**
+   * Config-as-data (ADR 0007): behavior reads the resident shape snapshot every turn. The
+   * shape's selected skills (ADR 0005/0029) are appended as live markdown — preloaded by
+   * `run` into `effectiveSkills` because prompt assembly stays synchronous (SDK signature pin).
+   */
   override getSystemPrompt(): string {
-    return this.readSnapshot()?.structure.systemPrompt ?? "";
+    const base = this.readSnapshot()?.structure.systemPrompt ?? "";
+    return renderSystemPromptWithSkills(base, this.effectiveSkills);
   }
 
   // eslint-disable-next-line class-methods-use-this -- tool resolution (ADR 0004) will read shape config here
@@ -531,12 +565,48 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     };
     this.putRun(queuedRun);
 
+    // Reload the shape's selected skills before the turn assembles its prompt (ADR 0005/0029):
+    // the selection is frozen structure, the markdown is live content.
+    await this.loadEffectiveSkills(address);
+
     const submitted = await this.submitRunTurn(queuedRun);
     if (!submitted.ok) {
       return submitted;
     }
 
     return ok({ queuedRun, runId, threadId: address.threadId });
+  }
+
+  /**
+   * Loads live markdown for the resident snapshot's frozen skill selection (ADR 0007). Runs
+   * under the address's workspace scope — the loader filters on `workspace_id`, so a selection
+   * naming a foreign skill renders nothing. Fail-soft: a load hiccup leaves the base prompt.
+   */
+  private async loadEffectiveSkills(
+    address: ThreadAgentAddress
+  ): Promise<void> {
+    const snapshot = this.readSnapshot();
+    const skillIds = snapshot?.structure.skillSelection ?? [];
+    const env = this.env as unknown as Partial<SkillTurnEnv>;
+    if (
+      skillIds.length === 0 ||
+      env.DB === undefined ||
+      env.SKILLS === undefined
+    ) {
+      this.effectiveSkills = [];
+      return;
+    }
+    try {
+      this.effectiveSkills = await loadSelectedSkillContents({
+        bucket: env.SKILLS,
+        db: env.DB,
+        skillIds,
+        workspaceId: address.workspaceId,
+      });
+    } catch (error) {
+      console.error("[ThreadAgent] skill load failed", error);
+      this.effectiveSkills = [];
+    }
   }
 
   /**

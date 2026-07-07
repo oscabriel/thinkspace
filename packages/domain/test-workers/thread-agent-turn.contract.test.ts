@@ -2,18 +2,23 @@ import { MockLanguageModelV3 } from "ai/test";
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, test, vi } from "vitest";
 
+import { createR2MarkdownSkillStore } from "../src/adapters/production/skill-store";
 import type { ThreadAgentDurableObject } from "../src/adapters/production/thread-agent";
 import { encodeThreadAgentAddress } from "../src/adapters/thread-agent-address";
 import type { RunSettlement } from "../src/flows/run-completion";
+import { skillMarkdownSchema, skillNameSchema } from "../src/primitives";
 import { ok } from "../src/result";
+import type { TenantContext } from "../src/seams/tenant-data-access";
 import type { ThreadAgentAddress } from "../src/seams/thread-agent";
 import {
   channelId,
   makeComment,
   makeDispatchTrigger,
   makeShapeSnapshot,
+  makeShapeStructure,
   runId,
   testMemberId,
+  testTenantContext,
   threadId,
   unwrapOk,
   workspaceId,
@@ -228,5 +233,65 @@ describe("ThreadAgent turn layer — RunId is the submissionId (ADR 0033)", () =
     expect(branch.subtree.map((comment) => comment.id)).toEqual([target.id]);
 
     expect(settlements).toEqual([{ kind: "failed", run: settled }]);
+  });
+});
+
+describe("ThreadAgent turn layer — skills feed the effective prompt (ADR 0005/0029)", () => {
+  test("a skill selected by the resident shape surfaces in the effective system prompt", async () => {
+    const addr = address("skills");
+    const stub = agentAt(addr);
+    const skillContext: TenantContext = {
+      ...testTenantContext,
+      workspaceId: addr.workspaceId,
+    };
+    const markdown = skillMarkdownSchema.parse(
+      "# Deploy runbook\n\nAlways drain connections before rollout."
+    );
+
+    // Author a live skill (R2 body + adapter-owned D1 index) in the turn's workspace.
+    const skillStore = createR2MarkdownSkillStore({
+      bucket: env.SKILLS,
+      context: skillContext,
+      db: env.DB,
+    });
+    const created = unwrapOk(
+      await skillStore.create({
+        draft: { name: skillNameSchema.parse("Deploy runbook") },
+        markdown,
+      })
+    );
+
+    const target = makeComment({
+      id: "turn-comment-skills",
+      threadId: addr.threadId,
+      workspaceId: addr.workspaceId,
+    });
+
+    await runInDurableObject(stub, (instance: Instance) => {
+      instance.applyTestSeed({
+        address: addr,
+        comments: [target],
+        nextRunId: () => runId("turn-run-skills"),
+        shapeSnapshot: makeShapeSnapshot({
+          structure: makeShapeStructure({
+            skillSelection: [created.skill.id],
+          }),
+        }),
+        testModel: modelReplying("Acknowledged."),
+      });
+      instance.completionFlow = { settle: async () => ok() };
+    });
+    await startAgent(stub, addr);
+
+    await runInDurableObject(stub, (instance: Instance) =>
+      instance.run(makeDispatchTrigger({ targetCommentId: target.id }))
+    );
+
+    // run() reloads the selection's live markdown before the turn assembles its prompt.
+    const prompt = await runInDurableObject(stub, (instance: Instance) =>
+      instance.getSystemPrompt()
+    );
+    expect(prompt.includes(markdown)).toBe(true);
+    expect(prompt.includes("# Skills")).toBe(true);
   });
 });

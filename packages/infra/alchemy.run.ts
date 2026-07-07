@@ -3,6 +3,7 @@ import {
   AiGateway,
   D1Database,
   DurableObjectNamespace,
+  R2Bucket,
   TanStackStart,
   Worker,
 } from "alchemy/cloudflare";
@@ -36,6 +37,15 @@ const corsOrigin = required(
 
 const db = await D1Database("database", {
   migrationsDir: "../../packages/db/src/migrations",
+});
+
+/**
+ * Skill markdown bodies (ADR 0005/0029): R2 is the durable system of record for skill content
+ * (live), while the adapter-owned D1 `skill` table owns identity + the R2-key mapping (structure).
+ * Layout is adapter-internal `{workspace}/skills/{skill}.md` and never crosses the seam.
+ */
+const skillsBucket = await R2Bucket("skills", {
+  adopt: true,
 });
 
 /**
@@ -85,6 +95,7 @@ export const server = await Worker("server", {
     CHANNEL_HUB: channelHub,
     CORS_ORIGIN: corsOrigin,
     DB: db,
+    SKILLS: skillsBucket,
     THREAD_AGENT: threadAgent,
     WORKSPACE_HUB: workspaceHub,
   },

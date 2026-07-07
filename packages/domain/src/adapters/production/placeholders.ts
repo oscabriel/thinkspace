@@ -2,7 +2,6 @@ import { createNotImplementedError } from "../../errors";
 import { err } from "../../result";
 import type { ArtifactStore } from "../../seams/artifact-store";
 import type { CuratorAgent } from "../../seams/curator-agent";
-import type { SkillStore } from "../../seams/skill-store";
 import type { TenantContext } from "../../seams/tenant-data-access";
 import type { ThreadAgent, ThreadAgentAddress } from "../../seams/thread-agent";
 import type { McpEgressPolicy } from "../../seams/tool-resolution";
@@ -32,15 +31,6 @@ export const createR2VirtualFsArtifactStorePlaceholder = (
   get: async (_input) => notImplemented("R2VirtualFsArtifactStore.get"),
   put: async (_input) => notImplemented("R2VirtualFsArtifactStore.put"),
   search: async (_input) => notImplemented("R2VirtualFsArtifactStore.search"),
-});
-
-export const createR2MarkdownSkillStorePlaceholder = (
-  context: TenantContext
-): SkillStore => ({
-  context,
-  create: async (_input) => notImplemented("R2MarkdownSkillStore.create"),
-  get: async (_input) => notImplemented("R2MarkdownSkillStore.get"),
-  update: async (_input) => notImplemented("R2MarkdownSkillStore.update"),
 });
 
 export const createWorkerMcpEgressPolicyPlaceholder = (
