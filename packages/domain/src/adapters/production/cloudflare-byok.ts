@@ -234,18 +234,30 @@ export const createCloudflareByokClient = (
     provider: ModelProvider
   ): AsyncResult<undefined, ByokRegistrationError> => {
     const name = byokSecretName(config.gatewayId, workspaceId, provider);
-    const existing = await findSecretId("delete", name);
-    if (!existing.ok) {
-      return existing;
+    let response: Response;
+    try {
+      const existing = await findSecretId("delete", name);
+      if (!existing.ok) {
+        return existing;
+      }
+      if (existing.value === null) {
+        // Already gone: a retried delete converges to success.
+        return ok();
+      }
+      response = await fetchImpl(`${secretsUrl}/${existing.value}`, {
+        headers: authHeaders,
+        method: "DELETE",
+      });
+    } catch {
+      // Transport failure: same fixed message as the write path — a stringified fetch
+      // error could echo the request.
+      return err({
+        kind: "byok_registration_failed",
+        message: "network error",
+        operation: "delete",
+        status: 0,
+      });
     }
-    if (existing.value === null) {
-      // Already gone: a retried delete converges to success.
-      return ok();
-    }
-    const response = await fetchImpl(`${secretsUrl}/${existing.value}`, {
-      headers: authHeaders,
-      method: "DELETE",
-    });
     if (!response.ok) {
       return err({
         kind: "byok_registration_failed",

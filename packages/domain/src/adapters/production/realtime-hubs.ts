@@ -134,7 +134,9 @@ abstract class RecentLogHub<Event> extends Agent<Cloudflare.Env> {
   ): Promise<void> {
     const decision = await this.authorizeUpgrade(ctx.request);
     if (!decision.ok) {
-      connection.close(HUB_UPGRADE_REJECT_CODE, decision.reason);
+      // The internal reason stays server-side: a flat close tells a probe nothing about
+      // which check tripped (missing vs invalid vs expired vs wrong-address token).
+      connection.close(HUB_UPGRADE_REJECT_CODE, "unauthorized");
     }
   }
 

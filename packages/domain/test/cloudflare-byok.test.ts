@@ -177,6 +177,21 @@ describe("createCloudflareByokClient.writeProviderKey", () => {
     }
   });
 
+  test("delete maps a transport failure to a status-0 error", async () => {
+    const client = createCloudflareByokClient({
+      ...baseConfig,
+      fetch: rejectingFetch,
+    });
+
+    const result = await client.deleteProviderKey(workspaceId, provider);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.status).toBe(0);
+      expect(result.error.operation).toBe("delete");
+    }
+  });
+
   test("REDACTION: the raw key never appears in a failing call's error", async () => {
     // A hostile error body that even echoes the request payload — the client must still not
     // surface the key, because it copies only the envelope's own error messages.
