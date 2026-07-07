@@ -7,7 +7,9 @@
  *   - models.dev            → a fixture catalog for E1.4 assembly (one allowlisted provider with
  *                             two valid models + one boundary-schema reject, plus one
  *                             non-allowlisted provider that filtering must drop);
- *   - gateway.ai.cloudflare.com → a canned Anthropic Messages response for E1.7/E1.8 completions.
+ *   - gateway.ai.cloudflare.com → a canned Anthropic Messages response for E1.7/E1.8 completions;
+ *   - auth.test.local       → the E4.2 hub-connect JWKS: the public half of a fixed Ed25519
+ *                             keypair whose private half the hub-upgrade tests sign tokens with.
  * Everything else passes through. Response variation happens by inspecting the request here —
  * the outbound is fixed at miniflare startup, so there is no per-test interceptor registration.
  *
@@ -72,6 +74,22 @@ const anthropicMessageFixture = {
   usage: { input_tokens: 1, output_tokens: 1 },
 };
 
+// E4.2: the public half of a fixed Ed25519 keypair (EdDSA — the better-auth JWT plugin's
+// default). The hub-upgrade tests hold the private half and sign connect tokens with it; the
+// hub fetches this set to verify. `kid` matches the token header so jose resolves it directly.
+const hubJwksFixture = {
+  keys: [
+    {
+      alg: "EdDSA",
+      crv: "Ed25519",
+      kid: "hub-test-key-1",
+      kty: "OKP",
+      use: "sig",
+      x: "J8wEBy_lq4XDHlbgX7rIgZ8oS_LFYm9Xffjl848l2HY",
+    },
+  ],
+};
+
 export default {
   fetch(request) {
     const url = new URL(request.url);
@@ -80,6 +98,9 @@ export default {
     }
     if (url.hostname === "gateway.ai.cloudflare.com") {
       return Response.json(anthropicMessageFixture);
+    }
+    if (url.hostname === "auth.test.local") {
+      return Response.json(hubJwksFixture);
     }
     return fetch(request);
   },

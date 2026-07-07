@@ -1,8 +1,11 @@
 /* eslint-disable max-classes-per-file -- one hub substrate: the shared recent-log base and the two hub DOs */
 import { Agent, getAgentByName } from "agents";
-import type { AgentContext } from "agents";
+import type { AgentContext, Connection, ConnectionContext } from "agents";
+import type { JWTVerifyGetKey } from "jose";
 
 import { createNotImplementedError } from "../../errors";
+import { channelIdSchema, workspaceIdSchema } from "../../ids";
+import type { ChannelId, WorkspaceId } from "../../ids";
 import { err, ok } from "../../result";
 import type { AsyncResult } from "../../result";
 import type {
@@ -15,6 +18,14 @@ import type {
   WorkspaceScope,
 } from "../../seams/realtime-hubs";
 import { parseJsonColumn } from "../helpers";
+import {
+  createHubJwks,
+  type HubAuthEnv,
+  type HubConnectClaims,
+  HUB_UPGRADE_REJECT_CODE,
+  readHubConnectToken,
+  verifyHubConnectToken,
+} from "./hub-auth";
 
 /**
  * ADR 0033's addressing pattern applied to hubs (ADR 0010): the DO name is the
@@ -32,6 +43,62 @@ export const encodeChannelHubName = (
   [context.workspaceId, address.channelId].map(encodeURIComponent).join("/");
 
 /**
+ * The inverse of the encoders (E4.2): the hub decodes its own name back into the tenant
+ * address it verifies the connect token's claims against. Fail-closed like the thread-agent
+ * codec (ADR 0033) — anything that is not the canonical encoding of a real address returns
+ * null, so a forged or misrouted DO name can never match a claim.
+ */
+export const decodeWorkspaceHubName = (name: string): WorkspaceId | null => {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(name);
+  } catch {
+    return null;
+  }
+  const parsed = workspaceIdSchema.safeParse(decoded);
+  if (!parsed.success) {
+    return null;
+  }
+  return encodeWorkspaceHubName({ workspaceId: parsed.data }) === name
+    ? parsed.data
+    : null;
+};
+
+export const decodeChannelHubName = (
+  name: string
+): { readonly channelId: ChannelId; readonly workspaceId: WorkspaceId } | null => {
+  const segments = name.split("/");
+  if (segments.length !== 2) {
+    return null;
+  }
+
+  let decoded: readonly string[];
+  try {
+    decoded = segments.map(decodeURIComponent);
+  } catch {
+    return null;
+  }
+
+  const [workspaceId, channelId] = decoded;
+  const parsedWorkspaceId = workspaceIdSchema.safeParse(workspaceId);
+  const parsedChannelId = channelIdSchema.safeParse(channelId);
+  if (!(parsedWorkspaceId.success && parsedChannelId.success)) {
+    return null;
+  }
+
+  const address = {
+    channelId: parsedChannelId.data,
+    workspaceId: parsedWorkspaceId.data,
+  };
+  return encodeChannelHubName(
+    { workspaceId: address.workspaceId },
+    { channelId: address.channelId }
+  ) === name
+    ? address
+    : null;
+};
+
+/**
  * Hub DOs are plain agents-SDK objects (no turn machinery): they fan events out to
  * connected clients and keep a bounded recent log so late joiners (and tests) can read
  * what was announced. Unpinned seam surface (roster, presence, listing, thread creation)
@@ -40,9 +107,71 @@ export const encodeChannelHubName = (
 abstract class RecentLogHub<Event> extends Agent<Cloudflare.Env> {
   private static readonly RECENT_LOG_LIMIT = 256;
 
+  /**
+   * The hub's DO name is its tenant address (workspace / workspace+channel ids) — never send
+   * it to clients on connect. Hubs speak only their own event JSON over the wire, not the
+   * agents-SDK identity/state protocol.
+   */
+  static options = { sendIdentityOnConnect: false };
+
+  /** Cached JWK set (E4.2): fetched once per hub instance, refetched only on an unknown kid. */
+  private hubJwks: JWTVerifyGetKey | undefined;
+
   constructor(ctx: AgentContext, env: Cloudflare.Env) {
     super(ctx, env);
     this.ensureHubTable();
+  }
+
+  /**
+   * The WS upgrade authorization gate (baked decision 5). The socket is already accepted by
+   * the time partyserver hands it here, so rejection is a 4401 close — the client sees the
+   * code, never a delivered event. A pass is silent: the recent-log broadcast then reaches it
+   * like any other connection.
+   */
+  override async onConnect(
+    connection: Connection,
+    ctx: ConnectionContext
+  ): Promise<void> {
+    const decision = await this.authorizeUpgrade(ctx.request);
+    if (!decision.ok) {
+      connection.close(HUB_UPGRADE_REJECT_CODE, decision.reason);
+    }
+  }
+
+  private async authorizeUpgrade(
+    request: Request
+  ): Promise<{ ok: false; reason: string } | { ok: true }> {
+    const token = readHubConnectToken(request);
+    if (token === null) {
+      return { ok: false, reason: "missing_token" };
+    }
+
+    this.hubJwks ??= createHubJwks(this.env as unknown as HubAuthEnv);
+    const verified = await verifyHubConnectToken(token, this.hubJwks);
+    if (!verified.ok) {
+      return verified;
+    }
+
+    if (!this.claimsMatchAddress(verified.claims)) {
+      return { ok: false, reason: "address_mismatch" };
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Does the verified token authorize a connection to *this* hub? Each hub decodes its own
+   * name (ADR 0033) and matches the claim against it — workspace for the workspace hub,
+   * workspace + channel for the channel hub.
+   */
+  protected abstract claimsMatchAddress(claims: HubConnectClaims): boolean;
+
+  /** `this.name` throws for DOs addressed by unique id (partyserver getter over ctx.id.name). */
+  protected readDoName(): string | null {
+    try {
+      return this.name;
+    } catch {
+      return null;
+    }
   }
 
   protected appendEvent(event: Event): void {
@@ -81,6 +210,11 @@ abstract class RecentLogHub<Event> extends Agent<Cloudflare.Env> {
 }
 
 export class WorkspaceHubDurableObject extends RecentLogHub<WorkspaceActivityEvent> {
+  protected claimsMatchAddress(claims: HubConnectClaims): boolean {
+    const workspaceId = decodeWorkspaceHubName(this.readDoName() ?? "");
+    return workspaceId !== null && workspaceId === claims.workspaceId;
+  }
+
   async publishActivity(
     event: WorkspaceActivityEvent
   ): AsyncResult<undefined, RealtimeHubError> {
@@ -94,6 +228,18 @@ export class WorkspaceHubDurableObject extends RecentLogHub<WorkspaceActivityEve
 }
 
 export class ChannelHubDurableObject extends RecentLogHub<ChannelHubEvent> {
+  /**
+   * Channel-visibility check reduces to the tenant boundary here: the token carries no
+   * per-channel grant (its claims are workspace + role + member), and ADR 0033's injective
+   * addressing already makes a same-named channel in another workspace a *different* DO. So a
+   * connection is authorized iff the token's workspace owns this channel hub. Private-channel /
+   * owner ACL (ADR 0019) is a directory read, not an upgrade-time claim — out of E4.2 scope.
+   */
+  protected claimsMatchAddress(claims: HubConnectClaims): boolean {
+    const address = decodeChannelHubName(this.readDoName() ?? "");
+    return address !== null && address.workspaceId === claims.workspaceId;
+  }
+
   async publishEvent(
     event: ChannelHubEvent
   ): AsyncResult<undefined, RealtimeHubError> {
