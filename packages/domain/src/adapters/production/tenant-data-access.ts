@@ -110,16 +110,6 @@ interface McpHostApprovalRow {
   readonly workspace_id: string;
 }
 
-/** ADR 0029/0037 §5: the adapter-owned skill INDEX row; the markdown body stays in R2. */
-interface SkillRow {
-  readonly created_at: number;
-  readonly id: string;
-  readonly name: string;
-  readonly r2_key: string;
-  readonly updated_at: number;
-  readonly workspace_id: string;
-}
-
 const rowToChannel = (row: ChannelRow): Channel =>
   ({
     createdAt: new Date(row.created_at),
@@ -208,16 +198,6 @@ const rowToMcpHostApproval = (row: McpHostApprovalRow): McpHostApproval =>
     host: row.host,
     workspaceId: row.workspace_id,
   }) as McpHostApproval;
-
-const rowToSkill = (row: SkillRow): Skill =>
-  ({
-    createdAt: new Date(row.created_at),
-    id: row.id,
-    name: row.name,
-    storage: { kind: "r2_markdown", r2Key: row.r2_key },
-    updatedAt: new Date(row.updated_at),
-    workspaceId: row.workspace_id,
-  }) as Skill;
 
 const isVisibleToMember = (context: TenantContext, channel: Channel): boolean =>
   channel.visibility.kind === "shared" ||
