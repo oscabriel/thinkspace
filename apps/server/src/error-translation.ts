@@ -23,6 +23,14 @@ export const domainErrorStatus = (error: DomainError): ContentfulStatusCode => {
     case "unauthenticated": {
       return 401;
     }
+    case "channel_not_archived": {
+      /**
+       * ADR 0018 archive-first: hard-deleting a still-active channel is a lifecycle
+       * conflict with the channel's current state, not an auth failure — 409, matching
+       * the model-config conflicts below.
+       */
+      return 409;
+    }
     case "byok_key_missing":
     case "model_not_in_catalog": {
       /**

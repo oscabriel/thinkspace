@@ -45,3 +45,42 @@ export const signUpWithWorkspace = async (input: {
   }
   return { cookie, memberId: memberRow.id, workspaceId: workspace.id };
 };
+
+/** Signs up a user without creating a workspace, returning their session cookie and userId. */
+export const signUpUser = async (input: { readonly email: string }) => {
+  const auth = createAuth();
+  const signUp = await auth.api.signUpEmail({
+    body: {
+      email: input.email,
+      name: "Test Member",
+      password: "password-123456",
+    },
+    returnHeaders: true,
+  });
+  const cookie = cookieFrom(signUp.headers);
+  const userRow = await env.DB.prepare("SELECT id FROM user WHERE email = ?1")
+    .bind(input.email)
+    .first<{ id: string }>();
+  if (userRow === null) {
+    throw new Error("signed-up user row missing");
+  }
+  return { cookie, userId: userRow.id };
+};
+
+/**
+ * Adds an existing user to a workspace with a given role by writing the better-auth member
+ * row directly (the same row resolveTenantContext reads); avoids the invitation round-trip.
+ */
+export const addWorkspaceMember = async (input: {
+  readonly role: "admin" | "member" | "owner";
+  readonly userId: string;
+  readonly workspaceId: string;
+}) => {
+  const memberId = `member-${crypto.randomUUID()}`;
+  await env.DB.prepare(
+    "INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES (?1, ?2, ?3, ?4, ?5)"
+  )
+    .bind(memberId, input.workspaceId, input.userId, input.role, Date.now())
+    .run();
+  return { memberId };
+};
