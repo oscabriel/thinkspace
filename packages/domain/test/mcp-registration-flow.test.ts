@@ -91,3 +91,41 @@ describe("McpRegistrationFlow — egress gate runs before persistence (ADR 0002,
     expect(unwrapOk(await dataAccess.listMcpServers())).toEqual([server]);
   });
 });
+
+describe("McpRegistrationFlow — revoke writes (ADR 0037 decision 4)", () => {
+  test("deregisterServer drops the row so the restore path no longer sees it", async () => {
+    const dataAccess = createMemoryTenantDataAccess({
+      context: testTenantContext,
+      mcpHostApprovals: [makeMcpHostApproval({ host: "mcp.example.com" })],
+      workspace: testWorkspace,
+    });
+    const flow = buildFlow(dataAccess);
+    const server = makeMcpServer({ host: "mcp.example.com", id: "mcp-1" });
+    unwrapOk(await flow.registerServer({ mcpServer: server }));
+
+    unwrapOk(await flow.deregisterServer({ mcpServerId: server.id }));
+
+    expect(unwrapOk(await dataAccess.listMcpServers())).toEqual([]);
+  });
+
+  test("revokeHost shrinks the allowlist so a re-register on that host fails closed again", async () => {
+    const dataAccess = createMemoryTenantDataAccess({
+      context: testTenantContext,
+      mcpHostApprovals: [makeMcpHostApproval({ host: "mcp.example.com" })],
+      workspace: testWorkspace,
+    });
+    const flow = buildFlow(dataAccess);
+    const server = makeMcpServer({ host: "mcp.example.com", id: "mcp-1" });
+    unwrapOk(await flow.registerServer({ mcpServer: server }));
+
+    unwrapOk(await flow.revokeHost({ host: server.host }));
+
+    expect(
+      unwrapErr(
+        await flow.registerServer({
+          mcpServer: makeMcpServer({ host: "mcp.example.com", id: "mcp-2" }),
+        })
+      ).kind
+    ).toBe("mcp_host_not_allowed");
+  });
+});

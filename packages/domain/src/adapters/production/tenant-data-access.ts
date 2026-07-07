@@ -110,6 +110,16 @@ interface McpHostApprovalRow {
   readonly workspace_id: string;
 }
 
+/** ADR 0029/0037 §5: the adapter-owned skill INDEX row; the markdown body stays in R2. */
+interface SkillRow {
+  readonly created_at: number;
+  readonly id: string;
+  readonly name: string;
+  readonly r2_key: string;
+  readonly updated_at: number;
+  readonly workspace_id: string;
+}
+
 const rowToChannel = (row: ChannelRow): Channel =>
   ({
     createdAt: new Date(row.created_at),
@@ -180,6 +190,16 @@ const rowToMcpServer = (row: McpServerRow): McpServer =>
     url: row.url,
     workspaceId: row.workspace_id,
   }) as McpServer;
+
+const rowToSkill = (row: SkillRow): Skill =>
+  ({
+    createdAt: new Date(row.created_at),
+    id: row.id,
+    name: row.name,
+    storage: { kind: "r2_markdown", r2Key: row.r2_key },
+    updatedAt: new Date(row.updated_at),
+    workspaceId: row.workspace_id,
+  }) as Skill;
 
 const rowToMcpHostApproval = (row: McpHostApprovalRow): McpHostApproval =>
   ({
@@ -275,6 +295,11 @@ const commandToStatement = (
           "DELETE FROM mcp_host_approval WHERE workspace_id = ?1 AND host = ?2"
         )
         .bind(context.workspaceId, command.host);
+    }
+    case "delete_mcp_server": {
+      return db
+        .prepare("DELETE FROM mcp_server WHERE workspace_id = ?1 AND id = ?2")
+        .bind(context.workspaceId, command.mcpServerId);
     }
     case "delete_workspace_tool_disable": {
       return db
@@ -579,7 +604,13 @@ export const createD1TenantDataAccess = <
         .first<ShapeRow>();
       return guardedRow(context, row, rowToShape);
     },
-    getSkill: async (_input) => notImplemented("D1TenantDataAccess.getSkill"),
+    getSkill: async (input) => {
+      const row = await db
+        .prepare("SELECT * FROM skill WHERE id = ?1")
+        .bind(input.skillId)
+        .first<SkillRow>();
+      return guardedRow(context, row, rowToSkill);
+    },
     getWorkspaceGraph: async () => {
       const member = requireMemberContext(context);
       if (!member.ok) {

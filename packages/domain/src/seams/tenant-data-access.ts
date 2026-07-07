@@ -109,6 +109,7 @@ export type TenantWriteCommand =
       readonly memberId: MemberId;
     }
   | { readonly host: McpHost; readonly kind: "delete_mcp_host_approval" }
+  | { readonly kind: "delete_mcp_server"; readonly mcpServerId: McpServerId }
   | { readonly kind: "delete_schedule"; readonly scheduleId: ScheduleId }
   | { readonly kind: "delete_skill"; readonly skillId: SkillId }
   | {

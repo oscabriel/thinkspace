@@ -140,6 +140,8 @@ const scopedValueByKind: {
     state.channelFavorites.get(channelFavoriteKey(command)) ?? null,
   delete_mcp_host_approval: (command, state) =>
     state.mcpHostApprovals.get(idKey(command.host)) ?? null,
+  delete_mcp_server: (command, state) =>
+    state.mcpServers.get(idKey(command.mcpServerId)) ?? null,
   delete_schedule: (command, state) =>
     state.schedules.get(idKey(command.scheduleId)) ?? null,
   delete_skill: (command, state) =>
@@ -244,6 +246,9 @@ const applyCommandByKind: {
   },
   delete_mcp_host_approval: (command, state) => {
     state.mcpHostApprovals.delete(idKey(command.host));
+  },
+  delete_mcp_server: (command, state) => {
+    state.mcpServers.delete(idKey(command.mcpServerId));
   },
   delete_schedule: (command, state) => {
     state.schedules.delete(idKey(command.scheduleId));

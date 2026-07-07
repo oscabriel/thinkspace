@@ -495,6 +495,33 @@ export const defineTenantDataAccessContract = (input: {
       ).toBeNull();
     });
 
+    test("delete_mcp_server drops the row from getMcpServer and listMcpServers", async () => {
+      const data = await makeTenantDataAccess({
+        context: testTenantContext,
+        workspace: testWorkspace,
+      });
+
+      const server = makeMcpServer({ host: "mcp.example.com", id: "mcp-1" });
+      unwrapOk(
+        await data.batch({
+          commands: [{ kind: "put_mcp_server", mcpServer: server }],
+          workspaceId: testWorkspaceId,
+        })
+      );
+      expect(unwrapOk(await data.listMcpServers())).toEqual([server]);
+
+      unwrapOk(
+        await data.batch({
+          commands: [{ kind: "delete_mcp_server", mcpServerId: server.id }],
+          workspaceId: testWorkspaceId,
+        })
+      );
+      expect(unwrapOk(await data.listMcpServers())).toEqual([]);
+      expect(
+        unwrapOk(await data.getMcpServer({ mcpServerId: server.id }))
+      ).toBeNull();
+    });
+
     test("an unknown server id reads back as null, not a foreign-tenant leak", async () => {
       const data = await makeTenantDataAccess({
         context: testTenantContext,

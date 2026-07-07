@@ -1,4 +1,6 @@
+import type { McpServerId } from "../ids";
 import type { McpHostApproval, McpServer } from "../mcp";
+import type { McpHost } from "../primitives";
 import { ok } from "../result";
 import type { AsyncResult } from "../result";
 import type {
@@ -23,6 +25,14 @@ export interface McpHostApprovalRequest {
   readonly hostApproval: McpHostApproval;
 }
 
+export interface McpHostRevocationRequest {
+  readonly host: McpHost;
+}
+
+export interface McpServerDeregistrationRequest {
+  readonly mcpServerId: McpServerId;
+}
+
 export interface McpRegistrationFlowDependencies {
   readonly mcpEgressPolicy: McpEgressPolicy;
   readonly tenantDataAccess: TenantDataAccess;
@@ -44,8 +54,23 @@ export interface McpRegistrationFlow {
   readonly approveHost: (
     input: McpHostApprovalRequest
   ) => AsyncResult<TenantWriteReceipt, McpRegistrationFlowError>;
+  /**
+   * Drop a server from the registry (ADR 0037 decision 4). No egress gate: removing a row can
+   * only shrink reachable egress, never grow it. The edge pairs this with the revoke fan-out.
+   */
+  readonly deregisterServer: (
+    input: McpServerDeregistrationRequest
+  ) => AsyncResult<TenantWriteReceipt, McpRegistrationFlowError>;
   readonly registerServer: (
     input: McpServerRegistrationRequest
+  ) => AsyncResult<TenantWriteReceipt, McpRegistrationFlowError>;
+  /**
+   * Shrink the egress allowlist — the inverse of `approveHost`. Servers on the revoked host stay
+   * in the registry but stop clearing the egress gate on their next resolution; the edge fans a
+   * connection-drop out to live DOs for the host's servers.
+   */
+  readonly revokeHost: (
+    input: McpHostRevocationRequest
   ) => AsyncResult<TenantWriteReceipt, McpRegistrationFlowError>;
 }
 
@@ -59,6 +84,13 @@ export const createMcpRegistrationFlow = (
       deps.tenantDataAccess.batch({
         commands: [
           { hostApproval: input.hostApproval, kind: "put_mcp_host_approval" },
+        ],
+        workspaceId: context.workspaceId,
+      }),
+    deregisterServer: (input) =>
+      deps.tenantDataAccess.batch({
+        commands: [
+          { kind: "delete_mcp_server", mcpServerId: input.mcpServerId },
         ],
         workspaceId: context.workspaceId,
       }),
@@ -83,5 +115,12 @@ export const createMcpRegistrationFlow = (
 
       return ok(receipt.value);
     },
+    revokeHost: (input) =>
+      deps.tenantDataAccess.batch({
+        commands: [
+          { host: input.host, kind: "delete_mcp_host_approval" },
+        ],
+        workspaceId: context.workspaceId,
+      }),
   };
 };
