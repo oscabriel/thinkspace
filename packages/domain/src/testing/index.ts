@@ -1,5 +1,10 @@
 export type { ContractExpectation, ContractTestApi } from "./contract-api";
 export {
+  type ArtifactStoreFactory,
+  type ArtifactStoreHarness,
+  defineArtifactStoreContract,
+} from "./contracts/artifact-store";
+export {
   type CuratorAgentFactory,
   type CuratorAgentSeed,
   type CuratorScriptedTurn,

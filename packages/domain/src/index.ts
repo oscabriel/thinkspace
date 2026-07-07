@@ -29,8 +29,14 @@ export {
   artifactMediaKindSchema,
   artifactOriginSchema,
   artifactSchema,
+  artifactVersionSchema,
 } from "./artifact";
-export type { Artifact, ArtifactMediaKind, ArtifactOrigin } from "./artifact";
+export type {
+  Artifact,
+  ArtifactMediaKind,
+  ArtifactOrigin,
+  ArtifactVersion,
+} from "./artifact";
 export { productionCallStacks, testCallStacks } from "./call-stacks";
 export {
   channelFavoriteSchema,
@@ -93,6 +99,7 @@ export type {
 } from "./errors";
 export {
   artifactIdSchema,
+  artifactVersionIdSchema,
   channelIdSchema,
   commentIdSchema,
   curatorSessionIdSchema,
@@ -113,6 +120,7 @@ export {
 } from "./ids";
 export type {
   ArtifactId,
+  ArtifactVersionId,
   ChannelId,
   CommentId,
   CuratorSessionId,
@@ -281,16 +289,20 @@ export { unreadReasonSchema, unreadSchema } from "./unread";
 export type { Unread, UnreadReason } from "./unread";
 export { memberSchema, roleSchema, workspaceSchema } from "./workspace";
 export type { Member, Role, Workspace } from "./workspace";
+export { ARTIFACT_VERSION_CAP } from "./seams/artifact-store";
 export type {
+  ArtifactAppend,
   ArtifactBlob,
   ArtifactBytes,
+  ArtifactCreate,
   ArtifactDraft,
   ArtifactRead,
   ArtifactSearch,
   ArtifactSearchResult,
   ArtifactStore,
   ArtifactStoreError,
-  ArtifactWrite,
+  ArtifactVersionDraft,
+  ArtifactVersionList,
 } from "./seams/artifact-store";
 export type {
   CuratorAgent,

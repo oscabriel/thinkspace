@@ -11,6 +11,7 @@ declare module "cloudflare:test" {
   interface ProvidedEnv {
     AI_GATEWAY_TOKEN: string;
     AI_GATEWAY_URL: string;
+    ARTIFACTS: R2Bucket;
     AUTH_JWKS_URL: string;
     CHANNEL_HUB: DurableObjectNamespace<ChannelHubDurableObject>;
     DB: D1Database;

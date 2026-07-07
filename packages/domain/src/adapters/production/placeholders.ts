@@ -1,6 +1,5 @@
 import { createNotImplementedError } from "../../errors";
 import { err } from "../../result";
-import type { ArtifactStore } from "../../seams/artifact-store";
 import type { CuratorAgent } from "../../seams/curator-agent";
 import type { TenantContext } from "../../seams/tenant-data-access";
 import type { ThreadAgent, ThreadAgentAddress } from "../../seams/thread-agent";
@@ -22,15 +21,6 @@ export const createThinkThreadAgentPlaceholder = (
   resnapshot: async (_input) => notImplemented("ThinkThreadAgent.resnapshot"),
   run: async (_input) => notImplemented("ThinkThreadAgent.run"),
   schedule: async (_input) => notImplemented("ThinkThreadAgent.schedule"),
-});
-
-export const createR2VirtualFsArtifactStorePlaceholder = (
-  context: TenantContext
-): ArtifactStore => ({
-  context,
-  get: async (_input) => notImplemented("R2VirtualFsArtifactStore.get"),
-  put: async (_input) => notImplemented("R2VirtualFsArtifactStore.put"),
-  search: async (_input) => notImplemented("R2VirtualFsArtifactStore.search"),
 });
 
 export const createWorkerMcpEgressPolicyPlaceholder = (

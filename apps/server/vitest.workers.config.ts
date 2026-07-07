@@ -36,7 +36,7 @@ export default defineConfig({
         compatibilityDate: "2026-06-01",
         compatibilityFlags: ["nodejs_compat"],
         d1Databases: ["DB"],
-        r2Buckets: ["SKILLS"],
+        r2Buckets: ["ARTIFACTS", "SKILLS"],
         durableObjects: {
           CHANNEL_HUB: {
             className: "ChannelHubDurableObject",

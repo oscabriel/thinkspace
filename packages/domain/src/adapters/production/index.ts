@@ -69,8 +69,11 @@ export {
   type ProviderKeyRegistry,
 } from "./model-routing";
 export {
+  createR2VirtualFsArtifactStore,
+  type R2VirtualFsArtifactStoreConfig,
+} from "./artifact-store";
+export {
   createCuratorThinkAgentPlaceholder,
-  createR2VirtualFsArtifactStorePlaceholder,
   createThinkThreadAgentPlaceholder,
   createWorkerMcpEgressPolicyPlaceholder,
 } from "./placeholders";

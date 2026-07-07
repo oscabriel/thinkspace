@@ -102,8 +102,42 @@ export const workspaceProviderKey = sqliteTable(
     provider: text("provider").notNull(),
     workspaceId: text("workspace_id").notNull(),
   },
+  (table) => [primaryKey({ columns: [table.workspaceId, table.provider] })]
+);
+
+export const artifact = sqliteTable(
+  "artifact",
+  {
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    headVersionId: text("head_version_id").notNull(),
+    homeChannelId: text("home_channel_id").notNull(),
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    workspaceId: text("workspace_id").notNull(),
+  },
+  (table) => [index("artifact_workspaceId_idx").on(table.workspaceId)]
+);
+
+export const artifactVersion = sqliteTable(
+  "artifact_version",
+  {
+    artifactId: text("artifact_id").notNull(),
+    byteLength: integer("byte_length").notNull(),
+    contentType: text("content_type").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    id: text("id").primaryKey(),
+    mediaKind: text("media_kind").notNull(),
+    origin: text("origin").notNull(),
+    r2Key: text("r2_key").notNull(),
+    seq: integer("seq").notNull(),
+    workspaceId: text("workspace_id").notNull(),
+  },
   (table) => [
-    primaryKey({ columns: [table.workspaceId, table.provider] }),
+    index("artifact_version_artifactId_seq_idx").on(
+      table.artifactId,
+      table.seq
+    ),
   ]
 );
 
@@ -115,7 +149,5 @@ export const workspaceToolDisable = sqliteTable(
     toolId: text("tool_id").notNull(),
     workspaceId: text("workspace_id").notNull(),
   },
-  (table) => [
-    primaryKey({ columns: [table.workspaceId, table.toolId] }),
-  ]
+  (table) => [primaryKey({ columns: [table.workspaceId, table.toolId] })]
 );

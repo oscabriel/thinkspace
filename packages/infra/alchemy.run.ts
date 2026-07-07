@@ -49,6 +49,14 @@ const skillsBucket = await R2Bucket("skills", {
 });
 
 /**
+ * ADR 0032: versioned artifact blobs live in R2 keyed by
+ * `${workspaceId}/artifacts/${artifactId}/${versionId}`; the D1 index carries head + history.
+ */
+const artifacts = await R2Bucket("artifacts", {
+  adopt: true,
+});
+
+/**
  * agents-SDK DOs REQUIRE sqlite: true (their state lives in DO-SQLite; alchemy applies no
  * default, and the backend choice is permanent). The first argument is the immutable stable
  * id driving alchemy's automatic DO migrations — never change it; className may be renamed.
@@ -87,6 +95,7 @@ export const server = await Worker("server", {
       "AI_GATEWAY_TOKEN"
     ),
     AI_GATEWAY_URL: `https://gateway.ai.cloudflare.com/v1/${aiGateway.accountId}/${aiGateway.gatewayName}`,
+    ARTIFACTS: artifacts,
     BETTER_AUTH_SECRET: required(
       alchemy.secret.env.BETTER_AUTH_SECRET,
       "BETTER_AUTH_SECRET"
