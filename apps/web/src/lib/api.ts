@@ -190,3 +190,46 @@ export const archiveChannel = (workspaceId: string, channelId: string) =>
     `/channels/${encodeURIComponent(channelId)}/archive`,
     { method: "POST" }
   );
+
+/**
+ * BYOK key-status (E7.2, ADR 0011 key-first). GET /providers is the read half of the provider-key
+ * surface: it returns which providers this workspace has keyed and when — registry facts only,
+ * NEVER key material (the raw key lives solely in Cloudflare Secrets Store and never transits a
+ * read). A provider absent from this list has no key and cannot run an agent; a present provider
+ * opens the byok gate (ADR 0036). Any member may read this status.
+ */
+export interface ProviderKeyStatus {
+  readonly createdAt: string;
+  readonly provider: string;
+}
+
+export const fetchProviders = (workspaceId: string) =>
+  apiFetch<{ providers: readonly ProviderKeyStatus[] }>(
+    workspaceId,
+    "/providers"
+  );
+
+/**
+ * Register a workspace's raw provider key. Owner/admin only — a member is rejected with
+ * `insufficient_role` (403). The key is sent exactly once, in this POST body, and is never
+ * echoed back: the response carries only the provider id. Callers must clear the input after a
+ * successful submit — the raw key must not linger in component state.
+ */
+export const registerProviderKey = (
+  workspaceId: string,
+  provider: string,
+  key: string
+) =>
+  apiFetch<{ provider: string }>(
+    workspaceId,
+    `/providers/${encodeURIComponent(provider)}/key`,
+    { body: JSON.stringify({ key }), method: "POST" }
+  );
+
+/** Revoke a workspace's provider key (owner/admin only). Idempotent server-side. */
+export const removeProviderKey = (workspaceId: string, provider: string) =>
+  apiFetch<{ provider: string }>(
+    workspaceId,
+    `/providers/${encodeURIComponent(provider)}/key`,
+    { method: "DELETE" }
+  );

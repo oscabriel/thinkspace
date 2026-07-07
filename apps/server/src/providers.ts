@@ -70,7 +70,40 @@ const registrationFailure = (error: ByokRegistrationError) => ({
   error: { kind: error.kind, operation: error.operation },
 });
 
+/**
+ * A registry row as stored: `created_at` is the epoch-millis the row was written (see the E3.2
+ * `put` upsert). The row carries NO key material — the raw key lives solely in Secrets Store — so
+ * this read is safe for any workspace member, not just a key manager, and needs no role gate.
+ */
+interface ProviderKeyRow {
+  readonly created_at: number;
+  readonly provider: string;
+}
+
 export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
+  /**
+   * The read half of the BYOK surface: which providers this workspace has keyed, and when. Scoped
+   * to the resident tenant (`workspace_id = context.workspaceId`) exactly as the D1 model router
+   * reads the same table. Returns registry facts only (provider id + ISO createdAt); the registry
+   * holds no key material, so no key is ever exposed here. Any member may read (browsable key-first
+   * status, ADR 0011); membership itself is enforced by the tenant middleware (401 without a
+   * session, 404 for a non-member).
+   */
+  .get("/providers", async (c) => {
+    const context = c.get("tenantContext");
+    const rows = await env.DB.prepare(
+      "SELECT provider, created_at FROM workspace_provider_key WHERE workspace_id = ?1 ORDER BY created_at ASC"
+    )
+      .bind(context.workspaceId)
+      .all<ProviderKeyRow>();
+
+    return c.json({
+      providers: rows.results.map((row) => ({
+        createdAt: new Date(row.created_at).toISOString(),
+        provider: row.provider,
+      })),
+    });
+  })
   .post("/providers/:provider/key", async (c) => {
     const context = c.get("tenantContext");
     if (!KEY_MANAGER_ROLES.has(context.role)) {

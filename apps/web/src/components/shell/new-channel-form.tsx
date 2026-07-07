@@ -48,6 +48,22 @@ export const NewChannelForm = ({
     onError: (error) => {
       const kind =
         error instanceof ApiRequestError ? error.kind : "unknown_error";
+      // Key-first teaching (ADR 0011): a channel is born with a default-model shape, so the very
+      // first create on an unkeyed workspace fails the byok gate (ADR 0036). Point the user at
+      // the provider-key settings instead of dead-ending on the raw error kind.
+      if (kind === "byok_key_missing") {
+        toast.error("No provider key yet — an agent cannot run without one.", {
+          action: {
+            label: "Register a key",
+            onClick: () =>
+              navigate({
+                params: { workspaceId },
+                to: "/w/$workspaceId/settings/providers",
+              }),
+          },
+        });
+        return;
+      }
       toast.error(`Could not create channel: ${kind}`);
     },
     onSuccess: (channel) => {
