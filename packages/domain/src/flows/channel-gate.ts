@@ -73,27 +73,3 @@ export const channelWriteGate = (
 
   return null;
 };
-
-/**
- * Shared visibility gate for the read-shaped surface (ADR 0035): a private channel is
- * invisible to non-owners → channel_not_visible. Reads carry no lifecycle gate — an
- * archived or deleted channel a member can already see stays readable (history), so this
- * checks visibility only and never leaks a private channel to a non-owner.
- */
-export const channelReadGate = (
-  context: TenantContext,
-  channel: Channel
-): AuthzError | null => {
-  if (
-    channel.visibility.kind === "private" &&
-    channel.ownerMemberId !== context.memberId
-  ) {
-    return {
-      channelId: channel.id,
-      kind: "channel_not_visible",
-      memberId: context.memberId,
-    };
-  }
-
-  return null;
-};

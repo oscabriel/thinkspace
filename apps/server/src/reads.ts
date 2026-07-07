@@ -2,7 +2,7 @@ import {
   createD1TenantDataAccess,
   createProductionThreadAgentDirectory,
 } from "@thinkspace/domain/adapters/production";
-import { channelReadGate } from "@thinkspace/domain/flows/channel-gate";
+import { channelVisibilityGate } from "@thinkspace/domain/flows/channel-gate";
 import {
   channelIdSchema,
   commentIdSchema,
@@ -38,7 +38,7 @@ const DEFAULT_HOME_FEED_LIMIT = 50;
 
 /**
  * ADR 0035 §4: read visibility fails closed at the domain layer, so the edge re-runs the
- * same channelReadGate pin the write flows use before exposing a channel's threads or
+ * same channelVisibilityGate pin the write flows use before exposing a channel's threads or
  * branches. A private channel a non-owner cannot see collapses to 404 (channel_not_visible),
  * indistinguishable from a channel that does not exist. A missing/foreign channel is 404 too.
  */
@@ -72,7 +72,7 @@ const guardVisibleChannel = async (
     };
   }
 
-  const denied = channelReadGate(context, channel.value);
+  const denied = channelVisibilityGate(context, channel.value);
   if (denied !== null) {
     return {
       body: { error: denied },
@@ -149,7 +149,7 @@ export const readRoutes = new Hono<{ Variables: TenantVariables }>()
       return c.json({ error: { kind: "unknown_resource" } }, 404);
     }
 
-    const denied = channelReadGate(context, channel.value);
+    const denied = channelVisibilityGate(context, channel.value);
     if (denied !== null) {
       return c.json({ error: denied }, domainErrorStatus(denied));
     }
