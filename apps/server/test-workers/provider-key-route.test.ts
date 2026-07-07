@@ -22,6 +22,9 @@ const cataloguedModelId = "anthropic/claude-test-sonnet";
 const keyUrl = (workspaceId: string, provider = "anthropic") =>
   `https://test.local/api/w/${workspaceId}/providers/${provider}/key`;
 
+const providersUrl = (workspaceId: string) =>
+  `https://test.local/api/w/${workspaceId}/providers`;
+
 const dispatchUrl = (input: {
   readonly channelId: string;
   readonly threadId: string;
@@ -209,5 +212,48 @@ describe("POST/DELETE /api/w/:workspaceId/providers/:provider/key", () => {
     expect(await afterKey.json()).toMatchObject({
       queuedRun: { lifecycle: "queued", threadId: "gf-th-1" },
     });
+  });
+});
+
+describe("GET /api/w/:workspaceId/providers", () => {
+  it("lists the workspace's registered providers with an ISO createdAt (never key material)", async () => {
+    const { cookie, workspaceId } = await signUpWithWorkspace({
+      email: "byok-read@example.com",
+      slug: "byok-read-space",
+    });
+
+    const empty = await SELF.fetch(providersUrl(workspaceId), {
+      headers: { cookie },
+    });
+    expect(empty.status).toBe(200);
+    expect(await empty.json()).toEqual({ providers: [] });
+
+    const registered = await postKey(workspaceId, cookie, "sk-live-read-1");
+    expect(registered.status).toBe(200);
+
+    const keyed = await SELF.fetch(providersUrl(workspaceId), {
+      headers: { cookie },
+    });
+    expect(keyed.status).toBe(200);
+    const body = (await keyed.json()) as {
+      providers: readonly { createdAt: string; provider: string }[];
+    };
+    expect(body.providers).toHaveLength(1);
+    expect(body.providers[0]?.provider).toBe("anthropic");
+    expect(Number.isNaN(Date.parse(body.providers[0]?.createdAt ?? ""))).toBe(
+      false
+    );
+    // The read carries registry facts only — never the raw key.
+    expect(JSON.stringify(body)).not.toContain("sk-live-read-1");
+  });
+
+  it("rejects a read without a session as 401", async () => {
+    const { workspaceId } = await signUpWithWorkspace({
+      email: "byok-read-noauth@example.com",
+      slug: "byok-read-noauth-space",
+    });
+
+    const response = await SELF.fetch(providersUrl(workspaceId));
+    expect(response.status).toBe(401);
   });
 });

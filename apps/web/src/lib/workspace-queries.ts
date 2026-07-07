@@ -4,6 +4,7 @@ import {
   fetchChannel,
   fetchChannelThreads,
   fetchHomeFeed,
+  fetchProviders,
   fetchUnread,
   fetchWorkspaceGraph,
   type ShapeStructure,
@@ -30,6 +31,8 @@ export const workspaceKeys = {
     ["workspace", workspaceId, "channel", channelId, "threads"] as const,
   graph: (workspaceId: string) => ["workspace", workspaceId, "graph"] as const,
   home: (workspaceId: string) => ["workspace", workspaceId, "home"] as const,
+  providers: (workspaceId: string) =>
+    ["workspace", workspaceId, "providers"] as const,
   unread: (workspaceId: string) =>
     ["workspace", workspaceId, "unread"] as const,
 };
@@ -53,6 +56,19 @@ export const unreadQuery = (workspaceId: string) =>
     queryKey: workspaceKeys.unread(workspaceId),
     refetchInterval: HOME_POLL_MS,
     select: (data) => data.unread,
+  });
+
+/**
+ * Which providers the workspace has keyed (E7.2, ADR 0011). Read-through convergence like the
+ * graph: no realtime event fires on key registration, so the settings page and the key-first
+ * teaching banner re-read after a register/remove mutation invalidates this key. Registry facts
+ * only — never key material.
+ */
+export const providersQuery = (workspaceId: string) =>
+  queryOptions({
+    queryFn: () => fetchProviders(workspaceId),
+    queryKey: workspaceKeys.providers(workspaceId),
+    select: (data) => data.providers,
   });
 
 export const channelQuery = (workspaceId: string, channelId: string) =>
