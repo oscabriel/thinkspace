@@ -119,6 +119,20 @@ export const readRoutes = new Hono<{ Variables: TenantVariables }>()
     }
     return c.json(feed.value, 200);
   })
+  .get("/members", async (c) => {
+    /**
+     * E8.6: the workspace roster — memberId + display name (ADR 0008), the label source the
+     * directory/home surfaces join against to name owners and authors. Member-visible; the
+     * tenant middleware already fails closed for a non-member (404) and a missing session
+     * (401), so the handler adds no further guard beyond the domain-tenant scope.
+     */
+    const context = c.get("tenantContext");
+    const roster = await buildTenantDataAccess(context).listMembers();
+    if (!roster.ok) {
+      return c.json({ error: roster.error }, domainErrorStatus(roster.error));
+    }
+    return c.json(roster.value, 200);
+  })
   .get("/unread", async (c) => {
     const context = c.get("tenantContext");
     const unread = await buildTenantDataAccess(context).listMemberUnread({

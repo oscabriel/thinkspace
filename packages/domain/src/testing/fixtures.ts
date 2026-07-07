@@ -11,11 +11,13 @@ import {
   skillIdSchema,
   threadIdSchema,
   toolIdSchema,
+  userIdSchema,
   workspaceIdSchema,
 } from "../ids";
 import type { McpHostApproval, McpServer } from "../mcp";
 import {
   commentBodySchema,
+  displayNameSchema,
   facetNameSchema,
   goalSchema,
   mcpHostSchema,
@@ -32,7 +34,11 @@ import {
 import type { Result } from "../result";
 import type { QueuedRun, RunTrigger, SubAgentActivity } from "../run";
 import type { SkillContent } from "../seams/skill-store";
-import type { SystemContext, TenantContext } from "../seams/tenant-data-access";
+import type {
+  SystemContext,
+  TenantContext,
+  WorkspaceMember,
+} from "../seams/tenant-data-access";
 import type { ThreadAgentAddress } from "../seams/thread-agent";
 import type { Shape, ShapeSnapshot, ShapeStructure } from "../shape";
 import type { Skill } from "../skill";
@@ -161,6 +167,18 @@ export const testWorkspace: Workspace = {
   id: testWorkspaceId,
   name: workspaceNameSchema.parse("Test Workspace"),
 };
+
+export const makeWorkspaceMember = (input: {
+  readonly displayName?: string;
+  readonly memberId: string;
+  readonly userId?: string;
+  readonly workspaceId?: WorkspaceMember["workspaceId"];
+}): WorkspaceMember => ({
+  displayName: displayNameSchema.parse(input.displayName ?? `Member ${input.memberId}`),
+  memberId: memberId(input.memberId),
+  userId: userIdSchema.parse(input.userId ?? `user-of-${input.memberId}`),
+  workspaceId: input.workspaceId ?? testWorkspaceId,
+});
 
 export const makeChannel = (input: {
   readonly id: string;

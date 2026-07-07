@@ -24,6 +24,7 @@ import { uuidv7 } from "@/lib/ids";
 import {
   channelQuery,
   channelThreadsQuery,
+  membersQuery,
   workspaceKeys,
 } from "@/lib/workspace-queries";
 
@@ -41,6 +42,7 @@ const ChannelView = () => {
   const { channelId, workspaceId } = Route.useParams();
   const channel = useQuery(channelQuery(workspaceId, channelId));
   const threads = useQuery(channelThreadsQuery(workspaceId, channelId));
+  const members = useQuery(membersQuery(workspaceId));
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [confirmingArchive, setConfirmingArchive] = useState(false);
@@ -198,7 +200,11 @@ const ChannelView = () => {
           <span aria-hidden="true">·</span>
           <span>{archived ? "archived" : "active"}</span>
           <span aria-hidden="true">·</span>
-          <span>owner {channel.data.ownerMemberId.slice(0, 8)}</span>
+          <span>
+            owner{" "}
+            {members.data?.get(channel.data.ownerMemberId) ??
+              channel.data.ownerMemberId.slice(0, 8)}
+          </span>
         </div>
       </header>
 
@@ -223,7 +229,11 @@ const ChannelView = () => {
               search={{ root: thread.rootCommentId ?? undefined }}
               to="/w/$workspaceId/channels/$channelId/threads/$threadId"
             >
-              <ThreadRow thread={thread} unread={false} />
+              <ThreadRow
+                authorName={members.data?.get(thread.createdByMemberId)}
+                thread={thread}
+                unread={false}
+              />
             </Link>
           ))}
         </div>

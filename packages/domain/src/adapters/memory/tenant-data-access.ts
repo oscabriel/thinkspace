@@ -14,6 +14,7 @@ import type {
   TenantDataAccessError,
   TenantWriteCommand,
   TenantWriteReceipt,
+  WorkspaceMember,
 } from "../../seams/tenant-data-access";
 import type { Shape } from "../../shape";
 import type { Skill } from "../../skill";
@@ -39,6 +40,7 @@ export interface MemoryTenantDataAccessConfig<
   readonly context: Context;
   readonly mcpHostApprovals?: readonly McpHostApproval[];
   readonly mcpServers?: readonly McpServer[];
+  readonly members?: readonly WorkspaceMember[];
   readonly schedules?: readonly Schedule[];
   readonly shapes?: readonly Shape[];
   readonly skills?: readonly Skill[];
@@ -54,6 +56,7 @@ interface MemoryTenantDataAccessState {
   readonly channels: Map<string, Channel>;
   readonly mcpHostApprovals: Map<string, McpHostApproval>;
   readonly mcpServers: Map<string, McpServer>;
+  readonly members: Map<string, WorkspaceMember>;
   readonly schedules: Map<string, Schedule>;
   readonly shapes: Map<string, Shape>;
   readonly skills: Map<string, Skill>;
@@ -351,6 +354,9 @@ export const createMemoryTenantDataAccess = <
       ])
     ),
     mcpServers: mapById(config.mcpServers ?? []),
+    members: new Map(
+      (config.members ?? []).map((member) => [idKey(member.memberId), member])
+    ),
     schedules: mapById(config.schedules ?? []),
     shapes: mapById(config.shapes ?? []),
     skills: mapById(config.skills ?? []),
@@ -515,6 +521,19 @@ export const createMemoryTenantDataAccess = <
             hasSameId(unread.memberId, input.memberId)
         )
       ),
+    listMembers: async () =>
+      ok({
+        members: [...state.members.values()]
+          .filter((member) => isInTenant(config.context, member))
+          .toSorted((left, right) =>
+            left.memberId.localeCompare(right.memberId)
+          )
+          .map((member) => ({
+            displayName: member.displayName,
+            memberId: member.memberId,
+          })),
+        workspaceId: config.context.workspaceId,
+      }),
     listRecentThreads: async (input) => {
       const member = requireMemberContext(config.context);
       if (!member.ok) {
