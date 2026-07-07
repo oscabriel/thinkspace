@@ -4,6 +4,7 @@ import type {
   RunCompletionFlow,
   RunCompletionFlowError,
 } from "../../flows/run-completion";
+import type { GestureId } from "../../ids";
 import { commentIdSchema, runIdSchema } from "../../ids";
 import type { CommentBody, FailureReason } from "../../primitives";
 import { err, ok } from "../../result";
@@ -13,6 +14,7 @@ import type {
   FailedRun,
   QueuedRun,
   Run,
+  RunTrigger,
   Schedule,
   SubAgentActivity,
 } from "../../run";
@@ -101,6 +103,25 @@ const tenantOrThreadViolation = (
   expectedWorkspaceId: address.workspaceId,
   kind: "tenant_guard_violation",
   observed: { kind: "workspace", workspaceId: observedWorkspaceId },
+});
+
+/** Only dispatch triggers carry a gestureId; scheduled fires have no client gesture (E5.3). */
+const dispatchGestureId = (trigger: RunTrigger): GestureId | null =>
+  trigger.kind === "dispatch" ? trigger.dispatch.gestureId : null;
+
+/**
+ * The queue-time view of a run, reconstructed from a stored run of any lifecycle: a
+ * replayed dispatch returns the original run's receipt, deterministically "queued" (E5.3),
+ * because every Run variant preserves the queued base fields.
+ */
+const queuedReceiptRun = (run: Run): QueuedRun => ({
+  channelId: run.channelId,
+  id: run.id,
+  lifecycle: "queued",
+  queuedAt: run.queuedAt,
+  threadId: run.threadId,
+  trigger: run.trigger,
+  workspaceId: run.workspaceId,
 });
 
 export const createMemoryThreadAgent = (
@@ -294,6 +315,22 @@ export const createMemoryThreadAgent = (
           threadId: config.address.threadId,
           workspaceId: config.address.workspaceId,
         });
+      }
+
+      // Dispatch dedupe (E5.3): a replay carrying a gestureId already on a run converges
+      // on that run's receipt and mints no second run — like the PUT creation gesture.
+      const gestureId = dispatchGestureId(input);
+      if (gestureId !== null) {
+        const existing = [...state.runs.values()].find(
+          (run) => dispatchGestureId(run.trigger) === gestureId
+        );
+        if (existing !== undefined) {
+          return ok({
+            queuedRun: queuedReceiptRun(existing),
+            runId: existing.id,
+            threadId: config.address.threadId,
+          });
+        }
       }
 
       const runId = nextRunId();

@@ -1,5 +1,5 @@
 import { createNotImplementedError } from "../errors";
-import type { ChannelId, CommentId, ThreadId } from "../ids";
+import type { ChannelId, CommentId, GestureId, ThreadId } from "../ids";
 import { err } from "../result";
 import type { AsyncResult } from "../result";
 import type { RunTrigger } from "../run";
@@ -30,6 +30,8 @@ export type DispatchFlowError =
 
 export interface DispatchRequest {
   readonly channelId: ChannelId;
+  /** The client-minted idempotency key; a replay carrying it converges (E5.3). */
+  readonly gestureId: GestureId;
   readonly targetCommentId: CommentId;
   readonly threadId: ThreadId;
 }
@@ -136,6 +138,7 @@ export const createDispatchFlow = (
     const trigger: RunTrigger = {
       dispatch: {
         byMemberId: context.memberId,
+        gestureId: input.gestureId,
         targetCommentId: input.targetCommentId,
       },
       kind: "dispatch",

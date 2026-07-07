@@ -12,6 +12,7 @@ import type {
   RunCompletionFlow,
   RunSettlement,
 } from "../../flows/run-completion";
+import type { GestureId } from "../../ids";
 import { commentIdSchema, runIdSchema } from "../../ids";
 import { commentBodySchema, failureReasonSchema } from "../../primitives";
 import { err, ok } from "../../result";
@@ -87,6 +88,25 @@ const runBase = (
 ): Omit<QueuedRun, "lifecycle"> => ({
   channelId: run.channelId,
   id: run.id,
+  queuedAt: run.queuedAt,
+  threadId: run.threadId,
+  trigger: run.trigger,
+  workspaceId: run.workspaceId,
+});
+
+/** Only dispatch triggers carry a gestureId; scheduled fires have no client gesture (E5.3). */
+const dispatchGestureId = (trigger: RunTrigger): GestureId | null =>
+  trigger.kind === "dispatch" ? trigger.dispatch.gestureId : null;
+
+/**
+ * The queue-time view of a run, reconstructed from a stored run of any lifecycle: a
+ * replayed dispatch returns the original run's receipt, deterministically "queued" (E5.3),
+ * because every Run variant preserves the queued base fields.
+ */
+const queuedReceiptRun = (run: Run): QueuedRun => ({
+  channelId: run.channelId,
+  id: run.id,
+  lifecycle: "queued",
   queuedAt: run.queuedAt,
   threadId: run.threadId,
   trigger: run.trigger,
@@ -299,7 +319,7 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
   }
 
   private ensureSeamTables(): readonly (readonly unknown[])[] {
-    return [
+    const tables = [
       this
         .sql`CREATE TABLE IF NOT EXISTS ts_comment (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
       this
@@ -314,6 +334,24 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       this
         .sql`CREATE TABLE IF NOT EXISTS ts_snapshot (slot INTEGER PRIMARY KEY CHECK (slot = 1), data TEXT NOT NULL)`,
     ];
+    this.ensureRunGestureColumn();
+    return tables;
+  }
+
+  /**
+   * Dispatch dedupe (E5.3 / baked decision 8): `ts_run` gains a `gesture_id` column and a
+   * UNIQUE index so a replayed dispatch converges on the existing run instead of minting a
+   * second. Long-lived DOs predate the column, so the evolution is additive — SQLite forbids
+   * ADD COLUMN ... UNIQUE, so the constraint rides a separate unique index (multiple NULLs
+   * allowed, which is exactly right: scheduled runs carry no gesture). No D1-side dedupe table.
+   */
+  private ensureRunGestureColumn(): void {
+    const columns = this.sql<{ name: string }>`PRAGMA table_info(ts_run)`;
+    if (!columns.some((column) => column.name === "gesture_id")) {
+      this.sql`ALTER TABLE ts_run ADD COLUMN gesture_id TEXT`;
+    }
+    this
+      .sql`CREATE UNIQUE INDEX IF NOT EXISTS ts_run_gesture_id ON ts_run (gesture_id)`;
   }
 
   /** Test capability (contract-suite seed); production state arrives via initialize/run. */
@@ -464,6 +502,21 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
         threadId: address.threadId,
         workspaceId: address.workspaceId,
       });
+    }
+
+    // Dispatch dedupe (E5.3): a replay carrying a gestureId already on a run converges on
+    // that run's receipt and neither mints a second run nor re-submits the turn — like the
+    // PUT creation gesture. The DO is single-threaded, so this check-then-insert is atomic.
+    const gestureId = dispatchGestureId(input);
+    if (gestureId !== null) {
+      const existing = this.readRunByGestureId(gestureId);
+      if (existing !== null) {
+        return ok({
+          queuedRun: queuedReceiptRun(existing),
+          runId: existing.id,
+          threadId: address.threadId,
+        });
+      }
     }
 
     const runId = this.mintRunId();
@@ -796,15 +849,28 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
   }
 
   private putRun(run: Run): readonly unknown[] {
+    // gesture_id is derived from the trigger (dispatch only) and never changes across a
+    // run's lifecycle, so the ON CONFLICT lifecycle bump leaves it untouched (E5.3).
+    const gestureId = dispatchGestureId(run.trigger);
     return this.sql`
-      INSERT INTO ts_run (id, seq, data)
+      INSERT INTO ts_run (id, seq, data, gesture_id)
       VALUES (
         ${idKey(run.id)},
         COALESCE((SELECT MAX(seq) FROM ts_run), 0) + 1,
-        ${JSON.stringify(run)}
+        ${JSON.stringify(run)},
+        ${gestureId === null ? null : idKey(gestureId)}
       )
       ON CONFLICT (id) DO UPDATE SET data = excluded.data
     `;
+  }
+
+  /** The dedupe read (E5.3): the run a replayed dispatch's gestureId already names, if any. */
+  private readRunByGestureId(gestureId: GestureId): Run | null {
+    const rows = this.sql<{ data: string }>`
+      SELECT data FROM ts_run WHERE gesture_id = ${idKey(gestureId)}
+    `;
+    const [row] = rows;
+    return row === undefined ? null : parseJsonColumn<Run>(row.data);
   }
 
   private putSchedule(schedule: Schedule): readonly unknown[] {

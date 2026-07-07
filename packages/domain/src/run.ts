@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   channelIdSchema,
   commentIdSchema,
+  gestureIdSchema,
   memberIdSchema,
   runIdSchema,
   scheduleIdSchema,
@@ -18,6 +19,8 @@ import {
 
 export const dispatchSchema = z.object({
   byMemberId: memberIdSchema,
+  /** The gesture's idempotency key (E5.3 / ADR 0035 §7): a replay carrying it converges. */
+  gestureId: gestureIdSchema,
   targetCommentId: commentIdSchema,
 });
 export type Dispatch = z.infer<typeof dispatchSchema>;

@@ -20,6 +20,7 @@ import type { Shape, ShapeStructure } from "../src/shape";
 import {
   channelId,
   commentId,
+  gestureId,
   makeChannel,
   makeMcpServer,
   makeShape,
@@ -131,6 +132,7 @@ describe("Dispatch flow — the dispatch spine (ADR 0017)", () => {
     const receipt = unwrapOk(
       await harness.flow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-top"),
         threadId: testThreadId,
       })
@@ -141,6 +143,7 @@ describe("Dispatch flow — the dispatch spine (ADR 0017)", () => {
     expect(receipt.queuedRun.trigger).toEqual({
       dispatch: {
         byMemberId: testMemberId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-top"),
       },
       kind: "dispatch",
@@ -156,6 +159,7 @@ describe("Dispatch flow — the dispatch spine (ADR 0017)", () => {
     const receipt = unwrapOk(
       await harness.flow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-top"),
         threadId: testThreadId,
       })
@@ -186,6 +190,7 @@ describe("Dispatch flow — channel authz gates the spine (ADR 0016/0017)", () =
     const error = unwrapErr(
       await harness.flow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-top"),
         threadId: testThreadId,
       })
@@ -214,6 +219,7 @@ describe("Dispatch flow — channel authz gates the spine (ADR 0016/0017)", () =
     const error = unwrapErr(
       await harness.flow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-top"),
         threadId: testThreadId,
       })
@@ -232,6 +238,7 @@ describe("Dispatch flow — channel authz gates the spine (ADR 0016/0017)", () =
     const error = unwrapErr(
       await harness.flow.dispatch({
         channelId: channelId("channel-unknown"),
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-top"),
         threadId: testThreadId,
       })
@@ -257,6 +264,7 @@ describe("Dispatch flow — channel authz gates the spine (ADR 0016/0017)", () =
     const error = unwrapErr(
       await harness.flow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-top"),
         threadId: testThreadId,
       })
@@ -278,6 +286,7 @@ describe("Dispatch flow — thread agents fail closed before initialization (ADR
     const error = unwrapErr(
       await harness.flow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-top"),
         threadId: threadId("thread-elsewhere"),
       })
@@ -307,6 +316,7 @@ describe("Dispatch flow — MCP egress gate (ADR 0002/0015)", () => {
     const error = unwrapErr(
       await harness.flow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-top"),
         threadId: testThreadId,
       })
@@ -329,6 +339,7 @@ describe("Dispatch flow — BYOK model gate (ADR 0011)", () => {
     const error = unwrapErr(
       await harness.flow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-top"),
         threadId: testThreadId,
       })

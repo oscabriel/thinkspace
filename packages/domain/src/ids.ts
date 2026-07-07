@@ -26,6 +26,15 @@ export type CommentId = z.infer<typeof commentIdSchema>;
 export const runIdSchema = nonEmptyIdSchema.brand<"RunId">();
 export type RunId = z.infer<typeof runIdSchema>;
 
+/**
+ * A client-minted idempotency key for a dispatch gesture (UUIDv7, ADR 0033's minting
+ * rule). It travels into the run trigger and is the dedupe key a replayed dispatch
+ * converges on (E5.3 / ADR 0035 §7). The wire enforces UUIDv7 shape; the domain brand
+ * only asserts non-emptiness so seeded fixtures stay readable.
+ */
+export const gestureIdSchema = nonEmptyIdSchema.brand<"GestureId">();
+export type GestureId = z.infer<typeof gestureIdSchema>;
+
 export const scheduleIdSchema = nonEmptyIdSchema.brand<"ScheduleId">();
 export type ScheduleId = z.infer<typeof scheduleIdSchema>;
 

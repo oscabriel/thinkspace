@@ -14,6 +14,7 @@ import type { ChannelId } from "@thinkspace/domain/ids";
 import {
   channelIdSchema,
   commentIdSchema,
+  gestureIdSchema,
   threadIdSchema,
 } from "@thinkspace/domain/ids";
 import { commentBodySchema } from "@thinkspace/domain/primitives";
@@ -25,17 +26,21 @@ import { z } from "zod";
 import { domainErrorStatus } from "./error-translation";
 import type { TenantVariables } from "./tenant-context";
 
-/** ADR 0035 §7: gestureId is required on the wire from day one; uniqueness is not enforced yet (recorded debt). */
-const gestureIdSchema = z.uuidv7();
+/**
+ * ADR 0035 §7: gestureId is required on the wire (UUIDv7) from day one; E5.3 now enforces
+ * uniqueness in the ThreadAgent DO, so the wire value is branded and carried into the run
+ * trigger where a replay converges on the existing run's receipt.
+ */
+const wireGestureIdSchema = z.uuidv7().pipe(gestureIdSchema);
 
 const creationGestureSchema = z.object({
-  ask: z.object({ gestureId: gestureIdSchema }).optional(),
+  ask: z.object({ gestureId: wireGestureIdSchema }).optional(),
   openingBody: commentBodySchema,
   openingCommentId: commentIdSchema,
 });
 
 const dispatchGestureSchema = z.object({
-  gestureId: gestureIdSchema,
+  gestureId: wireGestureIdSchema,
   targetCommentId: commentIdSchema,
 });
 
@@ -134,6 +139,7 @@ export const gestureRoutes = new Hono<{ Variables: TenantVariables }>()
       pathIds.data.channelId
     ).dispatch({
       channelId: pathIds.data.channelId,
+      gestureId: gesture.data.ask.gestureId,
       targetCommentId: gesture.data.openingCommentId,
       threadId: pathIds.data.threadId,
     });
@@ -169,6 +175,7 @@ export const gestureRoutes = new Hono<{ Variables: TenantVariables }>()
       pathIds.data.channelId
     ).dispatch({
       channelId: pathIds.data.channelId,
+      gestureId: gesture.data.gestureId,
       targetCommentId: gesture.data.targetCommentId,
       threadId: pathIds.data.threadId,
     });

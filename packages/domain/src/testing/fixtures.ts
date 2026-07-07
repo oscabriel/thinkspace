@@ -2,6 +2,7 @@ import type { Channel } from "../channel";
 import {
   channelIdSchema,
   commentIdSchema,
+  gestureIdSchema,
   mcpServerIdSchema,
   memberIdSchema,
   modelIdSchema,
@@ -112,10 +113,16 @@ export const makeShapeSnapshot = (input?: {
 });
 
 export const makeDispatchTrigger = (input: {
+  readonly gestureId?: string;
   readonly targetCommentId: string;
 }): RunTrigger => ({
   dispatch: {
     byMemberId: testMemberId,
+    // Default derives from the target so distinct dispatches carry distinct gestures;
+    // a caller passes an explicit gestureId to pin dedupe convergence (E5.3).
+    gestureId: gestureIdSchema.parse(
+      input.gestureId ?? `gesture-${input.targetCommentId}`
+    ),
     targetCommentId: commentId(input.targetCommentId),
   },
   kind: "dispatch",
@@ -146,6 +153,7 @@ export const channelId = (value: string) => channelIdSchema.parse(value);
 export const threadId = (value: string) => threadIdSchema.parse(value);
 export const workspaceId = (value: string) => workspaceIdSchema.parse(value);
 export const shapeId = (value: string) => shapeIdSchema.parse(value);
+export const gestureId = (value: string) => gestureIdSchema.parse(value);
 
 export const testWorkspace: Workspace = {
   id: testWorkspaceId,
