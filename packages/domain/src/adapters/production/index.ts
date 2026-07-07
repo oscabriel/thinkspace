@@ -70,8 +70,12 @@ export {
 } from "./model-routing";
 export {
   createCuratorThinkAgentPlaceholder,
-  createR2MarkdownSkillStorePlaceholder,
   createR2VirtualFsArtifactStorePlaceholder,
   createThinkThreadAgentPlaceholder,
   createWorkerMcpEgressPolicyPlaceholder,
 } from "./placeholders";
+export {
+  createR2MarkdownSkillStore,
+  loadSelectedSkillContents,
+  type R2MarkdownSkillStoreConfig,
+} from "./skill-store";

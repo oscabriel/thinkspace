@@ -82,6 +82,19 @@ export const shape = sqliteTable(
   (table) => [index("shape_workspaceId_idx").on(table.workspaceId)]
 );
 
+export const skill = sqliteTable(
+  "skill",
+  {
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    r2Key: text("r2_key").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    workspaceId: text("workspace_id").notNull(),
+  },
+  (table) => [index("skill_workspaceId_idx").on(table.workspaceId)]
+);
+
 export const workspaceProviderKey = sqliteTable(
   "workspace_provider_key",
   {

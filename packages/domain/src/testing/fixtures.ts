@@ -22,6 +22,7 @@ import {
   mcpServerNameSchema,
   mcpServerUrlSchema,
   r2KeySchema,
+  skillMarkdownSchema,
   skillNameSchema,
   systemPromptSchema,
   threadNameSchema,
@@ -30,6 +31,7 @@ import {
 } from "../primitives";
 import type { Result } from "../result";
 import type { QueuedRun, RunTrigger, SubAgentActivity } from "../run";
+import type { SkillContent } from "../seams/skill-store";
 import type { SystemContext, TenantContext } from "../seams/tenant-data-access";
 import type { ThreadAgentAddress } from "../seams/thread-agent";
 import type { Shape, ShapeSnapshot, ShapeStructure } from "../shape";
@@ -243,16 +245,30 @@ export const makeWorkspaceToolDisable = (input: {
 export const makeSkill = (input: {
   readonly id: string;
   readonly workspaceId?: Skill["workspaceId"];
-}): Skill => ({
-  createdAt: new Date("2026-06-30T00:00:00Z"),
-  id: skillId(input.id),
-  name: skillNameSchema.parse(`skill ${input.id}`),
-  storage: {
-    kind: "r2_markdown",
-    r2Key: r2KeySchema.parse(`workspace-1/skills/${input.id}.md`),
-  },
-  updatedAt: new Date("2026-06-30T00:00:00Z"),
-  workspaceId: input.workspaceId ?? testWorkspaceId,
+}): Skill => {
+  const skillWorkspaceId = input.workspaceId ?? testWorkspaceId;
+  return {
+    createdAt: new Date("2026-06-30T00:00:00Z"),
+    id: skillId(input.id),
+    name: skillNameSchema.parse(`skill ${input.id}`),
+    storage: {
+      kind: "r2_markdown",
+      r2Key: r2KeySchema.parse(`${skillWorkspaceId}/skills/${input.id}.md`),
+    },
+    updatedAt: new Date("2026-06-30T00:00:00Z"),
+    workspaceId: skillWorkspaceId,
+  };
+};
+
+export const makeSkillContent = (input: {
+  readonly id: string;
+  readonly markdown?: string;
+  readonly workspaceId?: Skill["workspaceId"];
+}): SkillContent => ({
+  markdown: skillMarkdownSchema.parse(
+    input.markdown ?? `# ${input.id}\n\nProcedural knowledge for ${input.id}.`
+  ),
+  skill: makeSkill({ id: input.id, workspaceId: input.workspaceId }),
 });
 
 export const makeMcpServer = (input: {

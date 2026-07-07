@@ -14,6 +14,7 @@ declare module "cloudflare:test" {
     AUTH_JWKS_URL: string;
     CHANNEL_HUB: DurableObjectNamespace<ChannelHubDurableObject>;
     DB: D1Database;
+    SKILLS: R2Bucket;
     TEST_MIGRATIONS: D1Migration[];
     THREAD_AGENT: DurableObjectNamespace<ThreadAgentDurableObject>;
     WORKSPACE_HUB: DurableObjectNamespace<WorkspaceHubDurableObject>;

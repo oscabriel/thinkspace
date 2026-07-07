@@ -11,6 +11,11 @@ export {
   type ModelRouterSeed,
 } from "./contracts/model-routing";
 export {
+  defineSkillStoreContract,
+  type SkillStoreFactory,
+  type SkillStoreSeed,
+} from "./contracts/skill-store";
+export {
   defineTenantDataAccessContract,
   type TenantDataAccessFactory,
   type TenantDataAccessSeed,
