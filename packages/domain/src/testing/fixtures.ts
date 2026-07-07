@@ -184,6 +184,7 @@ export const makeThread = (input: {
   readonly channelId: string;
   readonly id: string;
   readonly lastActivityAt?: Date;
+  readonly rootCommentId?: string;
 }): Thread => ({
   channelId: channelId(input.channelId),
   createdAt: new Date("2026-06-30T00:00:00Z"),
@@ -192,6 +193,8 @@ export const makeThread = (input: {
   lastActivityAt: input.lastActivityAt ?? new Date("2026-06-30T12:00:00Z"),
   lifecycle: { state: "active" },
   name: threadNameSchema.parse(`thread ${input.id}`),
+  rootCommentId:
+    input.rootCommentId === undefined ? null : commentId(input.rootCommentId),
   workspaceId: testWorkspaceId,
 });
 
@@ -295,11 +298,18 @@ export const makeMcpHostApproval = (input: {
 
 export const makeComment = (input: {
   readonly id: string;
+  readonly memberId?: string;
   readonly parentCommentId?: string;
   readonly threadId?: Comment["threadId"];
   readonly workspaceId?: Comment["workspaceId"];
 }): Comment => ({
-  author: { kind: "member", memberId: testMemberId },
+  author: {
+    kind: "member",
+    memberId:
+      input.memberId === undefined
+        ? testMemberId
+        : memberIdSchema.parse(input.memberId),
+  },
   body: commentBodySchema.parse(`body of ${input.id}`),
   createdAt: new Date("2026-07-01T00:00:00Z"),
   id: commentIdSchema.parse(input.id),

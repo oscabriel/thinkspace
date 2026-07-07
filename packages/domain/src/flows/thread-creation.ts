@@ -110,6 +110,8 @@ export const createThreadCreationFlow = (
       lastActivityAt: createdAt,
       lifecycle: { state: "active" },
       name: deriveThreadName(input.openingBody),
+      // E8.4: the opening comment is the branch anchor a threadId-only surface reads back.
+      rootCommentId: input.openingCommentId,
       workspaceId: context.workspaceId,
     };
 

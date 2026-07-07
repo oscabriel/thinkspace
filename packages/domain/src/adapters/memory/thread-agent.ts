@@ -245,8 +245,27 @@ export const createMemoryThreadAgent = (
         );
       }
 
+      const { parent } = input.comment;
+      if (
+        parent.kind === "nested" &&
+        !state.comments.has(idKey(parent.parentCommentId))
+      ) {
+        return err({
+          kind: "comment_parent_not_in_thread",
+          parentCommentId: parent.parentCommentId,
+          threadId: config.address.threadId,
+          workspaceId: config.address.workspaceId,
+        });
+      }
+
       state.comments.set(idKey(input.comment.id), input.comment);
-      return ok(input.comment);
+      return ok({
+        comment: input.comment,
+        participants: collectThreadParticipants({
+          comments: [...state.comments.values()],
+          runs: [...state.runs.values()],
+        }),
+      });
     },
     executeNextRun,
     getRun: async (input) => {

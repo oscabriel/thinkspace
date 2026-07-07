@@ -58,6 +58,7 @@ interface ThreadRow {
   readonly last_activity_at: number;
   readonly lifecycle: string;
   readonly name: string;
+  readonly root_comment_id: string | null;
   readonly workspace_id: string;
 }
 
@@ -131,6 +132,7 @@ const rowToThread = (row: ThreadRow): Thread =>
     lastActivityAt: new Date(row.last_activity_at),
     lifecycle: parseJsonColumn(row.lifecycle),
     name: row.name,
+    rootCommentId: row.root_comment_id,
     workspaceId: row.workspace_id,
   }) as Thread;
 
@@ -247,8 +249,8 @@ const commandToStatement = (
     case "create_thread_index": {
       return db
         .prepare(
-          `INSERT INTO thread (id, channel_id, created_at, created_by_member_id, last_activity_at, lifecycle, name, workspace_id)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+          `INSERT INTO thread (id, channel_id, created_at, created_by_member_id, last_activity_at, lifecycle, name, root_comment_id, workspace_id)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
            ON CONFLICT (id) DO NOTHING`
         )
         .bind(
@@ -259,6 +261,7 @@ const commandToStatement = (
           command.thread.lastActivityAt.getTime(),
           JSON.stringify(command.thread.lifecycle),
           command.thread.name,
+          command.thread.rootCommentId,
           command.thread.workspaceId
         );
     }
@@ -362,11 +365,12 @@ const commandToStatement = (
     case "put_thread_index": {
       return db
         .prepare(
-          `INSERT INTO thread (id, channel_id, created_at, created_by_member_id, last_activity_at, lifecycle, name, workspace_id)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+          `INSERT INTO thread (id, channel_id, created_at, created_by_member_id, last_activity_at, lifecycle, name, root_comment_id, workspace_id)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
            ON CONFLICT (id) DO UPDATE SET channel_id = excluded.channel_id, created_at = excluded.created_at,
              created_by_member_id = excluded.created_by_member_id, last_activity_at = excluded.last_activity_at,
-             lifecycle = excluded.lifecycle, name = excluded.name, workspace_id = excluded.workspace_id`
+             lifecycle = excluded.lifecycle, name = excluded.name, root_comment_id = excluded.root_comment_id,
+             workspace_id = excluded.workspace_id`
         )
         .bind(
           command.thread.id,
@@ -376,6 +380,7 @@ const commandToStatement = (
           command.thread.lastActivityAt.getTime(),
           JSON.stringify(command.thread.lifecycle),
           command.thread.name,
+          command.thread.rootCommentId,
           command.thread.workspaceId
         );
     }

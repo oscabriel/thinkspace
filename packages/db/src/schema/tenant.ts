@@ -42,6 +42,9 @@ export const thread = sqliteTable(
     }).notNull(),
     lifecycle: text("lifecycle").notNull(),
     name: text("name").notNull(),
+    // E8.4: the thread's opening comment id — the branch anchor a threadId-only surface
+    // needs. Nullable for dev rows that predate the column (no backfill; ADR 0025).
+    rootCommentId: text("root_comment_id"),
     workspaceId: text("workspace_id").notNull(),
   },
   (table) => [

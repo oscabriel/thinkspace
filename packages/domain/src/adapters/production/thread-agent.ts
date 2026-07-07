@@ -39,6 +39,7 @@ import type {
 } from "../../seams/tool-resolution";
 import type {
   BranchSnapshot,
+  CommentAppend,
   RunDetail,
   ThreadAgent,
   ThreadAgentAddress,
@@ -470,7 +471,7 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
 
   async appendComment(input: {
     readonly comment: Comment;
-  }): AsyncResult<Comment, ThreadAgentError> {
+  }): AsyncResult<CommentAppend, ThreadAgentError> {
     const address = this.deriveAddress();
     if (address === null) {
       return err(this.unaddressable());
@@ -480,8 +481,27 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       return err(tenantOrThreadViolation(address, input.comment.workspaceId));
     }
 
+    const { parent } = input.comment;
+    if (
+      parent.kind === "nested" &&
+      this.readComment(parent.parentCommentId) === null
+    ) {
+      return err({
+        kind: "comment_parent_not_in_thread",
+        parentCommentId: parent.parentCommentId,
+        threadId: address.threadId,
+        workspaceId: address.workspaceId,
+      });
+    }
+
     this.putComment(input.comment);
-    return ok(input.comment);
+    return ok({
+      comment: input.comment,
+      participants: collectThreadParticipants({
+        comments: [...this.loadComments().values()],
+        runs: this.readRuns(),
+      }),
+    });
   }
 
   async getRun(input: {

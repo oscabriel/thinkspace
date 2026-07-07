@@ -10,6 +10,7 @@ import type { Workspace } from "../../workspace";
 import type { ContractTestApi } from "../contract-api";
 import {
   channelId,
+  commentId,
   makeChannel,
   makeMcpHostApproval,
   makeMcpServer,
@@ -557,6 +558,32 @@ export const defineTenantDataAccessContract = (input: {
         await data.listChannelThreads({ channelId: channelId("channel-1") })
       );
       expect(index.threads).toEqual([thread]);
+    });
+
+    test("the thread's rootCommentId round-trips through create_thread_index → listChannelThreads (E8.4)", async () => {
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testTenantContext,
+        workspace: testWorkspace,
+      });
+
+      const thread = makeThread({
+        channelId: "channel-1",
+        id: "thread-rooted",
+        rootCommentId: "comment-opening",
+      });
+      unwrapOk(
+        await data.batch({
+          commands: [{ kind: "create_thread_index", thread }],
+          workspaceId: testWorkspaceId,
+        })
+      );
+
+      const index = unwrapOk(
+        await data.listChannelThreads({ channelId: channelId("channel-1") })
+      );
+      expect(index.threads).toEqual([thread]);
+      expect(index.threads[0]?.rootCommentId).toBe(commentId("comment-opening"));
     });
 
     test("a replayed creation leaves the existing row untouched — lastActivityAt cannot regress", async () => {

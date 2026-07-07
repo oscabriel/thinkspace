@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   channelIdSchema,
+  commentIdSchema,
   curatorSessionIdSchema,
   mcpServerIdSchema,
   memberIdSchema,
@@ -190,6 +191,21 @@ export type ThreadAgentUnaddressableError = z.infer<
   typeof threadAgentUnaddressableErrorSchema
 >;
 
+/**
+ * E8.4: a member reply names a parent comment that is not resident in the thread's tree
+ * (a stale/forged parent id, or a cross-thread reference). The append fails closed rather
+ * than orphan a comment under a parent the branch read can never anchor.
+ */
+export const commentParentNotInThreadErrorSchema = z.object({
+  kind: z.literal("comment_parent_not_in_thread"),
+  parentCommentId: commentIdSchema,
+  threadId: threadIdSchema,
+  workspaceId: workspaceIdSchema,
+});
+export type CommentParentNotInThreadError = z.infer<
+  typeof commentParentNotInThreadErrorSchema
+>;
+
 export const realtimeHubUnavailableErrorSchema = z.object({
   kind: z.literal("realtime_hub_unavailable"),
   workspaceId: workspaceIdSchema,
@@ -223,6 +239,7 @@ export const domainErrorSchema = z.discriminatedUnion("kind", [
   curatorUnaddressableErrorSchema,
   shapeOwnershipViolationErrorSchema,
   channelNotArchivedErrorSchema,
+  commentParentNotInThreadErrorSchema,
   threadAgentUnaddressableErrorSchema,
   threadAgentUninitializedErrorSchema,
   realtimeHubUnavailableErrorSchema,

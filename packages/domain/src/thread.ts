@@ -30,6 +30,12 @@ export const threadSchema = z.object({
   lifecycle: threadLifecycleSchema,
   /** Auto-generated at creation from the opening prompt; member-editable (ADR 0020). */
   name: threadNameSchema,
+  /**
+   * E8.4: the thread's opening (top-level) comment id — the branch anchor a `threadId`-only
+   * surface needs to render the whole thread (ADR 0025). Populated at creation from the
+   * edge-minted opening comment; nullable for dev rows that predate the column (no backfill).
+   */
+  rootCommentId: commentIdSchema.nullable().default(null),
   workspaceId: workspaceIdSchema,
 });
 export type Thread = z.infer<typeof threadSchema>;

@@ -45,6 +45,14 @@ export const domainErrorStatus = (error: DomainError): ContentfulStatusCode => {
       /** The upstream model catalog could not be assembled — transient, retryable. */
       return 503;
     }
+    case "comment_parent_not_in_thread": {
+      /**
+       * E8.4: a member reply named a parent comment that is not in the thread's tree — a
+       * stale or forged parent id. The referenced parent does not exist here, so 404,
+       * matching the invisibility-as-nonexistence posture (the caller learns nothing more).
+       */
+      return 404;
+    }
     case "channel_deleted":
     case "channel_read_only":
     case "insufficient_role":
