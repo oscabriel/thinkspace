@@ -1,7 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import {
+  Link,
+  createFileRoute,
+  useNavigate,
+  useParams,
+} from "@tanstack/react-router";
 import { Label } from "@thinkspace/ui/components/label";
 import { Textarea } from "@thinkspace/ui/components/textarea";
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -33,20 +39,19 @@ const createErrorMessage = (kind: string): string => {
 };
 
 /**
- * The channel-creation affordance (E7.5, replacing E7.3's default-shape stub). A channel is a
- * goal (ADR 0016) plus a shape authored at birth (ADR 0030 snapshot-at-creation): the member
- * writes the goal, picks a model from the live catalog, and writes the system prompt in one pass.
- * Both the channelId and shapeId are client-minted so a replayed PUT converges on the same
- * channel-plus-shape pair (ADR 0034). On success the sidebar graph is invalidated and we navigate
- * into the new channel; a domain error (no BYOK key, model gone) surfaces as teaching copy.
+ * The channel-creation surface (E8.5, promoted out of the sidebar rail). A channel is a goal
+ * (ADR 0016) plus a shape authored at birth (ADR 0030 snapshot-at-creation): the member writes
+ * the goal, picks visibility, chooses a model from the live catalog, and writes the system prompt
+ * in one full-width pass — the same ShapeForm the rail once crammed into ~230px, now given a
+ * max-width reading column to breathe. Both the channelId and shapeId are client-minted so a
+ * replayed PUT converges on the same channel-plus-shape pair (ADR 0034). On success the sidebar
+ * graph is invalidated and we navigate into the new channel; a domain error (no BYOK key, model
+ * gone) surfaces as teaching copy, with byok_key_missing pointing at the provider-key settings.
  */
-export const NewChannelForm = ({
-  workspaceId,
-  onDone,
-}: {
-  readonly workspaceId: string;
-  readonly onDone: () => void;
-}) => {
+const NewChannelView = () => {
+  const { workspaceId } = useParams({
+    from: "/w/$workspaceId/channels/new",
+  });
   const [goal, setGoal] = useState("");
   const [visibility, setVisibility] = useState<Visibility["kind"]>("shared");
   const queryClient = useQueryClient();
@@ -86,7 +91,6 @@ export const NewChannelForm = ({
         queryKey: workspaceKeys.graph(workspaceId),
       });
       toast.success("Channel created");
-      onDone();
       navigate({
         params: { channelId: created.channel.id, workspaceId },
         to: "/w/$workspaceId/channels/$channelId",
@@ -101,49 +105,81 @@ export const NewChannelForm = ({
         ? "Could not create channel."
         : null;
 
+  const backLink = (
+    <Link
+      className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-sm hover:text-foreground"
+      params={{ workspaceId }}
+      to="/w/$workspaceId"
+    >
+      <ArrowLeft aria-hidden="true" className="size-4" />
+      Back to workspace
+    </Link>
+  );
+
   return (
-    <div className="rounded-lg border border-sidebar-border bg-background/40 p-3">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-8">
+      {backLink}
+
+      <header className="flex flex-col gap-2 border-border border-b pb-5">
+        <h1 className="font-semibold text-foreground text-xl leading-snug tracking-tight">
+          New channel
+        </h1>
+        <p className="text-muted-foreground text-sm">
+          A channel is a goal plus the shape of the agent that pursues it. Both
+          are authored here, once, at birth.
+        </p>
+      </header>
+
       <ShapeForm
         errorMessage={errorMessage}
         extraDisabled={goal.trim().length === 0}
         header={
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs" htmlFor="new-channel-goal">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <Label className="text-sm" htmlFor="new-channel-goal">
                 Channel goal
               </Label>
+              <p className="text-muted-foreground text-xs">
+                The goal is the channel — it gives the agent its purpose.
+              </p>
               <Textarea
                 autoFocus
-                className="min-h-16 text-sm"
+                className="min-h-20 text-sm"
                 id="new-channel-goal"
                 onChange={(event) => setGoal(event.target.value)}
                 placeholder="e.g. Keep our ADRs consistent and cross-referenced"
                 value={goal}
               />
-              <p className="text-muted-foreground text-xs">
-                The goal is the channel — it gives the agent its purpose.
-              </p>
             </div>
 
-            <div className="flex items-center gap-1 text-xs">
-              {(["shared", "private"] as const).map((kind) => (
-                <button
-                  className={
-                    visibility === kind
-                      ? "rounded-full bg-primary px-3 py-1 font-medium text-primary-foreground"
-                      : "rounded-full px-3 py-1 text-muted-foreground hover:bg-sidebar-accent"
-                  }
-                  key={kind}
-                  onClick={() => setVisibility(kind)}
-                  type="button"
-                >
-                  {kind === "shared" ? "Shared" : "Private"}
-                </button>
-              ))}
+            <div className="flex flex-col gap-2">
+              <Label className="text-sm">Visibility</Label>
+              <p className="text-muted-foreground text-xs">
+                Shared channels are visible to the whole workspace; private
+                channels stay with their members.
+              </p>
+              <div className="flex items-center gap-1 text-sm">
+                {(["shared", "private"] as const).map((kind) => (
+                  <button
+                    className={
+                      visibility === kind
+                        ? "rounded-full bg-primary px-3 py-1 font-medium text-primary-foreground"
+                        : "rounded-full px-3 py-1 text-muted-foreground hover:bg-sidebar-accent"
+                    }
+                    key={kind}
+                    onClick={() => setVisibility(kind)}
+                    type="button"
+                  >
+                    {kind === "shared" ? "Shared" : "Private"}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         }
-        onCancel={onDone}
+        onCancel={() =>
+          navigate({ params: { workspaceId }, to: "/w/$workspaceId" })
+        }
         onSubmit={(shape) => mutation.mutate(shape)}
         pending={mutation.isPending}
         pendingLabel="Creating…"
@@ -153,3 +189,8 @@ export const NewChannelForm = ({
     </div>
   );
 };
+
+export const Route = createFileRoute("/w/$workspaceId/channels/new")({
+  component: NewChannelView,
+  ssr: false,
+});

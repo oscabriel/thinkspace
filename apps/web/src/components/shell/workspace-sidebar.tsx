@@ -5,7 +5,6 @@ import { cn } from "@thinkspace/ui/lib/utils";
 import { Compass, Home, KeyRound, Library, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { NewChannelForm } from "@/components/shell/new-channel-form";
 import { ChannelNavItem } from "@/components/shell/channel-nav-item";
 import type { ChannelDirectoryEntry } from "@/lib/api";
 import { graphQuery, homeQuery, unreadQuery } from "@/lib/workspace-queries";
@@ -54,7 +53,6 @@ export const WorkspaceSidebar = ({
   const graph = useQuery(graphQuery(workspaceId));
   const home = useQuery(homeQuery(workspaceId));
   const unread = useQuery(unreadQuery(workspaceId));
-  const [creating, setCreating] = useState(false);
 
   const unreadChannelIds = useMemo(() => {
     const unreadThreadIds = new Set((unread.data ?? []).map((u) => u.threadId));
@@ -104,24 +102,15 @@ export const WorkspaceSidebar = ({
           <span className="text-xs font-medium tracking-wide text-muted-foreground">
             Channels
           </span>
-          <button
+          <Link
             aria-label="New channel"
             className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            onClick={() => setCreating((open) => !open)}
-            type="button"
+            params={{ workspaceId }}
+            to="/w/$workspaceId/channels/new"
           >
             <Plus className="size-4" />
-          </button>
+          </Link>
         </div>
-
-        {creating && (
-          <div className="px-1 py-1">
-            <NewChannelForm
-              onDone={() => setCreating(false)}
-              workspaceId={workspaceId}
-            />
-          </div>
-        )}
 
         {graph.isPending ? (
           <ChannelListSkeleton />
