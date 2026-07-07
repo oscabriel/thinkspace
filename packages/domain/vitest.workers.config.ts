@@ -15,6 +15,9 @@ export default defineConfig({
           AI_GATEWAY_TOKEN: "test-ai-gateway-token-0123456789",
           AI_GATEWAY_URL:
             "https://gateway.ai.cloudflare.com/v1/test-account/test-gateway",
+          // E4.2: the auth origin's JWKS endpoint. The outbound mock serves the matching
+          // public key at this host, mirroring how the AI Gateway literals are wired.
+          AUTH_JWKS_URL: "https://auth.test.local/api/auth/jwks",
           TEST_MIGRATIONS: await readD1Migrations(
             path.join(import.meta.dirname, "../db/src/migrations")
           ),

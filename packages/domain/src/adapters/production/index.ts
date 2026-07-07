@@ -1,7 +1,18 @@
 export {
+  createHubJwks,
+  type HubAuthEnv,
+  type HubConnectClaims,
+  HUB_UPGRADE_REJECT_CODE,
+  type HubUpgradeAuthResult,
+  readHubConnectToken,
+  verifyHubConnectToken,
+} from "./hub-auth";
+export {
   ChannelHubDurableObject,
   createProductionChannelHub,
   createProductionWorkspaceHub,
+  decodeChannelHubName,
+  decodeWorkspaceHubName,
   encodeChannelHubName,
   encodeWorkspaceHubName,
   type ProductionChannelHubConfig,
