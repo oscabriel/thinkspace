@@ -8,6 +8,13 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
  */
 export const domainErrorStatus = (error: DomainError): ContentfulStatusCode => {
   switch (error.kind) {
+    case "curator_session_not_found": {
+      /**
+       * E8.3 / ADR 0026: sending into a session the member's curator DO does not hold —
+       * per-member isolation means it never could — is a plain not-found, 404.
+       */
+      return 404;
+    }
     case "channel_not_visible":
     case "tenant_guard_violation": {
       /**

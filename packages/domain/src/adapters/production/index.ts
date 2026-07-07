@@ -44,6 +44,7 @@ export {
   type CuratorTurnEnvelope,
   createProductionCuratorAgent,
   curatorTurnEnvelopeSchema,
+  defaultCuratorModelId,
   parseCuratorEnvelope,
   type ProductionCuratorAgentConfig,
   serializeCuratorEnvelope,

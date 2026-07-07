@@ -131,6 +131,65 @@ const anthropicMessageFixture = {
   usage: { input_tokens: 1, output_tokens: 1 },
 };
 
+// E8.3: the curator DO (getSystemPrompt) pins a JSON `{reply, draft}` envelope contract; a plain
+// free-text turn would fail its parse and surface curator_execution_failed. When the request's
+// system prompt is the curator's, answer with a well-formed envelope so a real curator turn
+// materializes an envelope-shaped CuratorTurn end to end. `draft` is null — the common
+// early-interview turn (the manual E5.2 shape form remains the draft materialization path).
+//
+// Think drives the model with `streamText`, so the answer must be a real Anthropic Messages SSE
+// stream (the non-streaming JSON fixture above is never consumed as text — the dispatch tests
+// only assert the queue-time receipt, not the turn output). This is the first outbound path that
+// exercises a real gateway turn end to end.
+const CURATOR_SYSTEM_MARKER = "channel-authoring curator";
+
+const curatorEnvelopeText = JSON.stringify({
+  draft: null,
+  reply: "Tell me more about the channel you want to build.",
+});
+
+/** A minimal single-text-block Anthropic Messages SSE stream carrying the curator envelope. */
+const anthropicSseStream = (text) => {
+  const event = (type, data) =>
+    `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+  const body =
+    event("message_start", {
+      message: {
+        content: [],
+        id: "msg_mock_curator",
+        model: "claude-sonnet-5",
+        role: "assistant",
+        stop_reason: null,
+        stop_sequence: null,
+        type: "message",
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    }) +
+    event("content_block_start", {
+      content_block: { text: "", type: "text" },
+      index: 0,
+    }) +
+    event("content_block_delta", {
+      delta: { text, type: "text_delta" },
+      index: 0,
+    }) +
+    event("content_block_stop", { index: 0 }) +
+    event("message_delta", {
+      delta: { stop_reason: "end_turn", stop_sequence: null },
+      usage: { output_tokens: 1 },
+    }) +
+    event("message_stop", {});
+
+  return new Response(body, {
+    headers: { "content-type": "text/event-stream" },
+  });
+};
+
+const isCuratorRequest = async (request) => {
+  const body = await request.clone().text().catch(() => "");
+  return body.includes(CURATOR_SYSTEM_MARKER);
+};
+
 // E4.2: the public half of a fixed Ed25519 keypair (EdDSA — the better-auth JWT plugin's
 // default). The hub-upgrade tests hold the private half and sign connect tokens with it; the
 // hub fetches this set to verify. `kid` matches the token header so jose resolves it directly.
@@ -216,6 +275,9 @@ export default {
       return Response.json(modelsDevFixture);
     }
     if (url.hostname === "gateway.ai.cloudflare.com") {
+      if (await isCuratorRequest(request)) {
+        return anthropicSseStream(curatorEnvelopeText);
+      }
       return Response.json(anthropicMessageFixture);
     }
     if (url.hostname === "auth.test.local") {
