@@ -4,11 +4,12 @@ import {
   Empty,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
 import { cn } from "@thinkspace/ui/lib/utils";
-import { ArrowLeft, Hash } from "lucide-react";
+import { ArrowLeft, Hash, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 
 import { ArtifactContentView } from "@/components/library/artifact-content-view";
@@ -53,6 +54,9 @@ const ArtifactDetailScreen = () => {
         <BackLink workspaceId={workspaceId} />
         <Empty className="mt-4 border">
           <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <TriangleAlert />
+            </EmptyMedia>
             <EmptyTitle>Artifact unavailable</EmptyTitle>
             <EmptyDescription>
               This artifact does not exist or is not visible to you ({kind}).
@@ -166,7 +170,7 @@ const VersionRow = ({
       <span className="flex items-center gap-2 text-foreground text-sm">
         {absoluteTime(version.createdAt)}
         {isHead && (
-          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-medium text-[10px] text-primary uppercase tracking-wide">
+          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-medium text-[0.6875rem] text-primary">
             Head
           </span>
         )}

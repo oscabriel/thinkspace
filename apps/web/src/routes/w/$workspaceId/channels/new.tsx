@@ -163,8 +163,8 @@ const NewChannelView = () => {
                   <button
                     className={
                       visibility === kind
-                        ? "rounded-full bg-primary px-3 py-1 font-medium text-primary-foreground"
-                        : "rounded-full px-3 py-1 text-muted-foreground hover:bg-sidebar-accent"
+                        ? "rounded-full bg-primary px-3 py-1 font-medium text-primary-foreground transition-colors"
+                        : "rounded-full px-3 py-1 text-muted-foreground transition-colors hover:bg-muted"
                     }
                     key={kind}
                     onClick={() => setVisibility(kind)}

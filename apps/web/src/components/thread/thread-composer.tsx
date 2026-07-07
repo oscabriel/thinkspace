@@ -36,7 +36,7 @@ export const ThreadComposer = ({
 
   return (
     <form
-      className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3"
+      className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 transition-colors focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/15"
       onSubmit={(event) => {
         event.preventDefault();
         submit();

@@ -2,7 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
 import { cn } from "@thinkspace/ui/lib/utils";
-import { Compass, Home, KeyRound, Library, Plus } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Compass,
+  Home,
+  KeyRound,
+  Library,
+  Plus,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { ChannelNavItem } from "@/components/shell/channel-nav-item";
@@ -99,7 +107,7 @@ export const WorkspaceSidebar = ({
 
       <div className="flex min-h-0 flex-1 flex-col gap-1">
         <div className="flex items-center justify-between px-2">
-          <span className="text-xs font-medium tracking-wide text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Channels
           </span>
           <Link
@@ -163,11 +171,17 @@ const ChannelGroups = ({
       {archived.length > 0 && (
         <>
           <button
-            className="mt-2 px-2 py-1 text-left text-xs font-medium text-muted-foreground hover:text-sidebar-foreground"
+            aria-expanded={showArchived}
+            className="mt-2 flex items-center gap-1 rounded-md px-2 py-1 text-left text-xs font-medium text-muted-foreground transition-colors hover:text-sidebar-foreground"
             onClick={() => setShowArchived((open) => !open)}
             type="button"
           >
-            {showArchived ? "▾" : "▸"} Archived ({archived.length})
+            {showArchived ? (
+              <ChevronDown aria-hidden="true" className="size-3.5" />
+            ) : (
+              <ChevronRight aria-hidden="true" className="size-3.5" />
+            )}
+            Archived ({archived.length})
           </button>
           {showArchived &&
             archived.map((entry) => (

@@ -17,7 +17,13 @@ import {
   MessageScrollerViewport,
 } from "@thinkspace/ui/components/message-scroller";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
-import { ArrowLeft, History, RefreshCw, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  History,
+  RefreshCw,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -323,6 +329,9 @@ const ThreadConversation = ({
       <div className="mx-auto w-full max-w-2xl px-6 py-8">
         <Empty className="border">
           <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <TriangleAlert />
+            </EmptyMedia>
             <EmptyTitle>Thread unavailable</EmptyTitle>
             <EmptyDescription>
               This thread could not be loaded ({kind}).

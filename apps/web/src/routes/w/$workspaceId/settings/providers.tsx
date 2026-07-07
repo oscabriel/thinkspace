@@ -8,10 +8,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@thinkspace/ui/components/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@thinkspace/ui/components/empty";
 import { Input } from "@thinkspace/ui/components/input";
 import { Label } from "@thinkspace/ui/components/label";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
-import { CheckCircle2, KeyRound } from "lucide-react";
+import { CheckCircle2, KeyRound, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -186,10 +193,10 @@ const ProvidersSettings = () => {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-8">
       <header className="flex flex-col gap-1">
-        <h1 className="cn-font-heading text-lg font-semibold tracking-tight">
+        <h1 className="font-semibold text-foreground text-xl tracking-tight">
           Provider keys
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Bring your own key. A workspace is browsable without one, but no agent
           can run until a provider key is on file — this is where you register
           it.
@@ -199,12 +206,21 @@ const ProvidersSettings = () => {
       {providers.isPending ? (
         <Skeleton className="h-40 w-full rounded-xl" />
       ) : providers.isError ? (
-        <p className="text-sm text-destructive">
-          Could not load provider status:{" "}
-          {providers.error instanceof ApiRequestError
-            ? providers.error.kind
-            : "unknown_error"}
-        </p>
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <TriangleAlert />
+            </EmptyMedia>
+            <EmptyTitle>Could not load provider status</EmptyTitle>
+            <EmptyDescription>
+              This is usually transient — try again in a moment (
+              {providers.error instanceof ApiRequestError
+                ? providers.error.kind
+                : "unknown_error"}
+              ).
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <>
           {!hasAnyKey && (

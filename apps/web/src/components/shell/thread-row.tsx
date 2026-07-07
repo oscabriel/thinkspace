@@ -5,9 +5,9 @@ import { relativeTime } from "@/lib/format";
 
 /**
  * A single row in a recency feed — the shared unit of the cross-channel Home feed (ADR 0020)
- * and a channel's thread index. Thread navigation (the tree view + composer) is the thread
- * surface, sibling #28; until it lands these rows are non-interactive so the shell never links
- * to a route that does not exist yet. Unread bumps (ADR 0027) mark the name at 600 weight.
+ * and a channel's thread index. Both feeds wrap the row in a Link to the thread surface (#28),
+ * so the row is a presentation unit and the parent owns navigation. Unread bumps (ADR 0027)
+ * mark the name at 600 weight, with a small cobalt dot as the scannable secondary signal.
  *
  * Context line (E8.6): the Home feed passes `channelLabel` (the channel goal — goal-as-label,
  * no name column exists) so a cross-channel row says which channel it belongs to, and both
@@ -49,7 +49,7 @@ export const ThreadRow = ({
         {unread && (
           <span
             aria-label="unread"
-            className="size-2 rounded-full bg-working"
+            className="size-2 rounded-full bg-primary"
             title="Unread"
           />
         )}

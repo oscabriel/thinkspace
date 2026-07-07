@@ -13,7 +13,14 @@ import {
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
-import { Archive, Hash, Lock, MessagesSquare, Settings2 } from "lucide-react";
+import {
+  Archive,
+  Hash,
+  Lock,
+  MessagesSquare,
+  Settings2,
+  TriangleAlert,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -116,6 +123,9 @@ const ChannelView = () => {
       <div className="mx-auto w-full max-w-2xl px-6 py-8">
         <Empty className="border">
           <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <TriangleAlert />
+            </EmptyMedia>
             <EmptyTitle>Channel unavailable</EmptyTitle>
             <EmptyDescription>
               This channel does not exist or is not visible to you ({kind}).
