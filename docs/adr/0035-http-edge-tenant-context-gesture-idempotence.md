@@ -165,6 +165,16 @@ the expensive thing to retrofit (a new required field breaks clients); enforceme
 edge-owned reserve-first `gestureId → runId` table in D1, outside the domain seam — adds
 later with zero API change. This is recorded debt, not a gap.
 
+> **Enforced by E5.3 (baked decision 8).** The debt is retired, but the enforcement site
+> moved off this ADR's sketch: rather than an edge-owned D1 `gestureId → runId` table, the
+> `gestureId` now travels into the ThreadAgent run trigger, and `ts_run` (DO-SQLite) carries
+> a UNIQUE `gesture_id` column. A replayed dispatch converges on the existing run's receipt
+> inside the DO — deterministically reported as queued — exactly like the PUT creation
+> gesture converges on its resident snapshot. No D1-side dedupe table exists. This supersedes
+> ADR 0033's "solve it at the edge, never in the DO" note: the DO is the single authority on
+> its own run identity, so dedupe belongs where the run is minted (pinned in the ThreadAgent
+> contract suite, both binders, plus an edge double-POST test).
+
 ### 8. JWT/JWKS is deferred to the hub-connection slice
 
 ADR 0008 envisioned identity reaching a DO as a JWT through `agent.fetch()`. The
@@ -193,8 +203,8 @@ deferred deliberately, not dropped.
   against seeded auth tables; workers tests drive a real creation gesture over HTTP.
 - The replicant verification checklist (§6) runs before the seam trusts any better-auth
   shape; its findings may rework our member-lookup or schema per §5's rule.
-- Deferred, recorded: invitations (§6), dispatch-dedupe enforcement (§7), JWT/JWKS (§8),
-  `getWorkspaceGraph` (§6).
+- Deferred, recorded: invitations (§6), JWT/JWKS (§8), `getWorkspaceGraph` (§6).
+  Dispatch-dedupe enforcement (§7) shipped in E5.3 — see the §7 amendment above.
 
 ## §6 verification record (2026-07-05)
 

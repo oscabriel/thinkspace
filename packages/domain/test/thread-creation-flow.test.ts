@@ -25,6 +25,7 @@ import type { WorkspaceActivityEvent } from "../src/seams/realtime-hubs";
 import type { Shape } from "../src/shape";
 import {
   commentId,
+  gestureId,
   makeChannel,
   makeShape,
   makeThread,
@@ -191,6 +192,7 @@ describe("Thread creation flow — D1 row first, initialize second, announce las
     const receipt = unwrapOk(
       await dispatchFlow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-opening"),
         threadId: threadId("thread-new"),
       })
@@ -210,6 +212,7 @@ describe("Thread creation flow — replay is the recovery mechanism (ADR 0034 §
     const beforeHeal = unwrapErr(
       await dispatchFlow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-opening"),
         threadId: threadId("thread-new"),
       })
@@ -235,6 +238,7 @@ describe("Thread creation flow — replay is the recovery mechanism (ADR 0034 §
     const receipt = unwrapOk(
       await dispatchFlow.dispatch({
         channelId: testChannelId,
+        gestureId: gestureId("gesture-1"),
         targetCommentId: commentId("comment-opening"),
         threadId: threadId("thread-new"),
       })

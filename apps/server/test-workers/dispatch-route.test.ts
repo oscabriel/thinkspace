@@ -168,6 +168,56 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatc
     });
   });
 
+  /**
+   * Dispatch dedupe (E5.3 / ADR 0035 §7): the client-minted gestureId travels into the DO
+   * run trigger and its unique ts_run column, so an at-least-once replay of the identical
+   * POST converges on the first run's receipt instead of starting a second run.
+   */
+  it("returns the same run receipt when the identical dispatch is POSTed twice (gestureId dedupe)", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "dispatch-dedupe@example.com",
+      slug: "dispatch-dedupe-space",
+    });
+    await keyWorkspaceForAnthropic(workspaceId);
+    await seedChannel({
+      channelId: "dd-ch-1",
+      memberId,
+      shapeId: "dd-shape-1",
+      workspaceId,
+    });
+    await SELF.fetch(
+      `https://test.local/api/w/${workspaceId}/channels/dd-ch-1/threads/dd-th-1`,
+      {
+        body: JSON.stringify({
+          openingBody: "Dispatch me twice",
+          openingCommentId: "dd-comment-1",
+        }),
+        headers: { "content-type": "application/json", cookie },
+        method: "PUT",
+      }
+    );
+
+    const post = () =>
+      SELF.fetch(
+        dispatchUrl({ channelId: "dd-ch-1", threadId: "dd-th-1", workspaceId }),
+        {
+          body: JSON.stringify({ gestureId, targetCommentId: "dd-comment-1" }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }
+      );
+
+    const first = await post();
+    const replay = await post();
+
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(200);
+    const firstReceipt = await first.json<{ queuedRun: { id: string } }>();
+    const replayReceipt = await replay.json<{ queuedRun: { id: string } }>();
+    // The replay converged on the first run — same run id, no second run started.
+    expect(replayReceipt.queuedRun.id).toBe(firstReceipt.queuedRun.id);
+  });
+
   /** "Create and ask" rides the same real path: creation receipt plus the chained run. */
   it("chains a create-and-ask PUT into a real dispatch and returns creation + run", async () => {
     const { cookie, memberId, workspaceId } = await signUpWithWorkspace({

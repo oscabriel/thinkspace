@@ -154,6 +154,60 @@ export const defineThreadAgentContract = (input: {
       expect(runs.map((run) => run.id)).toEqual([receipt.queuedRun.id]);
     });
 
+    test("a replayed dispatch (same gestureId) converges on the existing run's receipt and mints no second run (E5.3)", async () => {
+      const agent = await makeThreadAgent({
+        address: threadAgentAddress,
+        clock: () => new Date("2026-07-01T10:00:00Z"),
+        nextRunId: () => runId("run-dedupe"),
+        shapeSnapshot: makeShapeSnapshot(),
+      });
+
+      const trigger = makeDispatchTrigger({
+        gestureId: "gesture-dedupe",
+        targetCommentId: "comment-top",
+      });
+      const first = unwrapOk(await agent.run(trigger));
+      const replay = unwrapOk(await agent.run(trigger));
+
+      // The replay carries the same run, deterministically reported as queued.
+      expect(replay.runId).toEqual(first.runId);
+      expect(replay.queuedRun).toEqual(first.queuedRun);
+
+      // Exactly one run exists — the replay converged instead of starting a second.
+      const runs = unwrapOk(await agent.listRuns());
+      expect(runs.map((run) => run.id)).toEqual([first.runId]);
+    });
+
+    test("distinct gestureIds mint distinct runs — dedupe keys on the gesture, not the address (E5.3)", async () => {
+      let minted = 0;
+      const agent = await makeThreadAgent({
+        address: threadAgentAddress,
+        nextRunId: () => runId(`run-distinct-${minted++}`),
+        shapeSnapshot: makeShapeSnapshot(),
+      });
+
+      const first = unwrapOk(
+        await agent.run(
+          makeDispatchTrigger({
+            gestureId: "gesture-a",
+            targetCommentId: "comment-top",
+          })
+        )
+      );
+      const second = unwrapOk(
+        await agent.run(
+          makeDispatchTrigger({
+            gestureId: "gesture-b",
+            targetCommentId: "comment-top",
+          })
+        )
+      );
+
+      expect(first.runId === second.runId).toBe(false);
+      const runs = unwrapOk(await agent.listRuns());
+      expect(runs.map((run) => run.id)).toEqual([first.runId, second.runId]);
+    });
+
     test("run on a never-initialized agent fails closed with thread_agent_uninitialized", async () => {
       const agent = await makeThreadAgent({ address: threadAgentAddress });
 
