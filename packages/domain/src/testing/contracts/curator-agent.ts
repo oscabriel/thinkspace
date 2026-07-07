@@ -1,4 +1,4 @@
-import { curatorSessionIdSchema } from "../../ids";
+import { curatorSessionIdSchema, memberIdSchema } from "../../ids";
 import {
   curatorPromptSchema,
   curatorReplySchema,
@@ -105,6 +105,33 @@ export const defineCuratorAgentContract = (input: {
       expect(error).toEqual({
         kind: "curator_session_not_found",
         sessionId: unknownSessionId,
+        workspaceId: testWorkspaceId,
+      });
+    });
+
+    test("a session is invisible to a different member's curator (per-member isolation, ADR 0026)", async () => {
+      const alice = await makeCuratorAgent({ context: testTenantContext });
+      const bobContext: TenantContext = {
+        memberId: memberIdSchema.parse("member-2"),
+        role: "member",
+        workspaceId: testWorkspaceId,
+      };
+      const bob = await makeCuratorAgent({ context: bobContext });
+
+      const aliceSession = unwrapOk(await alice.startSession());
+
+      // Bob's curator holds its own transcript; Alice's session id is unknown to it, so the
+      // send fails closed rather than joining a concurrent member's authoring session.
+      const error = unwrapErr(
+        await bob.send({
+          message: prompt("resume the launch planning session"),
+          sessionId: aliceSession.id,
+        })
+      );
+
+      expect(error).toEqual({
+        kind: "curator_session_not_found",
+        sessionId: aliceSession.id,
         workspaceId: testWorkspaceId,
       });
     });

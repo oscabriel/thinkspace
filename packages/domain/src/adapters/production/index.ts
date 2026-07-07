@@ -38,6 +38,16 @@ export {
   ThreadAgentDurableObject,
 } from "./thread-agent";
 export {
+  CuratorAgentDurableObject,
+  type CuratorAgentSeed,
+  type CuratorTurnEnvelope,
+  createProductionCuratorAgent,
+  curatorTurnEnvelopeSchema,
+  parseCuratorEnvelope,
+  type ProductionCuratorAgentConfig,
+  serializeCuratorEnvelope,
+} from "./curator-agent";
+export {
   createGatewayModel,
   gatewayModelFactories,
   type GatewayModelEnv,
@@ -75,10 +85,7 @@ export {
   createR2VirtualFsArtifactStore,
   type R2VirtualFsArtifactStoreConfig,
 } from "./artifact-store";
-export {
-  createCuratorThinkAgentPlaceholder,
-  createThinkThreadAgentPlaceholder,
-} from "./placeholders";
+export { createThinkThreadAgentPlaceholder } from "./placeholders";
 export {
   createR2MarkdownSkillStore,
   loadSelectedSkillContents,

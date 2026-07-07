@@ -72,6 +72,12 @@ const channelHub = DurableObjectNamespace("channel-hub", {
   sqlite: true,
 });
 
+/** E6.4: one curator Think DO per member+workspace (ADR 0026); addressed by encodeCuratorAddress. */
+const curatorAgent = DurableObjectNamespace("curator-agent", {
+  className: "CuratorAgentDurableObject",
+  sqlite: true,
+});
+
 const workspaceHub = DurableObjectNamespace("workspace-hub", {
   className: "WorkspaceHubDurableObject",
   sqlite: true,
@@ -120,6 +126,7 @@ export const server = await Worker("server", {
     ),
     CHANNEL_HUB: channelHub,
     CORS_ORIGIN: corsOrigin,
+    CURATOR_AGENT: curatorAgent,
     DB: db,
     // E5.5: Resend invitation email. INVITATION_ORIGIN builds the accept link;
     // INVITATION_FROM is the verified Resend sender; RESEND_API_KEY is a secret.

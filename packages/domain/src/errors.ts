@@ -118,6 +118,20 @@ export type CuratorSessionNotFoundError = z.infer<
   typeof curatorSessionNotFoundErrorSchema
 >;
 
+/**
+ * ADR 0033 addressing applied to the curator (ADR 0026 DO-per-member): a curator DO whose
+ * name does not decode into a workspace/member address (bad route, forged name, directory
+ * bypass) executes nothing and fails closed with this. doName carries no tenant data by
+ * construction — it failed to decode into ids.
+ */
+export const curatorUnaddressableErrorSchema = z.object({
+  doName: z.string(),
+  kind: z.literal("curator_unaddressable"),
+});
+export type CuratorUnaddressableError = z.infer<
+  typeof curatorUnaddressableErrorSchema
+>;
+
 /** ADR 0030: a Shape row is only ever written alongside / on behalf of its one channel. */
 export const shapeOwnershipViolationErrorSchema = z.object({
   kind: z.literal("shape_ownership_violation"),
@@ -206,6 +220,7 @@ export const domainErrorSchema = z.discriminatedUnion("kind", [
   runFailureErrorSchema,
   curatorExecutionFailedErrorSchema,
   curatorSessionNotFoundErrorSchema,
+  curatorUnaddressableErrorSchema,
   shapeOwnershipViolationErrorSchema,
   channelNotArchivedErrorSchema,
   threadAgentUnaddressableErrorSchema,

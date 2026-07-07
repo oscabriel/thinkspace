@@ -1,3 +1,4 @@
+export { CuratorAgentDurableObject } from "../src/adapters/production/curator-agent";
 export {
   ChannelHubDurableObject,
   WorkspaceHubDurableObject,
