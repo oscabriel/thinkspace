@@ -147,10 +147,48 @@ export const fetchChannelThreads = (workspaceId: string, channelId: string) =>
   );
 
 /**
+ * A model the workspace may author into a shape: the live models.dev catalog ∩ the providers the
+ * workspace has keyed (ADR 0011 key-first, ADR 0036 BYOK gate), served by GET /models. Mirrors
+ * the domain `Model` (packages/domain/src/model.ts) by hand — `releaseDate` is the ISO date
+ * string it serializes to. An empty list means no provider key is registered yet.
+ */
+export interface ModelCost {
+  readonly cacheRead: number;
+  readonly cacheWrite: number;
+  readonly input: number;
+  readonly output: number;
+}
+
+export interface ModelLimits {
+  readonly context: number;
+  readonly output: number;
+}
+
+export interface ModelCapabilities {
+  readonly attachment: boolean;
+  readonly reasoning: boolean;
+  readonly structuredOutput: boolean;
+  readonly toolCall: boolean;
+}
+
+export interface Model {
+  readonly capabilities: ModelCapabilities;
+  readonly cost: ModelCost;
+  readonly displayName: string;
+  readonly id: string;
+  readonly limits: ModelLimits;
+  readonly provider: string;
+  readonly releaseDate: string;
+}
+
+export const fetchModels = (workspaceId: string) =>
+  apiFetch<{ models: readonly Model[] }>(workspaceId, "/models");
+
+/**
  * Channel creation is a convergent upsert (PUT /channels/:channelId, ADR 0034): the client
  * mints both the channelId and the shapeId so a replay lands the same channel-plus-shape pair.
- * The channel is born with its shape (ADR 0030 strict 1:1); a full shape needs a model picker
- * (sibling #29), so the shell ships a minimal default structure — see DEFAULT_SHAPE below.
+ * The channel is born with its authored shape (ADR 0030 strict 1:1) — the member picks the model
+ * and writes the system prompt at birth (E7.5), so there is no default structure any more.
  */
 export interface CreateChannelInput {
   readonly channelId: string;
@@ -379,3 +417,38 @@ export const clearThreadUnread = (workspaceId: string, threadId: string) =>
 /** Baked decision 5: the short-lived hub-connect JWT the WS client rides in `?token=`. */
 export const fetchHubToken = (workspaceId: string) =>
   apiFetch<{ token: string }>(workspaceId, "/token");
+
+ * A channel's live shape (GET /channels/:channelId/shape) — the edit form's prefill source so an
+ * owner re-authors from real values rather than blanking the config. Only `structure` is used by
+ * the form; the ids/timestamps ride along for completeness (Dates serialize to ISO strings).
+ */
+export interface Shape {
+  readonly createdAt: string;
+  readonly id: string;
+  readonly structure: ShapeStructure;
+  readonly updatedAt: string;
+  readonly workspaceId: string;
+}
+
+export const fetchChannelShape = (workspaceId: string, channelId: string) =>
+  apiFetch<Shape>(
+    workspaceId,
+    `/channels/${encodeURIComponent(channelId)}/shape`
+  );
+
+/**
+ * Edit a channel's shape (PUT /channels/:channelId/shape, owner/admin only). The server
+ * re-validates the model against the BYOK gate + live catalog and resnapshots the channel's live
+ * threads (ADR 0007 explicit update). Surfaces 403 insufficient_role and 409
+ * byok_key_missing / model_not_in_catalog verbatim for teaching copy.
+ */
+export const editChannelShape = (
+  workspaceId: string,
+  channelId: string,
+  shape: ShapeStructure
+) =>
+  apiFetch<Channel>(
+    workspaceId,
+    `/channels/${encodeURIComponent(channelId)}/shape`,
+    { body: JSON.stringify({ shape }), method: "PUT" }
+  );

@@ -156,6 +156,49 @@ export const readRoutes = new Hono<{ Variables: TenantVariables }>()
 
     return c.json(channel.value, 200);
   })
+  .get("/channels/:channelId/shape", async (c) => {
+    /**
+     * The shape-edit form's prefill source (E7.5): the current shape structure so an owner
+     * re-authors from the live values rather than blanking the channel's config (ADR 0007
+     * config-as-data). Same fail-closed visibility guard as the channel read — an invisible
+     * channel's shape is 404, and a missing shape (structurally impossible for a live channel,
+     * ADR 0030 strict 1:1) is unknown_resource too.
+     */
+    const context = c.get("tenantContext");
+
+    const path = channelPathSchema.safeParse({
+      channelId: c.req.param("channelId"),
+    });
+    if (!path.success) {
+      return c.json({ error: { kind: "unknown_resource" } }, 404);
+    }
+
+    const dataAccess = buildTenantDataAccess(context);
+    const channel = await dataAccess.getChannel({
+      channelId: path.data.channelId,
+    });
+    if (!channel.ok) {
+      return c.json({ error: channel.error }, domainErrorStatus(channel.error));
+    }
+    if (channel.value === null) {
+      return c.json({ error: { kind: "unknown_resource" } }, 404);
+    }
+
+    const denied = channelVisibilityGate(context, channel.value);
+    if (denied !== null) {
+      return c.json({ error: denied }, domainErrorStatus(denied));
+    }
+
+    const shape = await dataAccess.getShape({ shapeId: channel.value.shapeId });
+    if (!shape.ok) {
+      return c.json({ error: shape.error }, domainErrorStatus(shape.error));
+    }
+    if (shape.value === null) {
+      return c.json({ error: { kind: "unknown_resource" } }, 404);
+    }
+
+    return c.json(shape.value, 200);
+  })
   .get("/channels/:channelId/threads", async (c) => {
     const context = c.get("tenantContext");
 
