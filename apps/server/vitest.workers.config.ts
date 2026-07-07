@@ -26,6 +26,9 @@ export default defineConfig({
           BYOK_CF_GATEWAY_ID: "test-gateway",
           BYOK_CF_STORE_ID: "test-secrets-store",
           CORS_ORIGIN: "https://test.local",
+          INVITATION_FROM: "Thinkspace <no-reply@test.local>",
+          INVITATION_ORIGIN: "https://test.local",
+          RESEND_API_KEY: "test-resend-key-0123456789",
           TEST_MIGRATIONS: await readD1Migrations(
             path.join(import.meta.dirname, "../../packages/db/src/migrations")
           ),

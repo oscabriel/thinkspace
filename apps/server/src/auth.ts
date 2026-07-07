@@ -5,8 +5,19 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { jwt, organization } from "better-auth/plugins";
 
-export const createAuth = () => {
+import {
+  buildInvitationEmail,
+  createResendEmailSender,
+  type EmailSender,
+} from "./invitation-email";
+
+/**
+ * E5.5: the invitation email delivery is injectable so tests substitute a recorder
+ * and never hit Resend. Production defaults to the Resend HTTP sender.
+ */
+export const createAuth = (options?: { readonly sendEmail?: EmailSender }) => {
   const db = createDb();
+  const sendEmail = options?.sendEmail ?? createResendEmailSender();
 
   return betterAuth({
     advanced: {
@@ -31,9 +42,24 @@ export const createAuth = () => {
     emailAndPassword: {
       enabled: true,
     },
-    /** ADR 0035 §6: defaults only — creator = owner, no teams, no dynamic roles; invitations deferred (no email sender). */
+    /**
+     * ADR 0035 §6: default roles only — creator = owner, no teams, no dynamic
+     * roles. E5.5 turns invitations on: the org plugin's default access control
+     * already gates `invitation: ["create"]` to owner/admin (member's statement
+     * is empty), so no custom AC is needed. better-auth does not generate the
+     * accept URL — we build it from INVITATION_ORIGIN + invitation id and hand
+     * the rendered message to the injected sender.
+     */
     plugins: [
-      organization(),
+      organization({
+        sendInvitationEmail: (data) =>
+          sendEmail(
+            buildInvitationEmail(data, {
+              from: env.INVITATION_FROM,
+              origin: env.INVITATION_ORIGIN,
+            })
+          ),
+      }),
       /**
        * E4.1: JWKS-backed JWTs for the hub WS handshake. The plugin serves its public
        * keys at /api/auth/jwks; the workspace token route mints claim-carrying tokens

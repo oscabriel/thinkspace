@@ -102,6 +102,17 @@ export const server = await Worker("server", {
     CHANNEL_HUB: channelHub,
     CORS_ORIGIN: corsOrigin,
     DB: db,
+    // E5.5: Resend invitation email. INVITATION_ORIGIN builds the accept link;
+    // INVITATION_FROM is the verified Resend sender; RESEND_API_KEY is a secret.
+    INVITATION_FROM: required(alchemy.env.INVITATION_FROM, "INVITATION_FROM"),
+    INVITATION_ORIGIN: required(
+      caddyDevOrigin ?? alchemy.env.INVITATION_ORIGIN ?? corsOrigin,
+      "INVITATION_ORIGIN"
+    ),
+    RESEND_API_KEY: required(
+      alchemy.secret.env.RESEND_API_KEY,
+      "RESEND_API_KEY"
+    ),
     THREAD_AGENT: threadAgent,
     WORKSPACE_HUB: workspaceHub,
   },
