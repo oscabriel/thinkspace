@@ -18,6 +18,13 @@ export default defineConfig({
             "https://gateway.ai.cloudflare.com/v1/test-account/test-gateway",
           BETTER_AUTH_SECRET: "test-secret-for-workers-tests-0123456789",
           BETTER_AUTH_URL: "https://test.local",
+          // E3.2: BYOK write-half config. The store id / account id / gateway id compose the
+          // Secrets Store secret name; the outbound mock (api.cloudflare.com) serves the store
+          // deterministically, so these are inert literals — no real CF account is contacted.
+          BYOK_CF_ACCOUNT_ID: "test-cf-account",
+          BYOK_CF_API_TOKEN: "test-cf-byok-token-0123456789",
+          BYOK_CF_GATEWAY_ID: "test-gateway",
+          BYOK_CF_STORE_ID: "test-secrets-store",
           CORS_ORIGIN: "https://test.local",
           TEST_MIGRATIONS: await readD1Migrations(
             path.join(import.meta.dirname, "../../packages/db/src/migrations")

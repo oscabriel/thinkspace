@@ -10,11 +10,68 @@
  *   - gateway.ai.cloudflare.com → a canned Anthropic Messages response for E1.7/E1.8 completions;
  *   - auth.test.local       → the E4.2 hub-connect JWKS: the public half of a fixed Ed25519
  *                             keypair whose private half the hub-upgrade tests sign tokens with.
+ *   - api.cloudflare.com    → an in-memory Secrets Store for E3.2 BYOK key registration: the
+ *                             list/create/patch/delete subset the E3.1 client drives. State is a
+ *                             module-level Map keyed by secret name (unique per workspace), so a
+ *                             POST-then-DELETE round-trips faithfully. A create/patch whose value
+ *                             equals CF_BYOK_WRITE_FAIL_KEY returns a 500 CF error envelope — the
+ *                             per-test failure trigger travels in the request body (the raw key
+ *                             the test POSTs), not a startup-time interceptor.
  * Everything else passes through. Response variation happens by inspecting the request here —
  * the outbound is fixed at miniflare startup, so there is no per-test interceptor registration.
  *
  * Plain JavaScript (.mjs) on purpose: miniflare auxiliary workers are not transpiled.
  */
+
+// Raw-key sentinel: a POST/PATCH carrying this value makes the mock Secrets Store 500. Kept a
+// plain const (not exported) — miniflare treats every named export of a module worker as a
+// service entry and rejects non-handler exports. Tests mirror this literal locally.
+const CF_BYOK_WRITE_FAIL_KEY = "cf-byok-write-should-fail";
+
+/** In-memory Secrets Store: secret name → { id }. Persists across a file's tests (names unique). */
+const secretsStore = new Map();
+let secretSeq = 0;
+
+const cfError = (status, message) =>
+  Response.json({ errors: [{ message }] }, { status });
+
+/** The list/create/patch/delete subset of the CF Secrets Store REST API the E3.1 client uses. */
+const handleSecretsStore = async (request, url) => {
+  const secretId = url.pathname.split("/secrets/")[1];
+
+  if (request.method === "GET") {
+    const search = url.searchParams.get("search") ?? "";
+    const result = [...secretsStore.entries()]
+      .filter(([name]) => name.includes(search))
+      .map(([name, secret]) => ({ id: secret.id, name }));
+    return Response.json({ result });
+  }
+  if (request.method === "POST") {
+    const [entry] = await request.json();
+    if (entry.value === CF_BYOK_WRITE_FAIL_KEY) {
+      return cfError(500, "secret write rejected");
+    }
+    const id = `secret-${(secretSeq += 1)}`;
+    secretsStore.set(entry.name, { id });
+    return Response.json({ result: [{ id, name: entry.name }] });
+  }
+  if (request.method === "PATCH") {
+    const body = await request.json();
+    if (body.value === CF_BYOK_WRITE_FAIL_KEY) {
+      return cfError(500, "secret write rejected");
+    }
+    return Response.json({ result: { id: secretId } });
+  }
+  if (request.method === "DELETE") {
+    for (const [name, secret] of secretsStore) {
+      if (secret.id === secretId) {
+        secretsStore.delete(name);
+      }
+    }
+    return Response.json({ result: { id: secretId } });
+  }
+  return cfError(405, "method not allowed");
+};
 
 const modelsDevFixture = {
   anthropic: {
@@ -101,6 +158,9 @@ export default {
     }
     if (url.hostname === "auth.test.local") {
       return Response.json(hubJwksFixture);
+    }
+    if (url.hostname === "api.cloudflare.com") {
+      return handleSecretsStore(request, url);
     }
     return fetch(request);
   },
