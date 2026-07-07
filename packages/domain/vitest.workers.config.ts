@@ -30,6 +30,10 @@ export default defineConfig({
             className: "ChannelHubDurableObject",
             useSQLite: true,
           },
+          CURATOR_AGENT: {
+            className: "CuratorAgentDurableObject",
+            useSQLite: true,
+          },
           THREAD_AGENT: {
             className: "ThreadAgentDurableObject",
             useSQLite: true,

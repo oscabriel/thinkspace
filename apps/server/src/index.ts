@@ -32,6 +32,7 @@ app.get("/", (c) => c.text("OK"));
 /** Durable Object classes this worker defines (alchemy binds them; className must match). */
 export {
   ChannelHubDurableObject,
+  CuratorAgentDurableObject,
   ThreadAgentDurableObject,
   WorkspaceHubDurableObject,
 } from "@thinkspace/domain/adapters/production";

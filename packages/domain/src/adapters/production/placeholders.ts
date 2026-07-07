@@ -1,7 +1,6 @@
 import { createNotImplementedError } from "../../errors";
 import { err } from "../../result";
 import type { ArtifactStore } from "../../seams/artifact-store";
-import type { CuratorAgent } from "../../seams/curator-agent";
 import type { SkillStore } from "../../seams/skill-store";
 import type { TenantContext } from "../../seams/tenant-data-access";
 import type { ThreadAgent, ThreadAgentAddress } from "../../seams/thread-agent";
@@ -49,12 +48,4 @@ export const createWorkerMcpEgressPolicyPlaceholder = (
   authorize: async (_input) =>
     notImplemented("WorkerMcpEgressPolicy.authorize"),
   context,
-});
-
-export const createCuratorThinkAgentPlaceholder = (
-  context: TenantContext
-): CuratorAgent => ({
-  context,
-  send: async (_input) => notImplemented("CuratorThinkAgent.send"),
-  startSession: async () => notImplemented("CuratorThinkAgent.startSession"),
 });

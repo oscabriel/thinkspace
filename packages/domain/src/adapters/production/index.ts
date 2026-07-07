@@ -35,6 +35,16 @@ export {
   ThreadAgentDurableObject,
 } from "./thread-agent";
 export {
+  CuratorAgentDurableObject,
+  type CuratorAgentSeed,
+  type CuratorTurnEnvelope,
+  createProductionCuratorAgent,
+  curatorTurnEnvelopeSchema,
+  parseCuratorEnvelope,
+  type ProductionCuratorAgentConfig,
+  serializeCuratorEnvelope,
+} from "./curator-agent";
+export {
   createGatewayModel,
   gatewayModelFactories,
   type GatewayModelEnv,
@@ -63,7 +73,6 @@ export {
 } from "./model-catalog";
 export { createD1ModelRouter, type D1ModelRouterConfig } from "./model-routing";
 export {
-  createCuratorThinkAgentPlaceholder,
   createR2MarkdownSkillStorePlaceholder,
   createR2VirtualFsArtifactStorePlaceholder,
   createThinkThreadAgentPlaceholder,

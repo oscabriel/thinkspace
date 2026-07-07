@@ -3,6 +3,7 @@ import type {
   ByokKeyMissingError,
   CuratorExecutionFailedError,
   CuratorSessionNotFoundError,
+  CuratorUnaddressableError,
   NotImplementedError,
   TenantGuardViolationError,
 } from "../errors";
@@ -17,6 +18,7 @@ export type CuratorAgentError =
   | ByokKeyMissingError
   | CuratorExecutionFailedError
   | CuratorSessionNotFoundError
+  | CuratorUnaddressableError
   | NotImplementedError
   | TenantGuardViolationError;
 
