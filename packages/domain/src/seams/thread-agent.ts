@@ -1,5 +1,6 @@
 import type {
   AuthzError,
+  CommentParentNotInThreadError,
   NotImplementedError,
   RunFailureError,
   TenantGuardViolationError,
@@ -9,6 +10,7 @@ import type {
 import type {
   ChannelId,
   CommentId,
+  MemberId,
   RunId,
   ThreadId,
   WorkspaceId,
@@ -26,6 +28,7 @@ import type { Branch, Comment } from "../thread";
 
 export type ThreadAgentError =
   | AuthzError
+  | CommentParentNotInThreadError
   | NotImplementedError
   | RunFailureError
   | TenantGuardViolationError
@@ -40,6 +43,16 @@ export interface BranchSnapshot {
   readonly ancestors: readonly Comment[];
   readonly branch: Branch;
   readonly subtree: readonly Comment[];
+}
+
+/**
+ * E8.4: the DO-resident outcome of a member comment append. The DO owns the comment tree,
+ * so it is the authority on both parent-in-thread validation and the participant set the
+ * bump fans unread out to (collectThreadParticipants over its resident comments + runs).
+ */
+export interface CommentAppend {
+  readonly comment: Comment;
+  readonly participants: readonly MemberId[];
 }
 
 /** Sub-agent activity is state OF the run (ADR 0028), rendered anchored at the dispatch target. */
@@ -88,7 +101,7 @@ export interface ThreadAgent {
   readonly address: ThreadAgentAddress;
   readonly appendComment: (input: {
     readonly comment: Comment;
-  }) => AsyncResult<Comment, ThreadAgentError>;
+  }) => AsyncResult<CommentAppend, ThreadAgentError>;
   readonly getRun: (input: {
     readonly runId: RunId;
   }) => AsyncResult<RunDetail | null, ThreadAgentError>;

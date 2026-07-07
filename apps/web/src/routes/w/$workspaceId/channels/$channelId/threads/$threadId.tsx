@@ -24,9 +24,12 @@ import { toast } from "sonner";
 import { CommentItem } from "@/components/thread/comment-item";
 import { RunCardLive } from "@/components/thread/run-card-live";
 import type { ActiveRun } from "@/components/thread/run-card-live";
+import { ThreadComposer } from "@/components/thread/thread-composer";
 import {
   ApiRequestError,
+  type BranchSnapshot,
   type Comment,
+  appendComment,
   clearThreadUnread,
   dispatchThread,
 } from "@/lib/api";
@@ -65,9 +68,10 @@ const ThreadView = () => {
 
   const channel = useQuery(channelQuery(workspaceId, channelId));
   const threads = useQuery(channelThreadsQuery(workspaceId, channelId));
-  const threadName =
-    threads.data?.threads.find((thread) => thread.id === threadId)?.name ??
-    "Thread";
+  const threadEntry = threads.data?.threads.find(
+    (thread) => thread.id === threadId
+  );
+  const threadName = threadEntry?.name ?? "Thread";
 
   // ADR 0027: opening a thread clears the member's unread for it.
   useEffect(() => {
@@ -88,7 +92,13 @@ const ThreadView = () => {
     };
   }, [queryClient, threadId, workspaceId]);
 
-  const hasRoot = typeof root === "string" && root.length > 0;
+  // The branch anchor: the ?root= the create-and-ask navigation carries (immediate), else the
+  // server-persisted rootCommentId on the thread index row (E8.4). Only a legacy row that
+  // predates the column (null root) still falls through to the teaching empty state.
+  const rootCommentId =
+    typeof root === "string" && root.length > 0
+      ? root
+      : (threadEntry?.rootCommentId ?? null);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -106,14 +116,19 @@ const ThreadView = () => {
         </h1>
       </header>
 
-      {hasRoot ? (
+      {rootCommentId !== null ? (
         <ThreadConversation
           channelId={channelId}
           initialRunId={run}
-          rootCommentId={root}
+          rootCommentId={rootCommentId}
           threadId={threadId}
           workspaceId={workspaceId}
         />
+      ) : threads.isPending ? (
+        <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-6 py-6">
+          <Skeleton className="h-16 w-3/4" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       ) : (
         <MissingRootNotice />
       )}
@@ -235,6 +250,61 @@ const ThreadConversation = ({
     },
   });
 
+  const branchKey = branchQuery(workspaceId, {
+    channelId,
+    rootCommentId,
+    threadId,
+  }).queryKey;
+
+  // BACKLOG E7.4 optimistic append: the member's reply lands in the branch immediately
+  // (nested under the latest comment) and is reconciled by the hub comment_added event or
+  // the onSettled refetch. commentId is the idempotency key, so a retry converges (E8.4).
+  const reply = useMutation<
+    Comment,
+    Error,
+    { readonly body: string; readonly commentId: string },
+    { readonly previous: BranchSnapshot | undefined }
+  >({
+    mutationFn: (input) =>
+      appendComment(workspaceId, {
+        body: input.body,
+        channelId,
+        commentId: input.commentId,
+        gestureId: uuidv7(),
+        parentCommentId: latestCommentId,
+        threadId,
+      }),
+    onError: (error, _input, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(branchKey, context.previous);
+      }
+      const kind =
+        error instanceof ApiRequestError ? error.kind : "unknown_error";
+      toast.error(`Could not post your reply: ${kind}`);
+    },
+    onMutate: (input) => {
+      const previous =
+        queryClient.getQueryData<BranchSnapshot>(branchKey);
+      const optimistic: Comment = {
+        author: { kind: "member", memberId: "" },
+        body: input.body,
+        createdAt: new Date().toISOString(),
+        id: input.commentId,
+        parent: { kind: "nested", parentCommentId: latestCommentId },
+        threadId,
+        workspaceId,
+      };
+      if (previous !== undefined) {
+        queryClient.setQueryData<BranchSnapshot>(branchKey, {
+          ...previous,
+          subtree: [...previous.subtree, optimistic],
+        });
+      }
+      return { previous };
+    },
+    onSettled: () => refetchBranch(),
+  });
+
   if (branch.isPending) {
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-6 py-6">
@@ -286,34 +356,43 @@ const ThreadConversation = ({
       </MessageScrollerProvider>
 
       <footer className="shrink-0 border-border border-t px-6 py-4">
-        <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
-            <span
-              aria-hidden="true"
-              className={
-                hubStatus === "open"
-                  ? "size-2 rounded-full bg-success"
-                  : "size-2 rounded-full bg-muted-foreground"
-              }
-            />
-            {hubStatus === "open"
-              ? "Live"
-              : hubStatus === "connecting"
-                ? "Connecting…"
-                : "Reconnecting — updates may lag"}
-          </span>
-          <Button
-            disabled={dispatch.isPending}
-            onClick={() => dispatch.mutate()}
-            size="sm"
-          >
-            {dispatch.isPending ? (
-              <RefreshCw className="size-4 animate-spin" />
-            ) : (
-              <Sparkles className="size-4" />
-            )}
-            Ask the agent to continue
-          </Button>
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+          <ThreadComposer
+            onSubmit={(body) => reply.mutate({ body, commentId: uuidv7() })}
+            pending={reply.isPending}
+            placeholder="Reply in this thread…"
+            submitLabel="Reply"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
+              <span
+                aria-hidden="true"
+                className={
+                  hubStatus === "open"
+                    ? "size-2 rounded-full bg-success"
+                    : "size-2 rounded-full bg-muted-foreground"
+                }
+              />
+              {hubStatus === "open"
+                ? "Live"
+                : hubStatus === "connecting"
+                  ? "Connecting…"
+                  : "Reconnecting — updates may lag"}
+            </span>
+            <Button
+              disabled={dispatch.isPending}
+              onClick={() => dispatch.mutate()}
+              size="sm"
+              variant="outline"
+            >
+              {dispatch.isPending ? (
+                <RefreshCw className="size-4 animate-spin" />
+              ) : (
+                <Sparkles className="size-4" />
+              )}
+              Ask the agent to continue
+            </Button>
+          </div>
         </div>
       </footer>
     </>
@@ -321,9 +400,9 @@ const ThreadConversation = ({
 };
 
 /**
- * Recorded gap (see thread-roots.ts): the branch read needs a root comment id, and the MVP read
- * surface exposes no map from threadId → opening comment id. A thread opened without a known
- * root (e.g. started on another device) cannot rehydrate its history yet.
+ * Residual empty state (E8.4): the server now persists rootCommentId on every thread it
+ * creates, so this is reachable only for a legacy dev row written before the column existed
+ * (nullable, no backfill). Such a thread has no branch anchor to rehydrate from.
  */
 const MissingRootNotice = () => (
   <div className="mx-auto w-full max-w-2xl px-6 py-8">
@@ -332,10 +411,10 @@ const MissingRootNotice = () => (
         <EmptyMedia variant="icon">
           <History />
         </EmptyMedia>
-        <EmptyTitle>History not available here</EmptyTitle>
+        <EmptyTitle>History not available</EmptyTitle>
         <EmptyDescription>
-          This thread was started elsewhere, so its full history is not loaded in
-          this browser. Start a thread from the channel to follow it live.
+          This thread predates full-history support, so its opening comment cannot
+          be located. Newer threads open with their complete history.
         </EmptyDescription>
       </EmptyHeader>
     </Empty>

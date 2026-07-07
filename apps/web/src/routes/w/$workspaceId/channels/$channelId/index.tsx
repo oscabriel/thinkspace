@@ -21,7 +21,6 @@ import { ThreadRow } from "@/components/shell/thread-row";
 import { ThreadComposer } from "@/components/thread/thread-composer";
 import { ApiRequestError, archiveChannel, createThread } from "@/lib/api";
 import { uuidv7 } from "@/lib/ids";
-import { recallThreadRoot, rememberThreadRoot } from "@/lib/thread-roots";
 import {
   channelQuery,
   channelThreadsQuery,
@@ -34,8 +33,9 @@ import {
  * to one channel"), and the "start a thread" composer. Creating a thread is a create-and-ask
  * gesture (ADR 0034 §6): one PUT mints the opening comment *and* dispatches the channel agent
  * at it, so a member's first message and the agent's first turn are one atomic, replayable
- * action. On success we navigate into the thread view carrying the client-minted root comment
- * id (the branch anchor the read surface cannot otherwise recover — see thread-roots.ts).
+ * action. On success we navigate into the thread view carrying the just-minted root comment id
+ * so the branch renders instantly; the server now persists rootCommentId on the thread row
+ * (E8.4), so links from the feed recover it directly — no localStorage bridge.
  */
 const ChannelView = () => {
   const { channelId, workspaceId } = Route.useParams();
@@ -82,7 +82,6 @@ const ChannelView = () => {
       toast.error(`Could not start thread: ${kind}`);
     },
     onSuccess: (receipt) => {
-      rememberThreadRoot(receipt.thread.id, receipt.openingComment.id);
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.channelThreads(workspaceId, channelId),
       });
@@ -221,7 +220,7 @@ const ChannelView = () => {
               className="rounded-md transition-colors hover:bg-muted/50"
               key={thread.id}
               params={{ channelId, threadId: thread.id, workspaceId }}
-              search={{ root: recallThreadRoot(thread.id) }}
+              search={{ root: thread.rootCommentId ?? undefined }}
               to="/w/$workspaceId/channels/$channelId/threads/$threadId"
             >
               <ThreadRow thread={thread} unread={false} />

@@ -4,12 +4,14 @@ import type { ShapeSnapshot } from "../../shape";
 import type { Comment } from "../../thread";
 import type { ContractTestApi } from "../contract-api";
 import {
+  commentId,
   makeComment,
   makeDispatchTrigger,
   makeQueuedRun,
   makeRunningSubAgentActivity,
   makeShapeSnapshot,
   makeShapeStructure,
+  memberId,
   otherWorkspaceId,
   runId,
   threadAgentAddress,
@@ -320,6 +322,96 @@ export const defineThreadAgentContract = (input: {
       expect(result.shapeSnapshot.structure.systemPrompt).toBe(
         updated.structure.systemPrompt
       );
+    });
+  });
+
+  describe("ThreadAgent.appendComment — member reply (E8.4)", () => {
+    test("appends a reply nested under an in-thread parent and returns the thread participant set", async () => {
+      const topLevel = makeComment({ id: "comment-top", memberId: "member-1" });
+      const otherReply = makeComment({
+        id: "comment-other",
+        memberId: "member-2",
+        parentCommentId: "comment-top",
+      });
+      const agent = await makeThreadAgent({
+        address: threadAgentAddress,
+        comments: [topLevel, otherReply],
+      });
+
+      const reply = makeComment({
+        id: "comment-reply",
+        memberId: "member-3",
+        parentCommentId: "comment-top",
+      });
+      const appended = unwrapOk(await agent.appendComment({ comment: reply }));
+
+      expect(appended.comment).toEqual(reply);
+      // Participants = every member who has commented in the thread, the new author included.
+      expect(new Set(appended.participants)).toEqual(
+        new Set([
+          memberId("member-1"),
+          memberId("member-2"),
+          memberId("member-3"),
+        ])
+      );
+
+      const branch = unwrapOk(
+        await agent.loadBranch({ rootCommentId: topLevel.id })
+      );
+      expect(
+        branch.subtree.some((comment) => comment.id === reply.id)
+      ).toBe(true);
+    });
+
+    test("rejects a reply whose parent is not resident in the thread with comment_parent_not_in_thread", async () => {
+      const topLevel = makeComment({ id: "comment-top" });
+      const agent = await makeThreadAgent({
+        address: threadAgentAddress,
+        comments: [topLevel],
+      });
+
+      const orphan = makeComment({
+        id: "comment-orphan",
+        parentCommentId: "comment-ghost",
+      });
+      const error = unwrapErr(await agent.appendComment({ comment: orphan }));
+
+      expect(error).toEqual({
+        kind: "comment_parent_not_in_thread",
+        parentCommentId: commentId("comment-ghost"),
+        threadId: threadAgentAddress.threadId,
+        workspaceId: threadAgentAddress.workspaceId,
+      });
+
+      // The rejected comment left no trace in the tree.
+      const branch = unwrapOk(
+        await agent.loadBranch({ rootCommentId: topLevel.id })
+      );
+      expect(branch.subtree.map((comment) => comment.id)).toEqual([
+        topLevel.id,
+      ]);
+    });
+
+    test("a replayed append (same comment id) converges — the tree holds one copy (E8.4)", async () => {
+      const topLevel = makeComment({ id: "comment-top" });
+      const agent = await makeThreadAgent({
+        address: threadAgentAddress,
+        comments: [topLevel],
+      });
+
+      const reply = makeComment({
+        id: "comment-reply",
+        parentCommentId: "comment-top",
+      });
+      unwrapOk(await agent.appendComment({ comment: reply }));
+      unwrapOk(await agent.appendComment({ comment: reply }));
+
+      const branch = unwrapOk(
+        await agent.loadBranch({ rootCommentId: topLevel.id })
+      );
+      expect(
+        branch.subtree.filter((comment) => comment.id === reply.id).length
+      ).toBe(1);
     });
   });
 

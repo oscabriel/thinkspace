@@ -58,6 +58,11 @@ export interface Thread {
   readonly lastActivityAt: string;
   readonly lifecycle: ThreadLifecycle;
   readonly name: string;
+  /**
+   * E8.4: the thread's opening comment id — the branch anchor a threadId-only surface reads
+   * back (ADR 0025). Null for dev rows that predate the column; new threads always carry it.
+   */
+  readonly rootCommentId: string | null;
   readonly workspaceId: string;
 }
 
@@ -549,3 +554,36 @@ export const fetchArtifactVersionContent = async (
   }
   return await response.blob();
 };
+
+/**
+ * E8.4 POST append: a member's mid-thread reply, nested under an existing comment, without
+ * triggering a run (distinct from dispatchThread). The client mints commentId and gestureId;
+ * commentId is the idempotency key, so replaying the same ids converges on the one comment.
+ * Returns the appended Comment; the thread's live branch reconciles it via the hub or a refetch.
+ */
+export const appendComment = (
+  workspaceId: string,
+  input: {
+    readonly body: string;
+    readonly channelId: string;
+    readonly commentId: string;
+    readonly gestureId: string;
+    readonly parentCommentId: string;
+    readonly threadId: string;
+  }
+) =>
+  apiFetch<Comment>(
+    workspaceId,
+    `/channels/${encodeURIComponent(input.channelId)}/threads/${encodeURIComponent(
+      input.threadId
+    )}/comments`,
+    {
+      body: JSON.stringify({
+        body: input.body,
+        commentId: input.commentId,
+        gestureId: input.gestureId,
+        parentCommentId: input.parentCommentId,
+      }),
+      method: "POST",
+    }
+  );
