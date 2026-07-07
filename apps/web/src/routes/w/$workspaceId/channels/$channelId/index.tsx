@@ -13,7 +13,7 @@ import {
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
-import { Archive, Hash, Lock, MessagesSquare } from "lucide-react";
+import { Archive, Hash, Lock, MessagesSquare, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -168,15 +168,30 @@ const ChannelView = () => {
                 </Button>
               </div>
             ) : (
-              <Button
-                className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => setConfirmingArchive(true)}
-                size="sm"
-                variant="ghost"
-              >
-                <Archive className="size-4" />
-                Archive
-              </Button>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  onClick={() =>
+                    navigate({
+                      params: { channelId, workspaceId },
+                      to: "/w/$workspaceId/channels/$channelId/shape",
+                    })
+                  }
+                  size="sm"
+                  variant="ghost"
+                >
+                  <Settings2 className="size-4" />
+                  Edit shape
+                </Button>
+                <Button
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setConfirmingArchive(true)}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <Archive className="size-4" />
+                  Archive
+                </Button>
+              </div>
             ))}
         </div>
         <div className="flex items-center gap-2 pl-7 text-muted-foreground text-xs">

@@ -102,6 +102,12 @@ export const server = await Worker("server", {
     ),
     AI_GATEWAY_URL: `https://gateway.ai.cloudflare.com/v1/${aiGateway.accountId}/${aiGateway.gatewayName}`,
     ARTIFACTS: artifacts,
+    /**
+     * E4.2/E7.4 (baked decision 5): hub DOs verify the WS connect JWT against the auth
+     * origin's JWKS. Without this binding createHubJwks throws and every authenticated
+     * socket dies at upgrade, silently degrading clients to polling.
+     */
+    AUTH_JWKS_URL: `${authUrl}/api/auth/jwks`,
     BETTER_AUTH_SECRET: required(
       alchemy.secret.env.BETTER_AUTH_SECRET,
       "BETTER_AUTH_SECRET"

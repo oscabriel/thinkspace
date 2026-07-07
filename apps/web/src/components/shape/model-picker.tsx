@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   Empty,
   EmptyDescription,
@@ -77,9 +78,16 @@ export const ModelPicker = ({
           </EmptyMedia>
           <EmptyTitle>No models available yet</EmptyTitle>
           <EmptyDescription>
-            A channel can only use a model whose provider you have keyed. Register
-            a provider key in workspace settings to unlock the catalog — then this
-            picker fills with the models that key opens.
+            A channel can only use a model whose provider you have keyed.{" "}
+            <Link
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              params={{ workspaceId }}
+              to="/w/$workspaceId/settings/providers"
+            >
+              Register a provider key
+            </Link>{" "}
+            to unlock the catalog — then this picker fills with the models that
+            key opens.
           </EmptyDescription>
         </EmptyHeader>
       </Empty>

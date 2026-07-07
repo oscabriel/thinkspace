@@ -418,6 +418,8 @@ export const clearThreadUnread = (workspaceId: string, threadId: string) =>
 export const fetchHubToken = (workspaceId: string) =>
   apiFetch<{ token: string }>(workspaceId, "/token");
 
+
+/**
  * A channel's live shape (GET /channels/:channelId/shape) — the edit form's prefill source so an
  * owner re-authors from real values rather than blanking the config. Only `structure` is used by
  * the form; the ids/timestamps ride along for completeness (Dates serialize to ISO strings).
@@ -426,7 +428,35 @@ export interface Shape {
   readonly createdAt: string;
   readonly id: string;
   readonly structure: ShapeStructure;
+  readonly updatedAt: string;
+  readonly workspaceId: string;
+}
 
+export const fetchChannelShape = (workspaceId: string, channelId: string) =>
+  apiFetch<Shape>(
+    workspaceId,
+    `/channels/${encodeURIComponent(channelId)}/shape`
+  );
+
+/**
+ * Edit a channel's shape (PUT /channels/:channelId/shape, owner/admin only). The server
+ * re-validates the model against the BYOK gate + live catalog and resnapshots the channel's live
+ * threads (ADR 0007 explicit update). Surfaces 403 insufficient_role and 409
+ * byok_key_missing / model_not_in_catalog verbatim for teaching copy.
+ */
+export const editChannelShape = (
+  workspaceId: string,
+  channelId: string,
+  shape: ShapeStructure
+) =>
+  apiFetch<Channel>(
+    workspaceId,
+    `/channels/${encodeURIComponent(channelId)}/shape`,
+    { body: JSON.stringify({ shape }), method: "PUT" }
+  );
+
+
+/**
  * The Library read surface (E7.6, apps/server/src/artifacts.ts) mirroring
  * packages/domain/src/artifact.ts over the wire. Artifacts are agent-authored (or member
  * uploads), versioned append-only with a head pointer (ADR 0032); the list/detail reads see
@@ -474,29 +504,6 @@ export interface Artifact {
   readonly updatedAt: string;
   readonly workspaceId: string;
 }
-
-export const fetchChannelShape = (workspaceId: string, channelId: string) =>
-  apiFetch<Shape>(
-    workspaceId,
-    `/channels/${encodeURIComponent(channelId)}/shape`
-  );
-
-/**
- * Edit a channel's shape (PUT /channels/:channelId/shape, owner/admin only). The server
- * re-validates the model against the BYOK gate + live catalog and resnapshots the channel's live
- * threads (ADR 0007 explicit update). Surfaces 403 insufficient_role and 409
- * byok_key_missing / model_not_in_catalog verbatim for teaching copy.
- */
-export const editChannelShape = (
-  workspaceId: string,
-  channelId: string,
-  shape: ShapeStructure
-) =>
-  apiFetch<Channel>(
-    workspaceId,
-    `/channels/${encodeURIComponent(channelId)}/shape`,
-    { body: JSON.stringify({ shape }), method: "PUT" }
-  );
 
 export interface ArtifactDetail {
   readonly artifact: Artifact;
