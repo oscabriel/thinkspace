@@ -147,8 +147,70 @@ const hubJwksFixture = {
   ],
 };
 
+// E6.3: a minimal Streamable-HTTP MCP server so the real ThreadAgent DO can `addMcpServer`
+// against a live endpoint under miniflare and we can pin the ADR 0015 §4 persist/restore
+// gotcha. Non-streaming JSON mode: initialize + tools/list answer with 200 application/json;
+// the `notifications/initialized` notification answers 202. One tool ("echo") is advertised.
+const MCP_SESSION_ID = "mcp-test-session-1";
+
+const mcpToolsFixture = [
+  {
+    description: "Echo back the provided text (mock MCP tool).",
+    inputSchema: {
+      properties: { text: { type: "string" } },
+      required: ["text"],
+      type: "object",
+    },
+    name: "echo",
+  },
+];
+
+const jsonRpcResult = (id, result) => ({ id, jsonrpc: "2.0", result });
+
+const handleMcpRequest = async (request) => {
+  if (request.method !== "POST") {
+    // No standalone SSE stream — the client's `notifications/initialized` GET falls back here.
+    return new Response(null, { status: 405 });
+  }
+
+  const message = await request.json().catch(() => null);
+  if (message === null || message.method === undefined) {
+    return new Response(null, { status: 400 });
+  }
+
+  // Notifications carry no id and expect a bodyless 202.
+  if (message.id === undefined) {
+    return new Response(null, { status: 202 });
+  }
+
+  const headers = { "mcp-session-id": MCP_SESSION_ID };
+
+  if (message.method === "initialize") {
+    return Response.json(
+      jsonRpcResult(message.id, {
+        capabilities: { tools: {} },
+        protocolVersion: message.params?.protocolVersion ?? "2025-06-18",
+        serverInfo: { name: "mock-mcp", version: "0.0.0" },
+      }),
+      { headers }
+    );
+  }
+
+  if (message.method === "tools/list") {
+    return Response.json(
+      jsonRpcResult(message.id, { tools: mcpToolsFixture }),
+      {
+        headers,
+      }
+    );
+  }
+
+  // Any other request (prompts/list, resources/list, ping…) gets an empty-ish ok result.
+  return Response.json(jsonRpcResult(message.id, {}), { headers });
+};
+
 export default {
-  fetch(request) {
+  async fetch(request) {
     const url = new URL(request.url);
     if (url.hostname === "models.dev") {
       return Response.json(modelsDevFixture);
@@ -161,6 +223,9 @@ export default {
     }
     if (url.hostname === "api.cloudflare.com") {
       return handleSecretsStore(request, url);
+    }
+    if (url.hostname === "mcp.test.local") {
+      return handleMcpRequest(request);
     }
     return fetch(request);
   },

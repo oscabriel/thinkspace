@@ -11,10 +11,14 @@ import type { ContractTestApi } from "../contract-api";
 import {
   channelId,
   makeChannel,
+  makeMcpHostApproval,
+  makeMcpServer,
   makeShape,
   makeThread,
   makeUnread,
   makeWorkspaceToolDisable,
+  mcpHost,
+  mcpServerId,
   memberId,
   otherWorkspaceId,
   shapeId,
@@ -428,6 +432,80 @@ export const defineTenantDataAccessContract = (input: {
         })
       );
       expect(unwrapOk(await data.listWorkspaceToolDisables())).toEqual([]);
+    });
+  });
+
+  describe("TenantDataAccess MCP registry — workspace servers + host allowlist (ADR 0002, E6.3)", () => {
+    test("put_mcp_server round-trips through getMcpServer and listMcpServers", async () => {
+      const data = await makeTenantDataAccess({
+        context: testTenantContext,
+        workspace: testWorkspace,
+      });
+
+      const server = makeMcpServer({ host: "mcp.example.com", id: "mcp-1" });
+      unwrapOk(
+        await data.batch({
+          commands: [{ kind: "put_mcp_server", mcpServer: server }],
+          workspaceId: testWorkspaceId,
+        })
+      );
+
+      expect(
+        unwrapOk(await data.getMcpServer({ mcpServerId: server.id }))
+      ).toEqual(server);
+      expect(unwrapOk(await data.listMcpServers())).toEqual([server]);
+    });
+
+    test("put_mcp_host_approval and delete_mcp_host_approval round-trip through the allowlist", async () => {
+      const data = await makeTenantDataAccess({
+        context: testTenantContext,
+        workspace: testWorkspace,
+      });
+
+      const approval = makeMcpHostApproval({ host: "mcp.example.com" });
+      unwrapOk(
+        await data.batch({
+          commands: [{ hostApproval: approval, kind: "put_mcp_host_approval" }],
+          workspaceId: testWorkspaceId,
+        })
+      );
+      expect(
+        unwrapOk(
+          await data.getMcpHostApproval({ host: mcpHost("mcp.example.com") })
+        )
+      ).toEqual(approval);
+      expect(unwrapOk(await data.listMcpHostApprovals())).toEqual([approval]);
+
+      unwrapOk(
+        await data.batch({
+          commands: [
+            {
+              host: mcpHost("mcp.example.com"),
+              kind: "delete_mcp_host_approval",
+            },
+          ],
+          workspaceId: testWorkspaceId,
+        })
+      );
+      expect(unwrapOk(await data.listMcpHostApprovals())).toEqual([]);
+      expect(
+        unwrapOk(
+          await data.getMcpHostApproval({ host: mcpHost("mcp.example.com") })
+        )
+      ).toBeNull();
+    });
+
+    test("an unknown server id reads back as null, not a foreign-tenant leak", async () => {
+      const data = await makeTenantDataAccess({
+        context: testTenantContext,
+        workspace: testWorkspace,
+      });
+
+      expect(
+        unwrapOk(
+          await data.getMcpServer({ mcpServerId: mcpServerId("absent") })
+        )
+      ).toBeNull();
     });
   });
 

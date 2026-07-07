@@ -26,6 +26,9 @@ export {
 export {
   type CatalogWorkspaceShapeToolResolverConfig,
   createCatalogWorkspaceShapeToolResolver,
+  createWorkerMcpEgressPolicy,
+  FIRST_PARTY_CATALOG,
+  type WorkerMcpEgressPolicyConfig,
 } from "./tool-resolution";
 export {
   buildCompletionFlow,
@@ -75,7 +78,6 @@ export {
 export {
   createCuratorThinkAgentPlaceholder,
   createThinkThreadAgentPlaceholder,
-  createWorkerMcpEgressPolicyPlaceholder,
 } from "./placeholders";
 export {
   createR2MarkdownSkillStore,

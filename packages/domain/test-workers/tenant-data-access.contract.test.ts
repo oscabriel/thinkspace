@@ -10,6 +10,8 @@ beforeEach(async () => {
   await env.DB.batch(
     [
       "channel",
+      "mcp_host_approval",
+      "mcp_server",
       "shape",
       "thread",
       "unread",

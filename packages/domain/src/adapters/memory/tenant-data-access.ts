@@ -490,6 +490,18 @@ export const createMemoryTenantDataAccess = <
         workspaceId: config.context.workspaceId,
       });
     },
+    listMcpHostApprovals: async () =>
+      ok(
+        [...state.mcpHostApprovals.values()].filter((approval) =>
+          isInTenant(config.context, approval)
+        )
+      ),
+    listMcpServers: async () =>
+      ok(
+        [...state.mcpServers.values()].filter((server) =>
+          isInTenant(config.context, server)
+        )
+      ),
     listMemberUnread: async (input) =>
       ok(
         [...state.unread.values()].filter(

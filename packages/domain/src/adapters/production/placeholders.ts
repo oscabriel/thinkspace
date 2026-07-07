@@ -3,7 +3,6 @@ import { err } from "../../result";
 import type { CuratorAgent } from "../../seams/curator-agent";
 import type { TenantContext } from "../../seams/tenant-data-access";
 import type { ThreadAgent, ThreadAgentAddress } from "../../seams/thread-agent";
-import type { McpEgressPolicy } from "../../seams/tool-resolution";
 
 const notImplemented = async (seam: string) =>
   err(createNotImplementedError(seam));
@@ -21,14 +20,6 @@ export const createThinkThreadAgentPlaceholder = (
   resnapshot: async (_input) => notImplemented("ThinkThreadAgent.resnapshot"),
   run: async (_input) => notImplemented("ThinkThreadAgent.run"),
   schedule: async (_input) => notImplemented("ThinkThreadAgent.schedule"),
-});
-
-export const createWorkerMcpEgressPolicyPlaceholder = (
-  context: TenantContext
-): McpEgressPolicy => ({
-  authorize: async (_input) =>
-    notImplemented("WorkerMcpEgressPolicy.authorize"),
-  context,
 });
 
 export const createCuratorThinkAgentPlaceholder = (

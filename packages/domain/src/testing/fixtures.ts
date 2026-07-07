@@ -13,7 +13,7 @@ import {
   toolIdSchema,
   workspaceIdSchema,
 } from "../ids";
-import type { McpServer } from "../mcp";
+import type { McpHostApproval, McpServer } from "../mcp";
 import {
   commentBodySchema,
   facetNameSchema,
@@ -280,6 +280,16 @@ export const makeMcpServer = (input: {
   id: mcpServerId(input.id),
   name: mcpServerNameSchema.parse(`server ${input.id}`),
   url: mcpServerUrlSchema.parse(`https://${input.host}/mcp`),
+  workspaceId: input.workspaceId ?? testWorkspaceId,
+});
+
+export const makeMcpHostApproval = (input: {
+  readonly host: string;
+  readonly workspaceId?: McpHostApproval["workspaceId"];
+}): McpHostApproval => ({
+  approvedAt: new Date("2026-06-30T00:00:00Z"),
+  approvedByOwnerMemberId: testMemberId,
+  host: mcpHost(input.host),
   workspaceId: input.workspaceId ?? testWorkspaceId,
 });
 

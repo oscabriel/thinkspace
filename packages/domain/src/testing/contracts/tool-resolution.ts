@@ -48,15 +48,16 @@ export type McpEgressPolicyFactory = (
 ) => Promise<McpEgressPolicy> | McpEgressPolicy;
 
 /**
- * Which catalog an adapter resolves against.
- * - `populated`: a stocked catalog exists, so the full three-layer model
- *   (catalog ∩ workspace permission ∩ shape selection) is observable — the
- *   memory adapter's semantics.
- * - `empty`: the v1 production reality (E1.6) — no built-in tools, no MCP
- *   registry (E6.3) — so every resolution silently intersects to an empty
- *   effective toolset, echoing artifactAccessScope through.
+ * Which layer-1 catalog an adapter resolves against.
+ * - `populated`: a stocked first-party catalog exists, so the full three-layer model
+ *   (catalog ∩ workspace permission ∩ shape selection) plus the workspace skill pool is
+ *   observable — the memory adapter's semantics.
+ * - `mcp_only`: the v1 production reality (E6.3, baked decision 7) — no first-party catalog
+ *   tools and no workspace skill pool yet (E6.1), so layer 1 is MCP-provided tools only. The
+ *   MCP registry + host allowlist layer is fully real; first-party tool / skill selections
+ *   silently intersect to empty.
  */
-export type ToolResolutionCatalog = "empty" | "populated";
+export type ToolResolutionCatalog = "mcp_only" | "populated";
 
 const makeResolutionRequest = (input?: {
   readonly activeToolIds?: readonly string[];
@@ -79,16 +80,105 @@ const makeResolutionRequest = (input?: {
   shape: input?.shape ?? makeShapeStructure(),
 });
 
-/** The v1 empty-catalog production semantics (E1.6): silent intersect to an empty toolset. */
-const defineEmptyCatalogToolResolverPins = (input: {
+/**
+ * The MCP registry + host allowlist layer (ADR 0002/0004). Real for BOTH catalogs: memory
+ * seeds servers/approvals in config, production reads them from the D1 MCP registry — same
+ * fail-closed intersection either way.
+ */
+const defineMcpResolutionPins = (input: {
   readonly api: ContractTestApi;
   readonly makeToolResolver: ToolResolverFactory;
 }): void => {
   const { describe, expect, test } = input.api;
   const { makeToolResolver } = input;
 
-  describe("ToolResolver — empty catalog silently intersects to an empty toolset (E1.6)", () => {
-    test("shape-selected tools, beforeTurn additions, and active narrowing all drop out — no unknown-tool error", async () => {
+  describe("ToolResolver — MCP host allowlist fails closed (ADR 0002)", () => {
+    test("a shape-selected MCP server on an approved host resolves into the effective toolset", async () => {
+      const server = makeMcpServer({ host: "mcp.example.com", id: "mcp-1" });
+      const resolver = await makeToolResolver({
+        approvedMcpHosts: [mcpHost("mcp.example.com")],
+        context: testTenantContext,
+        mcpServers: [server],
+      });
+
+      const toolset = unwrapOk(
+        await resolver.resolve(
+          makeResolutionRequest({
+            shape: makeShapeStructure({ mcpServerSelection: ["mcp-1"] }),
+          })
+        )
+      );
+
+      expect(toolset.mcpServers).toEqual([server]);
+    });
+
+    test("a shape-selected MCP server on an unapproved host fails the whole resolution with mcp_host_not_allowed", async () => {
+      const server = makeMcpServer({ host: "rogue.example.com", id: "mcp-1" });
+      const resolver = await makeToolResolver({
+        approvedMcpHosts: [],
+        context: testTenantContext,
+        mcpServers: [server],
+      });
+
+      const error = unwrapErr(
+        await resolver.resolve(
+          makeResolutionRequest({
+            shape: makeShapeStructure({ mcpServerSelection: ["mcp-1"] }),
+          })
+        )
+      );
+
+      expect(error).toEqual({
+        host: mcpHost("rogue.example.com"),
+        kind: "mcp_host_not_allowed",
+        mcpServerId: server.id,
+        workspaceId: testWorkspaceId,
+      });
+    });
+
+    test("a registered MCP server the shape does NOT select is left out (shape-selection layer)", async () => {
+      const server = makeMcpServer({ host: "mcp.example.com", id: "mcp-1" });
+      const resolver = await makeToolResolver({
+        approvedMcpHosts: [mcpHost("mcp.example.com")],
+        context: testTenantContext,
+        mcpServers: [server],
+      });
+
+      const toolset = unwrapOk(
+        await resolver.resolve(
+          makeResolutionRequest({
+            shape: makeShapeStructure({ mcpServerSelection: [] }),
+          })
+        )
+      );
+
+      expect(toolset.mcpServers).toEqual([]);
+    });
+  });
+
+  describe("ToolResolver — invariant envelope", () => {
+    test("artifactAccessScope is echoed through unchanged and the workspace id is carried", async () => {
+      const resolver = await makeToolResolver({ context: testTenantContext });
+      const request = makeResolutionRequest();
+
+      const toolset = unwrapOk(await resolver.resolve(request));
+
+      expect(toolset.artifactAccessScope).toEqual(request.artifactAccessScope);
+      expect(toolset.workspaceId).toBe(testWorkspaceId);
+    });
+  });
+};
+
+/** v1 MCP-only catalog semantics (E6.3): first-party tools + skills silently intersect to empty. */
+const defineMcpOnlyCatalogPins = (input: {
+  readonly api: ContractTestApi;
+  readonly makeToolResolver: ToolResolverFactory;
+}): void => {
+  const { describe, expect, test } = input.api;
+  const { makeToolResolver } = input;
+
+  describe("ToolResolver — v1 catalog is MCP-only (baked decision 7)", () => {
+    test("shape-selected first-party tools, beforeTurn additions, and active narrowing all drop out — no unknown-tool error", async () => {
       const resolver = await makeToolResolver({
         catalogTools: [makeCatalogTool({ id: "tool-a" })],
         context: testTenantContext,
@@ -110,7 +200,7 @@ const defineEmptyCatalogToolResolverPins = (input: {
       expect(toolset.selectedToolIds).toEqual([]);
     });
 
-    test("shape-selected skills resolve to nothing (no workspace skill pool yet)", async () => {
+    test("shape-selected skills resolve to nothing (no workspace skill pool yet — E6.1)", async () => {
       const resolver = await makeToolResolver({
         context: testTenantContext,
         skills: [makeSkill({ id: "skill-playbook" })],
@@ -126,39 +216,10 @@ const defineEmptyCatalogToolResolverPins = (input: {
 
       expect(toolset.skills).toEqual([]);
     });
-
-    test("a shape-selected MCP server on an unapproved host does NOT fail — it is vacuously unreachable", async () => {
-      const server = makeMcpServer({ host: "rogue.example.com", id: "mcp-1" });
-      const resolver = await makeToolResolver({
-        approvedMcpHosts: [],
-        context: testTenantContext,
-        mcpServers: [server],
-      });
-
-      const toolset = unwrapOk(
-        await resolver.resolve(
-          makeResolutionRequest({
-            shape: makeShapeStructure({ mcpServerSelection: ["mcp-1"] }),
-          })
-        )
-      );
-
-      expect(toolset.mcpServers).toEqual([]);
-    });
-
-    test("artifactAccessScope is echoed through unchanged and the workspace id is carried", async () => {
-      const resolver = await makeToolResolver({ context: testTenantContext });
-      const request = makeResolutionRequest();
-
-      const toolset = unwrapOk(await resolver.resolve(request));
-
-      expect(toolset.artifactAccessScope).toEqual(request.artifactAccessScope);
-      expect(toolset.workspaceId).toBe(testWorkspaceId);
-    });
   });
 };
 
-/** The full three-layer catalog ∩ workspace ∩ shape semantics (memory adapter). */
+/** The full three-layer catalog ∩ workspace ∩ shape semantics over a stocked first-party catalog. */
 const definePopulatedCatalogToolResolverPins = (input: {
   readonly api: ContractTestApi;
   readonly makeToolResolver: ToolResolverFactory;
@@ -205,51 +266,6 @@ const definePopulatedCatalogToolResolverPins = (input: {
       );
 
       expect(toolset.selectedToolIds).toEqual([toolId("tool-a")]);
-    });
-  });
-
-  describe("ToolResolver — MCP host allowlist fails closed (ADR 0002)", () => {
-    test("a shape-selected MCP server on an approved host resolves into the effective toolset", async () => {
-      const server = makeMcpServer({ host: "mcp.example.com", id: "mcp-1" });
-      const resolver = await makeToolResolver({
-        approvedMcpHosts: [mcpHost("mcp.example.com")],
-        context: testTenantContext,
-        mcpServers: [server],
-      });
-
-      const toolset = unwrapOk(
-        await resolver.resolve(
-          makeResolutionRequest({
-            shape: makeShapeStructure({ mcpServerSelection: ["mcp-1"] }),
-          })
-        )
-      );
-
-      expect(toolset.mcpServers).toEqual([server]);
-    });
-
-    test("a shape-selected MCP server on an unapproved host fails the whole resolution with mcp_host_not_allowed", async () => {
-      const server = makeMcpServer({ host: "rogue.example.com", id: "mcp-1" });
-      const resolver = await makeToolResolver({
-        approvedMcpHosts: [],
-        context: testTenantContext,
-        mcpServers: [server],
-      });
-
-      const error = unwrapErr(
-        await resolver.resolve(
-          makeResolutionRequest({
-            shape: makeShapeStructure({ mcpServerSelection: ["mcp-1"] }),
-          })
-        )
-      );
-
-      expect(error).toEqual({
-        host: mcpHost("rogue.example.com"),
-        kind: "mcp_host_not_allowed",
-        mcpServerId: server.id,
-        workspaceId: testWorkspaceId,
-      });
     });
   });
 
@@ -420,25 +436,26 @@ const defineMcpEgressPolicyPins = (input: {
 export const defineToolResolutionContract = (input: {
   readonly api: ContractTestApi;
   /**
-   * Optional: an adapter with no egress policy of its own (the v1 production
-   * ToolResolver, whose WorkerMcpEgressPolicy is still a placeholder) omits this
-   * and the egress pins are skipped.
+   * Optional: an adapter that provides its own worker-side egress policy binds it here so the
+   * egress pins run; adapters without one omit it and those pins are skipped.
    */
   readonly makeMcpEgressPolicy?: McpEgressPolicyFactory;
   readonly makeToolResolver: ToolResolverFactory;
-  /** Defaults to `populated` — the full three-layer semantics. */
+  /** Defaults to `populated` — the full three-layer semantics over a first-party catalog. */
   readonly catalog?: ToolResolutionCatalog;
 }): void => {
   const { makeMcpEgressPolicy, makeToolResolver } = input;
   const catalog = input.catalog ?? "populated";
 
-  if (catalog === "empty") {
-    defineEmptyCatalogToolResolverPins({ api: input.api, makeToolResolver });
-  } else {
+  defineMcpResolutionPins({ api: input.api, makeToolResolver });
+
+  if (catalog === "populated") {
     definePopulatedCatalogToolResolverPins({
       api: input.api,
       makeToolResolver,
     });
+  } else {
+    defineMcpOnlyCatalogPins({ api: input.api, makeToolResolver });
   }
 
   if (makeMcpEgressPolicy) {

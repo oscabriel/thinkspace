@@ -5,7 +5,7 @@ import {
   createProductionChannelHub,
   createProductionThreadAgentDirectory,
   createProductionWorkspaceHub,
-  createWorkerMcpEgressPolicyPlaceholder,
+  createWorkerMcpEgressPolicy,
   modelCatalog,
 } from "@thinkspace/domain/adapters/production";
 import { createDispatchFlow } from "@thinkspace/domain/flows/dispatch";
@@ -63,29 +63,38 @@ const buildCreationFlow = (context: TenantContext) =>
   });
 
 /**
- * ADR 0036: real ModelRouter (D1 registry + live catalog, fail-fast byok gate) and real
- * ToolResolver (empty-catalog intersection). McpEgressPolicy stays a placeholder — vacuously
- * unreachable behind the empty tool catalog until E6.3.
+ * ADR 0036 + baked decision 7: real ModelRouter (D1 registry + live catalog, fail-fast byok
+ * gate), real ToolResolver v2 (three-layer resolution over the D1 MCP registry) and real
+ * WorkerMcpEgressPolicy (D1 host allowlist) — all sharing one tenant-guarded D1 data-access.
  */
-const buildDispatchFlow = (context: TenantContext, channelId: ChannelId) =>
-  createDispatchFlow({
+const buildDispatchFlow = (context: TenantContext, channelId: ChannelId) => {
+  const tenantDataAccess = createD1TenantDataAccess({ context, db: env.DB });
+
+  return createDispatchFlow({
     channelHub: createProductionChannelHub({
       address: { channelId },
       context,
       namespace: env.CHANNEL_HUB,
     }),
-    mcpEgressPolicy: createWorkerMcpEgressPolicyPlaceholder(context),
+    mcpEgressPolicy: createWorkerMcpEgressPolicy({
+      context,
+      dataAccess: tenantDataAccess,
+    }),
     modelRouter: createD1ModelRouter({
       catalog: modelCatalog,
       context,
       db: env.DB,
     }),
-    tenantDataAccess: createD1TenantDataAccess({ context, db: env.DB }),
+    tenantDataAccess,
     threadAgents: createProductionThreadAgentDirectory({
       namespace: env.THREAD_AGENT,
     }),
-    toolResolver: createCatalogWorkspaceShapeToolResolver({ context }),
+    toolResolver: createCatalogWorkspaceShapeToolResolver({
+      context,
+      dataAccess: tenantDataAccess,
+    }),
   });
+};
 
 /**
  * ADR 0035 §7: the gesture surface. Handlers do exactly: resolve context (middleware),
