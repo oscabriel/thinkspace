@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
 import { cn } from "@thinkspace/ui/lib/utils";
-import { Compass, Home, Plus } from "lucide-react";
+import { Compass, Home, Library, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { NewChannelForm } from "@/components/shell/new-channel-form";
@@ -83,6 +83,12 @@ export const WorkspaceSidebar = ({
           icon={Compass}
           label="Directory"
           to="/w/$workspaceId/directory"
+          workspaceId={workspaceId}
+        />
+        <NavLink
+          icon={Library}
+          label="Library"
+          to="/w/$workspaceId/library"
           workspaceId={workspaceId}
         />
       </div>

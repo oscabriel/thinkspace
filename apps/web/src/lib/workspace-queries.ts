@@ -1,6 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import {
+  fetchArtifact,
+  fetchArtifacts,
+  fetchArtifactVersionContent,
   fetchChannel,
   fetchChannelThreads,
   fetchHomeFeed,
@@ -24,6 +27,23 @@ const HOME_POLL_MS = 30_000;
 
 export const workspaceKeys = {
   all: (workspaceId: string) => ["workspace", workspaceId] as const,
+  artifact: (workspaceId: string, artifactId: string) =>
+    ["workspace", workspaceId, "artifact", artifactId] as const,
+  artifactContent: (
+    workspaceId: string,
+    artifactId: string,
+    versionId: string
+  ) =>
+    [
+      "workspace",
+      workspaceId,
+      "artifact",
+      artifactId,
+      "content",
+      versionId,
+    ] as const,
+  artifacts: (workspaceId: string) =>
+    ["workspace", workspaceId, "artifacts"] as const,
   channel: (workspaceId: string, channelId: string) =>
     ["workspace", workspaceId, "channel", channelId] as const,
   channelThreads: (workspaceId: string, channelId: string) =>
@@ -66,6 +86,38 @@ export const channelThreadsQuery = (workspaceId: string, channelId: string) =>
     queryFn: () => fetchChannelThreads(workspaceId, channelId),
     queryKey: workspaceKeys.channelThreads(workspaceId, channelId),
     refetchInterval: HOME_POLL_MS,
+  });
+
+/**
+ * The Library reads (E7.6). Artifact writes come from agent runs only — there is no browser
+ * write path — so these are read-only and, like the sidebar graph, have no realtime socket
+ * (ADR 0010 pushes thread/run deltas, not artifact writes). They refetch on window focus; a
+ * run that lands a new artifact surfaces on the next Library visit rather than live. Content
+ * is addressed by immutable version id (ADR 0032), so `artifactContentQuery` never goes stale.
+ */
+export const artifactsQuery = (workspaceId: string) =>
+  queryOptions({
+    queryFn: () => fetchArtifacts(workspaceId),
+    queryKey: workspaceKeys.artifacts(workspaceId),
+    select: (data) => data.artifacts,
+  });
+
+export const artifactQuery = (workspaceId: string, artifactId: string) =>
+  queryOptions({
+    queryFn: () => fetchArtifact(workspaceId, artifactId),
+    queryKey: workspaceKeys.artifact(workspaceId, artifactId),
+  });
+
+export const artifactContentQuery = (
+  workspaceId: string,
+  artifactId: string,
+  versionId: string
+) =>
+  queryOptions({
+    queryFn: () =>
+      fetchArtifactVersionContent(workspaceId, artifactId, versionId),
+    queryKey: workspaceKeys.artifactContent(workspaceId, artifactId, versionId),
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
 /**
