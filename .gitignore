@@ -57,3 +57,6 @@ temp
 
 # Claude Code local state (worktrees, personal settings)
 .claude/
+
+# Playwright MCP browser-drive artifacts
+.playwright-mcp/

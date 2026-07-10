@@ -94,13 +94,24 @@ const aiGateway = await AiGateway("ai-gateway", {
   gatewayName: "thinkspace",
 });
 
+/**
+ * Cloudflare's gateway API returns `account_id: null` (verified live 2026-07-09), so
+ * `aiGateway.accountId` is null in alchemy 0.91.2 state and cannot feed bindings — a null
+ * binding crashes miniflare's build-worker-options. The account id must come from the
+ * environment (same `.env` that authenticates alchemy's Cloudflare API client).
+ */
+const cfAccountId = required(
+  aiGateway.accountId ?? alchemy.env.CLOUDFLARE_ACCOUNT_ID,
+  "CLOUDFLARE_ACCOUNT_ID"
+);
+
 export const server = await Worker("server", {
   bindings: {
     AI_GATEWAY_TOKEN: required(
       alchemy.secret.env.AI_GATEWAY_TOKEN,
       "AI_GATEWAY_TOKEN"
     ),
-    AI_GATEWAY_URL: `https://gateway.ai.cloudflare.com/v1/${aiGateway.accountId}/${aiGateway.gatewayName}`,
+    AI_GATEWAY_URL: `https://gateway.ai.cloudflare.com/v1/${cfAccountId}/${aiGateway.gatewayName}`,
     ARTIFACTS: artifacts,
     /**
      * E4.2/E7.4 (baked decision 5): hub DOs verify the WS connect JWT against the auth
@@ -115,12 +126,12 @@ export const server = await Worker("server", {
     BETTER_AUTH_URL: authUrl,
     /**
      * E3.2 (baked decision 3): the write-half config for BYOK provider-key registration. The
-     * account id and gateway id ride the same AI Gateway resource the read path already binds
-     * (the secret NAME embeds `{gateway_id}`); the Secrets Store id and the account-scoped API
-     * token are documented `.env` secrets kept out of source. The API token must never appear in
-     * logs — it authorizes Secrets Store writes.
+     * gateway id rides the AI Gateway resource the read path already binds (the secret NAME
+     * embeds `{gateway_id}`); the account id comes from env (see cfAccountId above); the
+     * Secrets Store id and the account-scoped API token are documented `.env` secrets kept out
+     * of source. The API token must never appear in logs — it authorizes Secrets Store writes.
      */
-    BYOK_CF_ACCOUNT_ID: aiGateway.accountId,
+    BYOK_CF_ACCOUNT_ID: cfAccountId,
     BYOK_CF_API_TOKEN: required(
       alchemy.secret.env.BYOK_CF_API_TOKEN,
       "BYOK_CF_API_TOKEN"
