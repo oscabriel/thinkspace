@@ -65,3 +65,26 @@ already ran, against ADR 0036 §1's split of responsibilities.
   workspace; still a non-blocker at dev/MVP scale.
 - The `allowlist ⊆ factory-map` invariant test now covers two providers; a keyed-but-
   unconstructable provider remains a latent 500 guarded by that test.
+
+## Addendum — live BYOK verification (2026-07-10, first real-key smoke test)
+
+The real-key smoke test (OpenAI, workspace-registered via the settings route) proved the full
+chain — Secrets Store write → gateway substitution → real model reply through the curator — after
+two live findings that amend the ADR 0036 §9 recipe:
+
+1. **The gateway resolves `cf-aig-byok-alias` only when its `store_id` is set** to the Secrets
+   Store holding the `{gateway_id}_{provider_slug}_{alias}` secrets. Alchemy 0.91.2's AiGateway
+   resource doesn't know the field and its per-run PUT resets it, so `alchemy.run.ts` re-asserts
+   it (GET-merge-PUT, idempotent) after the resource settles.
+2. **A present provider-auth header is forwarded verbatim** (substitution suppressed) — 0036 §9's
+   recorded contingency proved real. Both gateway factories blank the SDK's dummy credential
+   (`Authorization: ""` for openai, `x-api-key: ""` for anthropic); the gateway treats an empty
+   header as absent and substitutes. The anthropic blank follows the same gateway logic but stays
+   live-unverified until an anthropic key is registered.
+
+Recorded gaps from the same session (debt, not design changes): a streamed in-stream provider
+error (e.g. a preview-locked model over the Responses API) leaves the run "Running" until the
+client's stale timeout — the run-state-read debt (0028) plus in-stream error settlement; and the
+allowlist `defaultModelSlug` is not guaranteed to be in the models.dev catalog (models.dev dropped
+gpt-5.5 the day the 5.6 family shipped), so the picker may offer no model a given provider account
+can actually run while the curator default still works.
