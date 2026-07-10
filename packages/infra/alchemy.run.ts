@@ -105,6 +105,44 @@ const cfAccountId = required(
   "CLOUDFLARE_ACCOUNT_ID"
 );
 
+/**
+ * BYOK store link (verified live 2026-07-10): the gateway only resolves `cf-aig-byok-alias`
+ * against Secrets Store when its `store_id` points at the store holding the
+ * `{gateway_id}_{provider_slug}_{alias}` secrets — with `store_id: ""` it forwards requests
+ * unsubstituted and the provider sees the SDK's dummy credential (401). Alchemy 0.91.2's
+ * AiGateway resource doesn't know the field and its per-run PUT resets it, so re-assert it
+ * after the resource settles, every run. GET-merge-PUT keeps the rest of the gateway config
+ * exactly as the resource left it.
+ */
+{
+  const byokStoreId = required(alchemy.env.BYOK_CF_STORE_ID, "BYOK_CF_STORE_ID");
+  const cfToken = required(
+    alchemy.env.CLOUDFLARE_API_TOKEN,
+    "CLOUDFLARE_API_TOKEN"
+  );
+  const gatewayUrl = `https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/ai-gateway/gateways/${aiGateway.gatewayName}`;
+  const authHeaders = { authorization: `Bearer ${cfToken}` };
+  const current = (await (await fetch(gatewayUrl, { headers: authHeaders })).json()) as {
+    result?: Record<string, unknown> & { store_id?: string };
+  };
+  if (current.result === undefined) {
+    throw new Error("BYOK store link: could not read the AI Gateway config");
+  }
+  if (current.result.store_id !== byokStoreId) {
+    const put = await fetch(gatewayUrl, {
+      body: JSON.stringify({ ...current.result, store_id: byokStoreId }),
+      headers: { ...authHeaders, "content-type": "application/json" },
+      method: "PUT",
+    });
+    if (!put.ok) {
+      throw new Error(
+        `BYOK store link: PUT store_id failed with ${put.status}`
+      );
+    }
+    console.log("BYOK store link: gateway store_id re-asserted");
+  }
+}
+
 export const server = await Worker("server", {
   bindings: {
     AI_GATEWAY_TOKEN: required(

@@ -56,6 +56,13 @@ describe("openai AI Gateway recipe (ADR 0038 §1)", () => {
     );
     expect(url.pathname).not.toContain("/openai/v1");
 
+    // Verified live 2026-07-10: the gateway forwards a present provider-auth header VERBATIM
+    // (BYOK substitution suppressed → the provider sees the dummy), so the factory blanks the
+    // SDK's bearer. Empty or absent both read as "no stray credential" here.
+    expect(captured.headers.get("authorization") ?? "").not.toContain(
+      "gateway-managed"
+    );
+
     const openai = modelProviderSchema.parse("openai");
     expect(captured.headers.get("cf-aig-authorization")).toBe(
       `Bearer ${env.AI_GATEWAY_TOKEN}`

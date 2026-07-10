@@ -41,6 +41,12 @@ export const gatewayModelFactories = {
         "cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
         "cf-aig-byok-alias": byokSecretAlias(workspaceId, provider),
         "cf-aig-metadata": JSON.stringify({ workspace: workspaceId }),
+        // ADR 0036 §9's recorded contingency, proven live 2026-07-10 on the openai path: the
+        // gateway forwards a present provider-auth header VERBATIM instead of substituting the
+        // BYOK secret, so the SDK's dummy key reaches the provider as the credential. The SDK
+        // spreads these headers after its own, and the gateway treats an empty value as absent —
+        // substitution then kicks in.
+        "x-api-key": "",
       },
     })(modelSlug);
   },
@@ -63,6 +69,11 @@ export const gatewayModelFactories = {
       apiKey: "gateway-managed",
       baseURL: `${env.AI_GATEWAY_URL}/openai`,
       headers: {
+        // Verified live 2026-07-10 (ADR 0036 §9 contingency): with `Authorization: Bearer
+        // gateway-managed` present the gateway forwarded the dummy to OpenAI (401
+        // invalid_api_key); blanked, the gateway treats it as absent and substitutes the BYOK
+        // secret (200). The SDK spreads these headers after its own, so the blank wins.
+        Authorization: "",
         "cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
         "cf-aig-byok-alias": byokSecretAlias(workspaceId, provider),
         "cf-aig-metadata": JSON.stringify({ workspace: workspaceId }),
