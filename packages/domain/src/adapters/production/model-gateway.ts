@@ -1,4 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
 import { byokSecretAlias } from "../../byok";
@@ -36,6 +37,31 @@ export const gatewayModelFactories = {
     return createAnthropic({
       apiKey: "gateway-managed",
       baseURL: `${env.AI_GATEWAY_URL}/anthropic/v1`,
+      headers: {
+        "cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
+        "cf-aig-byok-alias": byokSecretAlias(workspaceId, provider),
+        "cf-aig-metadata": JSON.stringify({ workspace: workspaceId }),
+      },
+    })(modelSlug);
+  },
+  openai: (modelSlug, { env, workspaceId }) => {
+    const provider = providerAllowlist.find(
+      (entry) => entry.provider === "openai"
+    )?.provider;
+    if (provider === undefined) {
+      throw new Error("gatewayModelFactories.openai: provider not allowlisted");
+    }
+
+    // ADR 0038 §1 spike (@ai-sdk/openai@3.0.83, the ai-v6 dist-tag): unlike anthropic — whose
+    // SDK builds `${baseURL}/messages` off `https://api.anthropic.com/v1`, forcing the recipe's
+    // trailing `/anthropic/v1` — the OpenAI SDK builds `${baseURL}/responses` (the default model
+    // callable is the Responses API) off `https://api.openai.com/v1`. The AI Gateway's `/openai`
+    // segment already stands in for that `/v1`, so the baseURL is `/openai` with NO trailing
+    // `/v1`. `apiKey` is a dummy: loadApiKey only needs a non-empty value (BYOK is gateway-managed
+    // via the cf-aig-* headers, same as anthropic).
+    return createOpenAI({
+      apiKey: "gateway-managed",
+      baseURL: `${env.AI_GATEWAY_URL}/openai`,
       headers: {
         "cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
         "cf-aig-byok-alias": byokSecretAlias(workspaceId, provider),

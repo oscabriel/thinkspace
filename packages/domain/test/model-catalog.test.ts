@@ -71,31 +71,37 @@ const countingFetch = (body: unknown) => {
 };
 
 describe("assembleCatalog — allowlist filtering + skip-don't-fail", () => {
-  test("keeps only allowlisted providers and maps to composite ModelIds", () => {
+  test("keeps allowlisted providers (anthropic + openai) and drops the rest", () => {
     const warn = spyOn(console, "warn").mockImplementation(() => {
       // silence expected provider-absent / skip warnings
     });
     const models = assembleCatalog(
       payload({
         extraProviders: {
+          // ADR 0038 §1: openai is now allowlisted, so its models pass assembly.
           openai: {
             id: "openai",
-            models: { "gpt-5": goodModel("gpt-5", "GPT-5") },
+            models: { "gpt-5.5": goodModel("gpt-5.5", "GPT-5.5") },
             name: "OpenAI",
+          },
+          // Still off the allowlist — the whole provider must be dropped.
+          google: {
+            id: "google",
+            models: { "gemini-3": goodModel("gemini-3", "Gemini 3") },
+            name: "Google",
           },
         },
       })
     );
     warn.mockRestore();
 
-    expect(models).toHaveLength(2);
-    expect(models.every((m) => String(m.provider) === "anthropic")).toBe(true);
     expect(models.map((m) => String(m.id)).toSorted()).toEqual([
       "anthropic/claude-opus-4-5",
       "anthropic/claude-sonnet-4-5",
+      "openai/gpt-5.5",
     ]);
-    // No openai model leaked through.
-    expect(models.some((m) => String(m.id).startsWith("openai/"))).toBe(false);
+    // No non-allowlisted provider leaked through.
+    expect(models.some((m) => String(m.id).startsWith("google/"))).toBe(false);
   });
 
   test("maps models.dev fields into the domain Model shape", () => {

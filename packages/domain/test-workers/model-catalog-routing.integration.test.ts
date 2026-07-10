@@ -22,13 +22,16 @@ import {
  */
 
 const anthropic = modelProviderSchema.parse("anthropic");
+const openai = modelProviderSchema.parse("openai");
 
-const keyWorkspaceForAnthropic = () =>
+const keyWorkspaceFor = (provider: string) =>
   env.DB.prepare(
     "INSERT INTO workspace_provider_key (workspace_id, provider, created_at) VALUES (?1, ?2, ?3)"
   )
-    .bind(testWorkspaceId, anthropic, Date.now())
+    .bind(testWorkspaceId, provider, Date.now())
     .run();
+
+const keyWorkspaceForAnthropic = () => keyWorkspaceFor(anthropic);
 
 beforeEach(async () => {
   await env.DB.prepare("DELETE FROM workspace_provider_key").run();
@@ -65,11 +68,28 @@ describe("D1 ModelRouter × live catalog through the outbound mock (E1.5)", () =
     const models = unwrapOk(await router.listAvailableModels());
 
     // The mock fixture carries 2 valid anthropic models, 1 boundary-schema reject (skipped, not
-    // fatal), and 1 non-allowlisted openai provider (filtered by the allowlist).
+    // fatal), and 1 openai model. openai is now allowlisted (ADR 0038 §1), so it survives the
+    // allowlist filter — but this workspace is keyed for anthropic only, so the BYOK key gate
+    // drops the openai model here.
     expect(models.map((model) => model.id).toSorted()).toEqual([
       "anthropic/claude-test-haiku",
       "anthropic/claude-test-sonnet",
     ]);
+  });
+
+  test("an openai-keyed workspace sees the allowlisted openai model (ADR 0038 §1)", async () => {
+    await keyWorkspaceFor(openai);
+    const router = createD1ModelRouter({
+      catalog: createModelCatalog(),
+      context: testTenantContext,
+      db: env.DB,
+    });
+
+    // Same live fixture, keyed for openai instead: the openai model now passes both the allowlist
+    // and the key gate, while the anthropic models are dropped by the (now-unkeyed) anthropic gate.
+    expect(
+      unwrapOk(await router.listAvailableModels()).map((model) => model.id)
+    ).toEqual(["openai/gpt-test"]);
   });
 
   test("listAvailableModels is empty for an unkeyed workspace even with a live catalog", async () => {

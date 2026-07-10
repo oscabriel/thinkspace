@@ -4,9 +4,9 @@
  * Wired as miniflare `outboundService`, it intercepts every global-fetch egress from the test
  * workers at the workerd layer — including DO-originated absolute-URL calls — and serves
  * deterministic fixtures for the two hosts the domain talks to:
- *   - models.dev            → a fixture catalog for E1.4 assembly (one allowlisted provider with
- *                             two valid models + one boundary-schema reject, plus one
- *                             non-allowlisted provider that filtering must drop);
+ *   - models.dev            → a fixture catalog for E1.4 assembly (anthropic with two valid models
+ *                             + one boundary-schema reject, plus openai — allowlisted since ADR
+ *                             0038 §1 — whose visibility the BYOK key gate decides per workspace);
  *   - gateway.ai.cloudflare.com → a canned Anthropic Messages response for E1.7/E1.8 completions;
  *   - auth.test.local       → the E4.2 hub-connect JWKS: the public half of a fixed Ed25519
  *                             keypair whose private half the hub-upgrade tests sign tokens with.
@@ -102,7 +102,8 @@ const modelsDevFixture = {
       "malformed-model": { id: "malformed-model", name: "Malformed" },
     },
   },
-  // Not on the provider allowlist: assembly must drop the whole provider.
+  // ADR 0038 §1: openai is now allowlisted, so its models survive assembly. Whether they surface
+  // to a workspace is decided by the BYOK key gate (see model-catalog-routing.integration).
   openai: {
     models: {
       "gpt-test": {

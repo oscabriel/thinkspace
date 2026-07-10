@@ -134,14 +134,15 @@ describe("POST/DELETE /api/w/:workspaceId/providers/:provider/key", () => {
       slug: "byok-unknown-space",
     });
 
-    const response = await SELF.fetch(keyUrl(workspaceId, "openai"), {
-      body: JSON.stringify({ key: "sk-live-openai" }),
+    // openai joined the allowlist (ADR 0038 §1); use a provider still outside it.
+    const response = await SELF.fetch(keyUrl(workspaceId, "google"), {
+      body: JSON.stringify({ key: "sk-live-google" }),
       headers: { "content-type": "application/json", cookie },
       method: "POST",
     });
 
     expect(response.status).toBe(404);
-    expect(await providerKeyRows(workspaceId, "openai")).toBe(0);
+    expect(await providerKeyRows(workspaceId, "google")).toBe(0);
   });
 
   it("maps a Secrets Store write failure to 502 and writes no registry row", async () => {
