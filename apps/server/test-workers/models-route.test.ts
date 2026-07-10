@@ -8,7 +8,8 @@ import { signUpWithWorkspace } from "./auth-fixtures";
  * live catalog ∩ the workspace's keyed providers (ADR 0011 / 0036), exactly what the
  * ModelRouter's `listAvailableModels` computes. The shared outbound mock serves the models.dev
  * fixture: two allowlisted anthropic models (haiku + sonnet; a third malformed entry is skipped)
- * and a non-allowlisted openai model that catalog filtering drops.
+ * and an openai model — allowlisted since ADR 0038 §1 — that the BYOK key gate drops for these
+ * anthropic-only-keyed workspaces.
  */
 
 const modelsUrl = (workspaceId: string) =>
