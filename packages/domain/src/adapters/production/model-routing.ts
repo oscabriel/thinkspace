@@ -1,9 +1,11 @@
 import type { D1Database } from "@cloudflare/workers-types";
 
 import { byokSecretAlias } from "../../byok";
-import { parseModelId } from "../../ids";
-import type { WorkspaceId } from "../../ids";
+import { formatModelId, parseModelId } from "../../ids";
+import type { ModelId, WorkspaceId } from "../../ids";
 import type { ModelProvider } from "../../model";
+import type { ProviderAllowEntry } from "../../provider-allowlist";
+import { providerAllowlist } from "../../provider-allowlist";
 import { err, ok } from "../../result";
 import type { ModelRouter } from "../../seams/model-routing";
 import type { TenantContext } from "../../seams/tenant-data-access";
@@ -123,6 +125,60 @@ export const createD1ModelRouter = (
       });
     },
   };
+};
+
+export interface CuratorModelResolverConfig {
+  readonly allowlist?: readonly ProviderAllowEntry[];
+  readonly context: TenantContext;
+  readonly db: D1Database;
+}
+
+/** The default-provider model id when a workspace has keyed nothing (allowlist head, ADR 0021). */
+const allowlistDefaultModelId = (
+  allowlist: readonly ProviderAllowEntry[]
+): ModelId => {
+  const [entry] = allowlist;
+  if (entry === undefined) {
+    throw new Error("resolveCuratorModelId: provider allowlist is empty");
+  }
+  return formatModelId(entry.modelsDevId, entry.defaultModelSlug);
+};
+
+/**
+ * ADR 0038 §2: the curator's model = the workspace's earliest-keyed provider's default model.
+ * Reads `workspace_provider_key` ordered by `created_at` ASC (provider ASC tie-break, limit 1) and
+ * composes that allowlist entry's `defaultModelSlug` into a ModelId. Provider-generic — it never
+ * hardcodes a provider, so widening the allowlist (E9.1's OpenAI entry) needs no change here.
+ *
+ * Fails soft to the allowlist-head default id when the workspace has keyed nothing (or its earliest
+ * key is a de-allowlisted provider): the edge runs this id through `createD1ModelRouter().resolve`,
+ * whose unchanged fail-fast BYOK gate turns the unkeyed default into 409 `byok_key_missing` before
+ * any DO round-trip — so this resolver decides *which* model and the router stays the sole
+ * key-presence authority. `allowlist` is injectable so the contract suite can pin multi-provider
+ * resolution before E9.1's production OpenAI entry lands. Every read binds
+ * `workspace_id = context.workspaceId`, so it can only ever see the resident tenant's rows.
+ */
+export const resolveCuratorModelId = async (
+  config: CuratorModelResolverConfig
+): Promise<ModelId> => {
+  const allowlist = config.allowlist ?? providerAllowlist;
+  const row = await config.db
+    .prepare(
+      "SELECT provider FROM workspace_provider_key WHERE workspace_id = ?1 ORDER BY created_at ASC, provider ASC LIMIT 1"
+    )
+    .bind(config.context.workspaceId)
+    .first<{ readonly provider: string }>();
+
+  if (row === null) {
+    return allowlistDefaultModelId(allowlist);
+  }
+
+  const entry = allowlist.find(
+    (candidate) => candidate.provider === row.provider
+  );
+  return entry === undefined
+    ? allowlistDefaultModelId(allowlist)
+    : formatModelId(entry.modelsDevId, entry.defaultModelSlug);
 };
 
 export interface D1ProviderKeyRegistryConfig {

@@ -72,7 +72,10 @@ export const createMemoryCuratorAgent = (
             sessionId: session.id,
           });
     },
-    startSession: async () => {
+    // ADR 0038 §2: the resolved modelId is a DO-persistence concern (getModel self-construction);
+    // the in-memory adapter has no model layer, so it accepts and ignores it — the seam signature
+    // is what the contract suite pins here.
+    startSession: async (_input) => {
       const session: CuratorSession = {
         id: nextSessionId(),
         memberId: config.context.memberId,

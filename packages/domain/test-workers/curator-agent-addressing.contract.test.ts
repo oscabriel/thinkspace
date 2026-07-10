@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 
 import { encodeCuratorAddress } from "../src/adapters/curator-address";
 import type { CuratorAgentDurableObject } from "../src/adapters/production/curator-agent";
-import { curatorSessionIdSchema } from "../src/ids";
+import { curatorSessionIdSchema, formatModelId } from "../src/ids";
 import { curatorPromptSchema } from "../src/primitives";
 import { memberId, unwrapErr, unwrapOk, workspaceId } from "../src/testing";
 
@@ -17,6 +17,9 @@ const address = {
   workspaceId: workspaceId("ws-addr"),
 };
 
+/** ADR 0038 §2: startSession carries the edge-resolved model id; addressing is model-agnostic. */
+const curatorModelId = formatModelId("anthropic", "claude-sonnet-5");
+
 describe("Curator DO addressing — name-derived identity (ADR 0026/0033)", () => {
   test("a DO addressed by an encoded address derives its own address with no seed", async () => {
     const stub = env.CURATOR_AGENT.get(
@@ -25,7 +28,9 @@ describe("Curator DO addressing — name-derived identity (ADR 0026/0033)", () =
 
     const session = unwrapOk(
       await runInDurableObject(stub, (instance) =>
-        (instance as CuratorAgentDurableObject).startSession()
+        (instance as CuratorAgentDurableObject).startSession({
+          modelId: curatorModelId,
+        })
       )
     );
 
@@ -39,7 +44,9 @@ describe("Curator DO addressing — name-derived identity (ADR 0026/0033)", () =
 
     const startError = unwrapErr(
       await runInDurableObject(stub, (instance) =>
-        (instance as CuratorAgentDurableObject).startSession()
+        (instance as CuratorAgentDurableObject).startSession({
+          modelId: curatorModelId,
+        })
       )
     );
     expect(startError).toEqual({ doName, kind: "curator_unaddressable" });

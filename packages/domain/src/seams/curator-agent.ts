@@ -7,7 +7,7 @@ import type {
   NotImplementedError,
   TenantGuardViolationError,
 } from "../errors";
-import type { CuratorSessionId, MemberId, WorkspaceId } from "../ids";
+import type { CuratorSessionId, MemberId, ModelId, WorkspaceId } from "../ids";
 import type { CuratorPrompt, CuratorReply, Goal } from "../primitives";
 import type { AsyncResult } from "../result";
 import type { ShapeStructure } from "../shape";
@@ -41,6 +41,15 @@ export interface CuratorSendRequest {
   readonly sessionId: CuratorSessionId;
 }
 
+/**
+ * ADR 0038 §2: the curator's model is resolved at the edge (the workspace's earliest-keyed
+ * provider's default) and carried into the session so the DO persists it and self-constructs the
+ * gateway model across hibernation (ADR 0036 §1) — nothing injected survives a wake.
+ */
+export interface CuratorStartSessionRequest {
+  readonly modelId: ModelId;
+}
+
 /** draft is null until the interview has enough to propose one; it refines turn by turn. */
 export interface CuratorTurn {
   readonly draft: CuratorDraft | null;
@@ -57,5 +66,7 @@ export interface CuratorAgent {
   readonly send: (
     input: CuratorSendRequest
   ) => AsyncResult<CuratorTurn, CuratorAgentError>;
-  readonly startSession: () => AsyncResult<CuratorSession, CuratorAgentError>;
+  readonly startSession: (
+    input: CuratorStartSessionRequest
+  ) => AsyncResult<CuratorSession, CuratorAgentError>;
 }
