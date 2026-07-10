@@ -5,8 +5,8 @@ import type { LanguageModel } from "ai";
 import { z } from "zod";
 
 import { formatModelId } from "../../ids";
-import type { CuratorSessionId } from "../../ids";
-import { curatorSessionIdSchema } from "../../ids";
+import type { CuratorSessionId, ModelId } from "../../ids";
+import { curatorSessionIdSchema, modelIdSchema } from "../../ids";
 import {
   curatorReplySchema,
   failureReasonSchema,
@@ -20,6 +20,7 @@ import type {
   CuratorAgentError,
   CuratorSendRequest,
   CuratorSession,
+  CuratorStartSessionRequest,
   CuratorTurn,
 } from "../../seams/curator-agent";
 import type { TenantContext } from "../../seams/tenant-data-access";
@@ -38,10 +39,12 @@ const defaultSessionId = (): CuratorSessionId =>
   curatorSessionIdSchema.parse(`curator-session-${crypto.randomUUID()}`);
 
 /**
- * ADR 0021: the curator runs on the workspace's own BYOK key. v1 has a single allowlisted
- * provider (anthropic, E1.2), so the curator's model is that provider's default slug composed
- * into a ModelId — per-workspace curator model selection is deferred (see notes). getModel
- * self-constructs the gateway model from this, exactly like ThreadAgent.getModel.
+ * ADR 0021 / ADR 0038 §2: the curator runs on the workspace's own BYOK key. Since ADR 0038 the
+ * per-session model is the workspace's earliest-keyed provider default, resolved at the edge and
+ * persisted in the DO; `getModel` self-constructs from that stored id. This allowlist-head default
+ * is only the hibernation fallback for sessions minted before the upgrade (dev-only data) — no
+ * live path composes it once every session carries a resolved id. getModel self-constructs the
+ * gateway model from a ModelId exactly like ThreadAgent.getModel.
  */
 export const defaultCuratorModelId = () => {
   const [entry] = providerAllowlist;
@@ -143,7 +146,10 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
       );
     }
 
-    return createGatewayModel(defaultCuratorModelId(), {
+    // ADR 0038 §2 / ADR 0036 §1: self-construct from the id the edge resolved and startSession
+    // persisted — nothing injected survives a wake. A DO minted before the upgrade has no stored
+    // id, so fall back to the allowlist-head default (dev-only data).
+    return createGatewayModel(this.readCuratorModel() ?? defaultCuratorModelId(), {
       env: this.env as GatewayModelEnv,
       workspaceId: address.workspaceId,
     });
@@ -182,8 +188,15 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
   }
 
   private ensureSeamTables(): readonly unknown[] {
-    return this
+    this
       .sql`CREATE TABLE IF NOT EXISTS ts_curator_session (id TEXT PRIMARY KEY, data TEXT NOT NULL)`;
+    // ADR 0038 §2: a single-row store for the DO's resolved curator model id. Per-DO rather than
+    // per-session — getModel has no session in scope, and earliest-keyed resolution is
+    // deterministic per workspace, so every session the member's DO mints shares one id (last
+    // write wins). A sibling table (not an ALTER) so an existing dev DO's session table is left
+    // untouched; getModel falls back to the allowlist default until the first post-upgrade session.
+    return this
+      .sql`CREATE TABLE IF NOT EXISTS ts_curator_model (id INTEGER PRIMARY KEY, model_id TEXT NOT NULL)`;
   }
 
   /** Test capability (contract-suite seed); production state arrives via startSession/send. */
@@ -202,7 +215,9 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
     }
   }
 
-  async startSession(): AsyncResult<CuratorSession, CuratorAgentError> {
+  async startSession(
+    input: CuratorStartSessionRequest
+  ): AsyncResult<CuratorSession, CuratorAgentError> {
     const address = this.deriveAddress();
     if (address === null) {
       return err(this.unaddressable());
@@ -215,6 +230,8 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
       workspaceId: address.workspaceId,
     };
     this.putSession(session);
+    // ADR 0038 §2: persist the edge-resolved model so getModel self-constructs it after a wake.
+    this.putCuratorModel(input.modelId);
     return ok(session);
   }
 
@@ -315,6 +332,23 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
       ON CONFLICT (id) DO UPDATE SET data = excluded.data
     `;
   }
+
+  /** ADR 0038 §2: the DO-scoped resolved curator model id survives hibernation (single row). */
+  private readCuratorModel(): ModelId | null {
+    const rows = this.sql<{ model_id: string }>`
+      SELECT model_id FROM ts_curator_model WHERE id = 1
+    `;
+    const [row] = rows;
+    return row === undefined ? null : modelIdSchema.parse(row.model_id);
+  }
+
+  private putCuratorModel(modelId: ModelId): readonly unknown[] {
+    return this.sql`
+      INSERT INTO ts_curator_model (id, model_id)
+      VALUES (1, ${idKey(modelId)})
+      ON CONFLICT (id) DO UPDATE SET model_id = excluded.model_id
+    `;
+  }
 }
 
 /** Join the text parts of a UIMessage/SessionMessage-shaped value; null if it carries no text. */
@@ -375,9 +409,9 @@ export const createProductionCuratorAgent = (
       const agent = await stub();
       return agent.send(input);
     },
-    startSession: async () => {
+    startSession: async (input) => {
       const agent = await stub();
-      return agent.startSession();
+      return agent.startSession(input);
     },
   };
 };

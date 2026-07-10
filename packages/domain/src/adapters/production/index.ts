@@ -79,9 +79,11 @@ export {
 export {
   createD1ModelRouter,
   createD1ProviderKeyRegistry,
+  type CuratorModelResolverConfig,
   type D1ModelRouterConfig,
   type D1ProviderKeyRegistryConfig,
   type ProviderKeyRegistry,
+  resolveCuratorModelId,
 } from "./model-routing";
 export {
   createR2VirtualFsArtifactStore,

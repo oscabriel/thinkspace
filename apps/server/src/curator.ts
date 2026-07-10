@@ -1,9 +1,11 @@
 import {
   createD1ModelRouter,
   createProductionCuratorAgent,
-  defaultCuratorModelId,
   modelCatalog,
+  resolveCuratorModelId,
 } from "@thinkspace/domain/adapters/production";
+import type { ByokKeyMissingError } from "@thinkspace/domain/errors";
+import type { ModelId } from "@thinkspace/domain/ids";
 import { curatorSessionIdSchema } from "@thinkspace/domain/ids";
 import { curatorPromptSchema } from "@thinkspace/domain/primitives";
 import type { TenantContext } from "@thinkspace/domain/seams/tenant-data-access";
@@ -28,43 +30,62 @@ const buildCuratorAgent = (context: TenantContext) =>
     namespace: env.CURATOR_AGENT,
   });
 
+/** Either the curator's resolved model id, or the fail-fast 409 the routes surface. */
+type CuratorModelResolution =
+  | { readonly error: ByokKeyMissingError }
+  | { readonly modelId: ModelId };
+
 /**
- * E8.3 fail-fast BYOK gate (ADR 0021/0026, mirroring buildDispatchFlow's router construction in
- * gestures.ts): the curator DO self-constructs its fixed first-party model without a catalog
- * pre-flight, so the edge is the gate. A workspace that has keyed no provider gets 409
- * `byok_key_missing` here — before any DO round-trip — instead of a mid-turn DO failure. Only a
- * missing key blocks: catalog membership of the first-party curator model is not the edge's
- * concern (the DO never consults the catalog), so any other resolve outcome proceeds.
+ * E8.3 / ADR 0038 §2 curator-model resolver (mirroring buildDispatchFlow's router construction in
+ * gestures.ts): the curator DO self-constructs its model without a catalog pre-flight, so the edge
+ * picks it and gates on the key. The model is the workspace's earliest-keyed provider's default
+ * (`resolveCuratorModelId`, provider-generic); that id runs through the existing model router with
+ * unchanged fail-fast semantics — a workspace that has keyed no provider gets 409 `byok_key_missing`
+ * here (against the allowlist-head default the resolver falls back to), before any DO round-trip,
+ * instead of a mid-turn DO failure. Only a missing key blocks: catalog membership of the curator
+ * model is not the edge's concern (the DO never consults the catalog), so any other resolve outcome
+ * proceeds with the resolved id.
  */
-const byokGate = async (context: TenantContext) => {
+const resolveCuratorModel = async (
+  context: TenantContext
+): Promise<CuratorModelResolution> => {
+  const modelId = await resolveCuratorModelId({ context, db: env.DB });
   const resolved = await createD1ModelRouter({
     catalog: modelCatalog,
     context,
     db: env.DB,
-  }).resolve({ modelId: defaultCuratorModelId() });
+  }).resolve({ modelId });
 
   return !resolved.ok && resolved.error.kind === "byok_key_missing"
-    ? resolved.error
-    : null;
+    ? { error: resolved.error }
+    : { modelId };
 };
 
 /**
  * The curator surface (ADR 0021/0026): one Think DO per member+workspace, reached through the
  * per-member production adapter. Any member may curate — per-member DO isolation is the whole
- * boundary, so there is no owner gate. Handlers resolve context (middleware), run the BYOK gate,
- * brand-parse path ids and body, dispatch to the DO, and translate. A malformed session id
+ * boundary, so there is no owner gate. Handlers resolve context (middleware), resolve the curator
+ * model (fail-fast BYOK gate), brand-parse path ids and body, dispatch to the DO, and translate.
+ * A malformed session id
  * cannot name anything — 404, same as an invisible resource (mirrors gestures.ts).
  */
 export const curatorRoutes = new Hono<{ Variables: TenantVariables }>()
   .post("/curator/sessions", async (c) => {
     const context = c.get("tenantContext");
 
-    const missingKey = await byokGate(context);
-    if (missingKey !== null) {
-      return c.json({ error: missingKey }, domainErrorStatus(missingKey));
+    // ADR 0038 §2: resolve the earliest-keyed provider's model at the edge and carry it into the
+    // DO so getModel self-constructs it after a wake.
+    const resolution = await resolveCuratorModel(context);
+    if ("error" in resolution) {
+      return c.json(
+        { error: resolution.error },
+        domainErrorStatus(resolution.error)
+      );
     }
 
-    const started = await buildCuratorAgent(context).startSession();
+    const started = await buildCuratorAgent(context).startSession({
+      modelId: resolution.modelId,
+    });
     if (!started.ok) {
       return c.json({ error: started.error }, domainErrorStatus(started.error));
     }
@@ -88,9 +109,15 @@ export const curatorRoutes = new Hono<{ Variables: TenantVariables }>()
       return c.json({ error: { kind: "malformed_gesture" } }, 400);
     }
 
-    const missingKey = await byokGate(context);
-    if (missingKey !== null) {
-      return c.json({ error: missingKey }, domainErrorStatus(missingKey));
+    // ADR 0038 §2: a send resumes a persisted session (its model id is already stored in the DO),
+    // so the resolver runs here purely as the fail-fast BYOK pre-flight — a workspace whose key was
+    // revoked mid-session is 409 before the DO round-trip. The resolved id is not re-carried.
+    const resolution = await resolveCuratorModel(context);
+    if ("error" in resolution) {
+      return c.json(
+        { error: resolution.error },
+        domainErrorStatus(resolution.error)
+      );
     }
 
     const turn = await buildCuratorAgent(context).send({

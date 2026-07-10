@@ -1,4 +1,4 @@
-import { curatorSessionIdSchema, memberIdSchema } from "../../ids";
+import { curatorSessionIdSchema, formatModelId, memberIdSchema } from "../../ids";
 import {
   curatorPromptSchema,
   curatorReplySchema,
@@ -39,6 +39,13 @@ export type CuratorAgentFactory = (
 const prompt = (value: string) => curatorPromptSchema.parse(value);
 const reply = (value: string) => curatorReplySchema.parse(value);
 
+/**
+ * ADR 0038 §2: startSession now carries the edge-resolved curator model id. The seam value the
+ * suite pins is provider-agnostic — every adapter must accept it; only the production DO persists
+ * it for getModel self-construction (asserted in the workers binder, not here).
+ */
+const curatorModelId = formatModelId("test-provider", "model-1");
+
 /** Pins the CuratorAgent seam semantics on whichever adapter the factory builds. */
 export const defineCuratorAgentContract = (input: {
   readonly api: ContractTestApi;
@@ -69,7 +76,7 @@ export const defineCuratorAgentContract = (input: {
         ],
       });
 
-      const session = unwrapOk(await curator.startSession());
+      const session = unwrapOk(await curator.startSession({ modelId: curatorModelId }));
       expect(session.memberId).toBe(testMemberId);
       expect(session.workspaceId).toBe(testWorkspaceId);
 
@@ -118,7 +125,7 @@ export const defineCuratorAgentContract = (input: {
       };
       const bob = await makeCuratorAgent({ context: bobContext });
 
-      const aliceSession = unwrapOk(await alice.startSession());
+      const aliceSession = unwrapOk(await alice.startSession({ modelId: curatorModelId }));
 
       // Bob's curator holds its own transcript; Alice's session id is unknown to it, so the
       // send fails closed rather than joining a concurrent member's authoring session.

@@ -92,7 +92,8 @@ defineCuratorAgentContract({
     const agent: CuratorAgent = {
       context: seed.context,
       send: (input) => inAgent((instance) => instance.send(input)),
-      startSession: () => inAgent((instance) => instance.startSession()),
+      startSession: (input) =>
+        inAgent((instance) => instance.startSession(input)),
     };
     return agent;
   },
