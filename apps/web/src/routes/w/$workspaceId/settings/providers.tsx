@@ -18,6 +18,7 @@ import {
 import { Input } from "@thinkspace/ui/components/input";
 import { Label } from "@thinkspace/ui/components/label";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
+import { providerAllowlist } from "@thinkspace/domain/provider-allowlist";
 import { CheckCircle2, KeyRound, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -31,16 +32,45 @@ import {
 import { providersQuery, workspaceKeys } from "@/lib/workspace-queries";
 
 /**
- * E7.2 provider-key settings (ADR 0011 key-first, ADR 0036 byok gate). v1 allowlists a single
- * provider — Anthropic — so this renders exactly one row, honestly (no multi-provider picker).
- * The page teaches the key-first invariant: until a key is registered the workspace is browsable
- * but no agent can run. The raw key is write-only — it is sent once to POST /providers/:p/key,
- * never read back (GET /providers returns registry facts only), and the input is cleared the
- * moment a submit succeeds. Registration is owner/admin only; a member sees the 403 kind
- * surfaced as a teaching message rather than a dead form.
+ * E7.2 provider-key settings (ADR 0011 key-first, ADR 0036 byok gate, ADR 0038 multi-provider).
+ * One card per allowlisted provider — the list of providers is the domain's `providerAllowlist`,
+ * not a local constant, so the surface widens with the allowlist (ADR 0038 consequence). The page
+ * teaches the key-first invariant: until a key is registered the workspace is browsable but no
+ * agent can run. The raw key is write-only — it is sent once to POST /providers/:p/key, never read
+ * back (GET /providers returns registry facts only), and the input is cleared the moment a submit
+ * succeeds. Registration is owner/admin only; a member sees the 403 kind surfaced as a teaching
+ * message rather than a dead form.
  */
-const PROVIDER_ALLOWLIST: readonly { readonly id: string; readonly label: string }[] =
-  [{ id: "anthropic", label: "Anthropic" }];
+
+/**
+ * Presentation-only chrome per provider id — the display label and a provider-appropriate key
+ * placeholder. Purely how a provider looks; the domain owns *which* providers exist. Any
+ * allowlisted provider absent here falls back to a capitalized id + generic placeholder, so the
+ * surface never breaks when the allowlist grows ahead of this map.
+ */
+const PROVIDER_PRESENTATION: Readonly<
+  Record<string, { readonly label: string; readonly keyPlaceholder: string }>
+> = {
+  anthropic: { label: "Anthropic", keyPlaceholder: "sk-ant-…" },
+  openai: { label: "OpenAI", keyPlaceholder: "sk-…" },
+};
+
+const presentationFor = (
+  providerId: string
+): { readonly label: string; readonly keyPlaceholder: string } =>
+  PROVIDER_PRESENTATION[providerId] ?? {
+    label: providerId.charAt(0).toUpperCase() + providerId.slice(1),
+    keyPlaceholder: "sk-…",
+  };
+
+const PROVIDER_ROWS: readonly {
+  readonly id: string;
+  readonly label: string;
+  readonly keyPlaceholder: string;
+}[] = providerAllowlist.map((entry) => ({
+  id: entry.provider,
+  ...presentationFor(entry.provider),
+}));
 
 const formatKeyedAt = (iso: string): string => {
   const parsed = new Date(iso);
@@ -58,7 +88,11 @@ const ProviderKeyCard = ({
   status,
   workspaceId,
 }: {
-  readonly provider: { readonly id: string; readonly label: string };
+  readonly provider: {
+    readonly id: string;
+    readonly label: string;
+    readonly keyPlaceholder: string;
+  };
   readonly status: ProviderKeyStatus | undefined;
   readonly workspaceId: string;
 }) => {
@@ -157,7 +191,7 @@ const ProviderKeyCard = ({
                 autoComplete="off"
                 id={`provider-key-${provider.id}`}
                 onChange={(event) => setKey(event.target.value)}
-                placeholder="sk-ant-…"
+                placeholder={provider.keyPlaceholder}
                 spellCheck={false}
                 type="password"
                 value={key}
@@ -230,7 +264,7 @@ const ProvidersSettings = () => {
             </p>
           )}
           <div className="flex flex-col gap-4">
-            {PROVIDER_ALLOWLIST.map((provider) => (
+            {PROVIDER_ROWS.map((provider) => (
               <ProviderKeyCard
                 key={provider.id}
                 provider={provider}
