@@ -154,9 +154,9 @@ const allowlistDefaultModelId = (
  * key is a de-allowlisted provider): the edge runs this id through `createD1ModelRouter().resolve`,
  * whose unchanged fail-fast BYOK gate turns the unkeyed default into 409 `byok_key_missing` before
  * any DO round-trip — so this resolver decides *which* model and the router stays the sole
- * key-presence authority. `allowlist` is injectable so the contract suite can pin multi-provider
- * resolution before E9.1's production OpenAI entry lands. Every read binds
- * `workspace_id = context.workspaceId`, so it can only ever see the resident tenant's rows.
+ * key-presence authority. `allowlist` is injectable for tests; production callers take the real
+ * list. Every read binds `workspace_id = context.workspaceId`, so it can only ever see the
+ * resident tenant's rows.
  */
 export const resolveCuratorModelId = async (
   config: CuratorModelResolverConfig

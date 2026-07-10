@@ -5,9 +5,6 @@ import { encodeCuratorAddress } from "../src/adapters/curator-address";
 import type { CuratorAgentDurableObject } from "../src/adapters/production/curator-agent";
 import { resolveCuratorModelId } from "../src/adapters/production/model-routing";
 import { formatModelId } from "../src/ids";
-import { modelProviderSchema } from "../src/model";
-import type { ProviderAllowEntry } from "../src/provider-allowlist";
-import { providerAllowlist } from "../src/provider-allowlist";
 import type { TenantContext } from "../src/seams/tenant-data-access";
 import { memberId, unwrapOk, workspaceId } from "../src/testing";
 
@@ -16,26 +13,6 @@ const modelSlugOf = (instance: CuratorAgentDurableObject): string => {
   const built = instance.getModel();
   return typeof built === "string" ? built : built.modelId;
 };
-
-/**
- * MERGE-DEDUPE (E9.1 owns this): E9.1 lands `{ provider: "openai", gatewaySlug: "openai",
- * modelsDevId: "openai", defaultModelSlug: "gpt-5.5" }` in the production allowlist. This worktree
- * only needs it as a resolver fixture, so the earliest-keyed resolver reads it via its injectable
- * `allowlist` param rather than the production singleton (which stays anthropic-only until E9.1
- * merges). Kept test-scoped on purpose — E9.2 owns no allowlist/factory change (scope guard).
- */
-const openAiEntry: ProviderAllowEntry = {
-  defaultModelSlug: "gpt-5.5",
-  gatewaySlug: "openai",
-  modelsDevId: "openai",
-  provider: modelProviderSchema.parse("openai"),
-};
-
-/** Anthropic (production head) + OpenAI, mirroring the post-E9.1 production order. */
-const twoProviderAllowlist: readonly ProviderAllowEntry[] = [
-  ...providerAllowlist,
-  openAiEntry,
-];
 
 const anthropicModelId = formatModelId("anthropic", "claude-sonnet-5");
 const openAiModelId = formatModelId("openai", "gpt-5.5");
@@ -58,9 +35,10 @@ const keyProvider = (input: {
     .bind(input.workspaceId, input.provider, input.createdAt)
     .run();
 
+// No injected allowlist: since E9.1 the production list carries anthropic + openai, so the
+// suite pins the exact resolution a live edge performs.
 const resolve = (ws: string) =>
   resolveCuratorModelId({
-    allowlist: twoProviderAllowlist,
     context: contextFor(ws),
     db: env.DB,
   });
@@ -161,6 +139,32 @@ describe("Curator DO — model persistence + self-construction (ADR 0038 §2)", 
       modelSlugOf(instance as CuratorAgentDurableObject)
     );
     expect(modelSlug).toBe("claude-test-sonnet");
+  });
+
+  test("getModel self-constructs an openai gateway model from a persisted openai id (ADR 0038 §1×§2)", async () => {
+    // The cross-issue pin E9.2 deferred to the merge: an openai-keyed workspace's edge resolution
+    // (pinned above) persists openai/gpt-5.5, and the DO builds it through E9.1's real openai
+    // gateway factory — no fallback to the anthropic default.
+    const openAi = {
+      memberId: memberId("member-curmodel-openai"),
+      workspaceId: workspaceId("ws-curmodel-do-openai"),
+    };
+    const stub = env.CURATOR_AGENT.get(
+      env.CURATOR_AGENT.idFromName(encodeCuratorAddress(openAi))
+    );
+
+    unwrapOk(
+      await runInDurableObject(stub, (instance) =>
+        (instance as CuratorAgentDurableObject).startSession({
+          modelId: openAiModelId,
+        })
+      )
+    );
+
+    const modelSlug = await runInDurableObject(stub, (instance) =>
+      modelSlugOf(instance as CuratorAgentDurableObject)
+    );
+    expect(modelSlug).toBe("gpt-5.5");
   });
 
   test("getModel falls back to the allowlist default when nothing was persisted (pre-upgrade session)", async () => {
