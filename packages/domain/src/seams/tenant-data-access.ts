@@ -107,6 +107,23 @@ export interface ArtifactIndex {
   readonly workspaceId: WorkspaceId;
 }
 
+/**
+ * ADR 0037 decision 4 / E10.4: a thread's DO coordinates — the (threadId, channelId) pair the
+ * MCP revoke fan-out dials to sever a live SDK connection. Not a member-visibility read: the
+ * fan-out must reach every thread's DO in the workspace (private channels included), so it
+ * carries the addressing tuple only, never thread bodies or channel facts.
+ */
+export interface ThreadAddress {
+  readonly channelId: ChannelId;
+  readonly threadId: ThreadId;
+}
+
+/** The workspace's thread → DO addresses — the enumeration source for the revoke fan-out. */
+export interface WorkspaceThreadAddresses {
+  readonly addresses: readonly ThreadAddress[];
+  readonly workspaceId: WorkspaceId;
+}
+
 export type ChannelListingRequest =
   | { readonly kind: "sidebar" }
   | { readonly kind: "directory"; readonly search: DirectorySearch };
@@ -246,6 +263,16 @@ export interface TenantDataAccess<
   ) => AsyncResult<HomeFeed, TenantDataAccessError>;
   readonly listSkills: () => AsyncResult<
     readonly Skill[],
+    TenantDataAccessError
+  >;
+  /**
+   * ADR 0037 decision 4 / E10.4: every thread's DO address in the acting workspace — the
+   * enumeration source the MCP revoke fan-out replaces its raw `SELECT id, channel_id FROM
+   * thread` with (the same seam-bypass class ADR 0038 rejected for the curator DO). Reaches
+   * every thread regardless of member visibility.
+   */
+  readonly listWorkspaceThreadAddresses: () => AsyncResult<
+    WorkspaceThreadAddresses,
     TenantDataAccessError
   >;
   readonly listWorkspaceToolDisables: () => AsyncResult<

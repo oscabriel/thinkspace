@@ -7,7 +7,7 @@ import type { Channel } from "../../channel";
 import type { ChannelDirectoryEntry } from "../../directory";
 import { createNotImplementedError } from "../../errors";
 import type { ShapeOwnershipViolationError } from "../../errors";
-import type { ChannelId, MemberId, WorkspaceId } from "../../ids";
+import type { ChannelId, MemberId, ThreadId, WorkspaceId } from "../../ids";
 import type { McpHostApproval, McpServer } from "../../mcp";
 import type { DisplayName } from "../../primitives";
 import { err, ok } from "../../result";
@@ -736,6 +736,23 @@ export const createD1TenantDataAccess = <
         .bind(context.workspaceId)
         .all<SkillRow>();
       return ok(rows.results.map(rowToSkill));
+    },
+    listWorkspaceThreadAddresses: async () => {
+      /**
+       * ADR 0037 decision 4: workspace-scoped by the WHERE — reaches every thread's DO for the
+       * revoke fan-out, projecting only the (id, channel_id) addressing tuple, never bodies.
+       */
+      const rows = await db
+        .prepare("SELECT id, channel_id FROM thread WHERE workspace_id = ?1")
+        .bind(context.workspaceId)
+        .all<Pick<ThreadRow, "channel_id" | "id">>();
+      return ok({
+        addresses: rows.results.map((row) => ({
+          channelId: row.channel_id as ChannelId,
+          threadId: row.id as ThreadId,
+        })),
+        workspaceId: context.workspaceId,
+      });
     },
     listWorkspaceToolDisables: async () => {
       const rows = await db

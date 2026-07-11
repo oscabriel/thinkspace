@@ -5,11 +5,7 @@ import {
 } from "@thinkspace/domain/adapters/production";
 import { createMcpRegistrationFlow } from "@thinkspace/domain/flows/mcp-registration";
 import type { McpServerId } from "@thinkspace/domain/ids";
-import {
-  channelIdSchema,
-  mcpServerIdSchema,
-  threadIdSchema,
-} from "@thinkspace/domain/ids";
+import { mcpServerIdSchema } from "@thinkspace/domain/ids";
 import type { McpServer } from "@thinkspace/domain/mcp";
 import {
   mcpHostSchema,
@@ -57,11 +53,15 @@ const registerBodySchema = z.object({
 
 const hostBodySchema = z.object({ host: mcpHostSchema });
 
-/** Enumeration source for the revoke fan-out — the workspace's thread → DO addresses. */
-interface ThreadRow {
-  readonly channel_id: string;
-  readonly id: string;
-}
+/**
+ * Concurrency cap for the revoke fan-out. Each dial can wake a hibernated thread DO, so an
+ * unbounded burst over a large workspace would spike DO wake pressure; a strictly-sequential
+ * loop (the prior shape) instead stalls the request behind N round-trips. Six keeps a handful
+ * of dials in flight — enough to hide per-call latency — without fanning the whole workspace
+ * awake at once. The registry write is already durable, so this only trades latency, never
+ * correctness.
+ */
+const REVOKE_FANOUT_CONCURRENCY = 6;
 
 const buildTenantDataAccess = (context: TenantContext) =>
   createD1TenantDataAccess({ context, db: env.DB });
@@ -81,6 +81,11 @@ const buildFlow = (context: TenantContext) => {
  * Best-effort connection reconciliation across every live thread DO (ADR 0037 decision 4). The
  * registry write is already durable before this runs, so every failure is logged and skipped —
  * per-turn pull will drop the connection at the next turn regardless.
+ *
+ * E10.4: the thread enumeration now goes through the tenant-data-access seam (no raw SQL — the
+ * seam-bypass class ADR 0038 rejected), and the dials run under a fixed concurrency cap instead
+ * of a strictly-sequential loop. Per-thread failures stay isolated (logged and swallowed), so a
+ * single rejected or throwing dial never aborts the fan-out for the other threads.
  */
 const fanOutDisconnect = async (
   context: TenantContext,
@@ -90,20 +95,24 @@ const fanOutDisconnect = async (
     return;
   }
 
-  const threads = await env.DB.prepare(
-    "SELECT id, channel_id FROM thread WHERE workspace_id = ?1"
-  )
-    .bind(context.workspaceId)
-    .all<ThreadRow>();
+  const addresses = await buildTenantDataAccess(context).listWorkspaceThreadAddresses();
+  if (!addresses.ok) {
+    console.warn("mcp revoke fan-out: thread enumeration failed", {
+      error: addresses.error.kind,
+    });
+    return;
+  }
 
   const directory = createProductionThreadAgentDirectory({
     namespace: env.THREAD_AGENT,
   });
 
-  for (const row of threads.results) {
+  const disconnectThread = async (
+    address: (typeof addresses.value.addresses)[number]
+  ): Promise<void> => {
     const agent = directory.get({
-      channelId: channelIdSchema.parse(row.channel_id),
-      threadId: threadIdSchema.parse(row.id),
+      channelId: address.channelId,
+      threadId: address.threadId,
       workspaceId: context.workspaceId,
     });
     for (const mcpServerId of mcpServerIds) {
@@ -113,18 +122,39 @@ const fanOutDisconnect = async (
           console.warn("mcp revoke fan-out: DO rejected disconnect", {
             error: dropped.error.kind,
             mcpServerId,
-            threadId: row.id,
+            threadId: address.threadId,
           });
         }
       } catch (cause) {
         console.warn("mcp revoke fan-out: DO call threw", {
           cause,
           mcpServerId,
-          threadId: row.id,
+          threadId: address.threadId,
         });
       }
     }
-  }
+  };
+
+  // Bounded worker pool: REVOKE_FANOUT_CONCURRENCY workers drain a shared cursor over the
+  // addresses, so at most that many dials are ever in flight. Each disconnectThread already
+  // swallows its own failures, so no worker can reject and abort the pool.
+  const queue = addresses.value.addresses;
+  let cursor = 0;
+  const drain = async (): Promise<void> => {
+    while (cursor < queue.length) {
+      const next = queue[cursor];
+      cursor += 1;
+      if (next !== undefined) {
+        await disconnectThread(next);
+      }
+    }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(REVOKE_FANOUT_CONCURRENCY, queue.length) },
+      drain
+    )
+  );
 };
 
 export const mcpRoutes = new Hono<{ Variables: TenantVariables }>()

@@ -203,6 +203,7 @@ export const makeThread = (input: {
   readonly id: string;
   readonly lastActivityAt?: Date;
   readonly rootCommentId?: string;
+  readonly workspaceId?: Thread["workspaceId"];
 }): Thread => ({
   channelId: channelId(input.channelId),
   createdAt: new Date("2026-06-30T00:00:00Z"),
@@ -213,7 +214,7 @@ export const makeThread = (input: {
   name: threadNameSchema.parse(`thread ${input.id}`),
   rootCommentId:
     input.rootCommentId === undefined ? null : commentId(input.rootCommentId),
-  workspaceId: testWorkspaceId,
+  workspaceId: input.workspaceId ?? testWorkspaceId,
 });
 
 export const makeUnread = (input: {
