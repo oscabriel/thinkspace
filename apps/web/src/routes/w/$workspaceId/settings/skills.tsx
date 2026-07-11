@@ -19,12 +19,27 @@ import { Input } from "@thinkspace/ui/components/input";
 import { Label } from "@thinkspace/ui/components/label";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
 import { Textarea } from "@thinkspace/ui/components/textarea";
-import { Plus, ScrollText, TriangleAlert, Upload } from "lucide-react";
+import {
+  DownloadCloud,
+  Plus,
+  ScrollText,
+  TriangleAlert,
+  Upload,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { ApiRequestError, createSkill, updateSkill } from "@/lib/api";
-import type { SkillContent, WorkspaceSkill } from "@/lib/api";
+import {
+  ApiRequestError,
+  createSkill,
+  importSkill,
+  updateSkill,
+} from "@/lib/api";
+import type {
+  SkillContent,
+  SkillImportPreview,
+  WorkspaceSkill,
+} from "@/lib/api";
 import {
   skillQuery,
   skillsQuery,
@@ -90,22 +105,60 @@ const errorToast = (
   );
 };
 
+/** Teaching copy for the import endpoint's typed error kinds (E11.4). */
+const IMPORT_ERROR_MESSAGES: Record<string, string> = {
+  insufficient_role: "Only an owner or admin can import a skill.",
+  invalid_source:
+    "That doesn’t look like a skills.sh or GitHub skill. Paste owner/repo or a skills.sh URL.",
+  skill_source_not_found: "No SKILL.md found at that source.",
+  skill_source_too_large: "That SKILL.md is too large to import.",
+  skill_source_unreadable: "That source didn’t return readable markdown.",
+};
+
+const importErrorToast = (error: unknown) => {
+  const kind = error instanceof ApiRequestError ? error.kind : "unknown_error";
+  toast.error(IMPORT_ERROR_MESSAGES[kind] ?? `Could not import skill: ${kind}`);
+};
+
+/** The name + markdown a skills.sh import hands the create form to pre-fill. */
+type SkillCreatePrefill = {
+  readonly name: string;
+  readonly markdown: string;
+};
+
+/**
+ * Prepend an attribution/provenance header (source slug + license) to the imported body — the
+ * ratified stand-in until structured provenance metadata becomes a schema change. Stored verbatim
+ * as an HTML comment so it survives round-trips without cluttering the rendered playbook.
+ */
+const buildImportedMarkdown = (preview: SkillImportPreview): string =>
+  `<!-- Imported from skills.sh — source: ${preview.sourceSlug}; license: ${
+    preview.license ?? "unspecified"
+  } -->\n\n${preview.markdown}`;
+
 type View =
   | { readonly kind: "list" }
-  | { readonly kind: "create" }
+  | { readonly kind: "import" }
+  | { readonly kind: "create"; readonly prefill?: SkillCreatePrefill }
   | { readonly kind: "edit"; readonly skill: WorkspaceSkill };
 
 const SkillList = ({
   skills,
   onCreate,
+  onImport,
   onEdit,
 }: {
   readonly skills: readonly WorkspaceSkill[];
   readonly onCreate: () => void;
+  readonly onImport: () => void;
   readonly onEdit: (skill: WorkspaceSkill) => void;
 }) => (
   <div className="flex flex-col gap-4">
-    <div className="flex justify-end">
+    <div className="flex justify-end gap-2">
+      <Button onClick={onImport} size="sm" type="button" variant="outline">
+        <DownloadCloud aria-hidden="true" className="size-4" />
+        Import from skills.sh
+      </Button>
       <Button onClick={onCreate} size="sm" type="button">
         <Plus aria-hidden="true" className="size-4" />
         New skill
@@ -157,15 +210,106 @@ const SkillList = ({
   </div>
 );
 
-const SkillCreateForm = ({
+/**
+ * E11.4: import a skill from skills.sh. The paste (a `owner/repo[/subpath]` slug or a skills.sh /
+ * GitHub URL) is fetched SERVER-SIDE (POST /skills/import, SSRF-guarded) — the client never touches
+ * GitHub. On success the preview lands in the create form pre-filled with a provenance header, where
+ * the member edits and saves through POST /skills. Markdown-only: only the SKILL.md text imports.
+ */
+const SkillImportPanel = ({
   workspaceId,
+  onImported,
   onDone,
 }: {
   readonly workspaceId: string;
+  readonly onImported: (prefill: SkillCreatePrefill) => void;
   readonly onDone: () => void;
 }) => {
-  const [name, setName] = useState("");
-  const [markdown, setMarkdown] = useState("");
+  const [source, setSource] = useState("");
+
+  const runImport = useMutation({
+    mutationFn: () => importSkill(workspaceId, source.trim()),
+    onError: importErrorToast,
+    onSuccess: (preview) => {
+      toast.success(`Imported “${preview.name}” — review and save`);
+      onImported({
+        markdown: buildImportedMarkdown(preview),
+        name: preview.name,
+      });
+    },
+  });
+
+  const canSubmit = source.trim().length > 0 && !runImport.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <DownloadCloud aria-hidden="true" className="size-4 opacity-80" />
+          Import from skills.sh
+        </CardTitle>
+        <CardDescription>
+          Paste a skill slug (
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">
+            owner/repo
+          </code>
+          ) or a skills.sh / GitHub URL. We fetch its{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">SKILL.md</code>{" "}
+          and drop it into a new-skill form for you to review before saving.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (canSubmit) {
+              runImport.mutate();
+            }
+          }}
+        >
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="skill-import-source">Slug or URL</Label>
+            <Input
+              autoComplete="off"
+              id="skill-import-source"
+              onChange={(event) => setSource(event.target.value)}
+              placeholder="e.g. anthropics/skills/document-review"
+              value={source}
+            />
+          </div>
+
+          <p className="rounded-lg border border-dashed border-border bg-muted/40 px-4 py-3 text-muted-foreground text-sm">
+            Only the <code className="text-xs">SKILL.md</code> text is imported.
+            Bundled scripts, references, and assets — and their relative links —
+            are left behind.
+          </p>
+
+          <div className="flex items-center justify-end gap-2">
+            <Button onClick={onDone} type="button" variant="ghost">
+              Cancel
+            </Button>
+            <Button disabled={!canSubmit} type="submit">
+              {runImport.isPending ? "Fetching…" : "Fetch skill"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+const SkillCreateForm = ({
+  workspaceId,
+  prefill,
+  onDone,
+}: {
+  readonly workspaceId: string;
+  readonly prefill?: SkillCreatePrefill;
+  readonly onDone: () => void;
+}) => {
+  const [name, setName] = useState(prefill?.name ?? "");
+  const [markdown, setMarkdown] = useState(prefill?.markdown ?? "");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -445,8 +589,20 @@ const SkillsSettings = () => {
         workspace owner or admin can create or edit skills.
       </p>
 
+      {view.kind === "import" && (
+        <SkillImportPanel
+          onDone={backToList}
+          onImported={(prefill) => setView({ kind: "create", prefill })}
+          workspaceId={workspaceId}
+        />
+      )}
+
       {view.kind === "create" && (
-        <SkillCreateForm onDone={backToList} workspaceId={workspaceId} />
+        <SkillCreateForm
+          onDone={backToList}
+          prefill={view.prefill}
+          workspaceId={workspaceId}
+        />
       )}
 
       {view.kind === "edit" && (
@@ -480,6 +636,7 @@ const SkillsSettings = () => {
           <SkillList
             onCreate={() => setView({ kind: "create" })}
             onEdit={(skill) => setView({ kind: "edit", skill })}
+            onImport={() => setView({ kind: "import" })}
             skills={skills.data}
           />
         )))}

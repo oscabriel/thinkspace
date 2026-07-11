@@ -269,9 +269,83 @@ const handleMcpRequest = async (request) => {
   return Response.json(jsonRpcResult(message.id, {}), { headers });
 };
 
+// E11.4: skill import (apps/server POST /skills/import). Two GitHub hosts back the SSRF-guarded
+// control-plane egress — api.github.com for a single default-branch lookup, raw.githubusercontent
+// for the SKILL.md — served deterministically here so no import test touches the real network. The
+// domain never contacts either host; these fixtures exist purely for the server route tests.
+const SKILL_MD_FIXTURE = `---
+name: adr-consistency-reviewer
+description: Cross-references every ADR against the ones it supersedes and flags conflicts.
+license: MIT
+---
+# When reviewing ADRs
+
+Cross-reference every decision against the ones it supersedes and flag conflicts.
+`;
+
+const SKILL_MD_NO_FRONTMATTER = `# Plain playbook
+
+No frontmatter here — the importer falls back to the repo name.
+`;
+
+// Keyed by "owner/repo": the repos api.github.com knows (each on default branch "main"). A repo
+// absent from this map 404s, exercising the not-found path.
+const githubRepoFixtures = {
+  "acme/html-page": { default_branch: "main" },
+  "acme/huge": { default_branch: "main" },
+  "acme/no-frontmatter": { default_branch: "main" },
+  "acme/reviewer": { default_branch: "main" },
+};
+
+const handleGithubApi = (url) => {
+  const match = url.pathname.match(/^\/repos\/([^/]+)\/([^/]+)$/u);
+  const repo = match ? githubRepoFixtures[`${match[1]}/${match[2]}`] : undefined;
+  if (!repo) {
+    return Response.json({ message: "Not Found" }, { status: 404 });
+  }
+  return Response.json({ default_branch: repo.default_branch });
+};
+
+const handleGithubRaw = (url) => {
+  // /{owner}/{repo}/{ref}/{...path}/SKILL.md — respond by the (owner/repo) prefix.
+  const path = url.pathname;
+  if (path === "/acme/reviewer/main/SKILL.md") {
+    return new Response(SKILL_MD_FIXTURE, {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+  if (path === "/acme/reviewer/main/deep/path/SKILL.md") {
+    return new Response(SKILL_MD_FIXTURE, {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+  if (path === "/acme/no-frontmatter/main/SKILL.md") {
+    return new Response(SKILL_MD_NO_FRONTMATTER, {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+  if (path === "/acme/html-page/main/SKILL.md") {
+    return new Response("<!doctype html><title>not markdown</title>", {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+  if (path === "/acme/huge/main/SKILL.md") {
+    return new Response("x".repeat(300 * 1024), {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+  return new Response("Not Found", { status: 404 });
+};
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.hostname === "api.github.com") {
+      return handleGithubApi(url);
+    }
+    if (url.hostname === "raw.githubusercontent.com") {
+      return handleGithubRaw(url);
+    }
     if (url.hostname === "models.dev") {
       return Response.json(modelsDevFixture);
     }

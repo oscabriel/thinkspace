@@ -784,3 +784,25 @@ export const updateSkill = (
     `/skills/${encodeURIComponent(skillId)}`,
     { body: JSON.stringify({ markdown: input.markdown }), method: "PUT" }
   );
+
+/**
+ * E11.4: the preview POST /skills/import returns from an SSRF-guarded server-side SKILL.md fetch
+ * (ADR 0005 markdown-only — only the SKILL.md body; bundled scripts/references/assets are dropped).
+ * It does NOT persist: the member reviews this in the create form and saves via createSkill above.
+ * `description`/`license` come from the source's YAML frontmatter (null when absent); `sourceSlug`
+ * is the canonical `owner/repo[/subpath]` the paste resolved to. Typed error kinds: `invalid_source`
+ * (parse/SSRF reject), `skill_source_not_found`, `skill_source_too_large`, `skill_source_unreadable`.
+ */
+export interface SkillImportPreview {
+  readonly name: string;
+  readonly description: string | null;
+  readonly markdown: string;
+  readonly license: string | null;
+  readonly sourceSlug: string;
+}
+
+export const importSkill = (workspaceId: string, source: string) =>
+  apiFetch<SkillImportPreview>(workspaceId, "/skills/import", {
+    body: JSON.stringify({ source }),
+    method: "POST",
+  });
