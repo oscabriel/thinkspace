@@ -23,7 +23,7 @@ import {
   unwrapOk,
   workspaceId,
 } from "../src/testing";
-import { modelReplying } from "./mock-model";
+import { modelErroringMidStream, modelReplying } from "./mock-model";
 
 const address = (suffix: string): ThreadAgentAddress => ({
   channelId: channelId(`turn-ch-${suffix}`),
@@ -50,6 +50,10 @@ const startAgent = (
   );
 
 type Instance = ThreadAgentDurableObject;
+
+/** A hibernation wake re-runs onStart, and with it the settlement reconciliation sweep. */
+const wake = (stub: ReturnType<typeof agentAt>) =>
+  runInDurableObject(stub, (instance: Instance) => instance.onStart());
 
 const waitForTerminalRun = (
   stub: ReturnType<typeof agentAt>,
@@ -233,6 +237,126 @@ describe("ThreadAgent turn layer — RunId is the submissionId (ADR 0033)", () =
     expect(branch.subtree.map((comment) => comment.id)).toEqual([target.id]);
 
     expect(settlements).toEqual([{ kind: "failed", run: settled }]);
+  });
+
+  /**
+   * E10.1 (ADR 0028 / ADR 0038 addendum): the live regression. A stream that opens cleanly
+   * (gateway 200) and then errors mid-flight must settle the run FAILED server-side — no output
+   * comment, the failure recorded, and the SAME settlement fan-out a completion runs (the failed
+   * settlement, which publishes `run_lifecycle_changed`). Before this the run stranded and the
+   * client card showed "Running" until its stale timeout.
+   */
+  test("a stream that errors after headers settles the run as failed and fires the settlement event", async () => {
+    const addr = address("instream-error");
+    const stub = agentAt(addr);
+    const target = makeComment({
+      id: "turn-comment-instream",
+      threadId: addr.threadId,
+      workspaceId: addr.workspaceId,
+    });
+    const settlements: RunSettlement[] = [];
+
+    await runInDurableObject(stub, (instance: Instance) => {
+      instance.applyTestSeed({
+        address: addr,
+        comments: [target],
+        nextRunId: () => runId("turn-run-instream"),
+        shapeSnapshot: makeShapeSnapshot(),
+        testModel: modelErroringMidStream("provider stream failed after headers"),
+      });
+      instance.completionFlow = {
+        settle: async (settlement) => {
+          settlements.push(settlement);
+          return ok();
+        },
+      };
+    });
+    await startAgent(stub, addr);
+
+    const receipt = unwrapOk(
+      await runInDurableObject(stub, (instance: Instance) =>
+        instance.run(makeDispatchTrigger({ targetCommentId: target.id }))
+      )
+    );
+
+    const settled = await waitForTerminalRun(stub, receipt.runId);
+    expect(settled.lifecycle).toBe("failed");
+    if (settled.lifecycle !== "failed") {
+      throw new Error("unreachable");
+    }
+    // The in-stream error is preserved as the failure reason, and no output comment was minted.
+    expect(settled.failure.failureReason).toContain("provider stream failed");
+    const branch = unwrapOk(
+      await runInDurableObject(stub, (instance: Instance) =>
+        instance.loadBranch({ rootCommentId: target.id })
+      )
+    );
+    expect(branch.subtree.map((comment) => comment.id)).toEqual([target.id]);
+
+    // The failed settlement fired exactly once — the same fan-out path a completion takes.
+    expect(settlements).toEqual([{ kind: "failed", run: settled }]);
+
+    // The server-authoritative read returns the settled failed state (ADR 0028).
+    const detail = unwrapOk(
+      await runInDurableObject(stub, (instance: Instance) =>
+        instance.getRun({ runId: receipt.runId })
+      )
+    );
+    expect(detail?.run.lifecycle).toBe("failed");
+  });
+
+  /**
+   * E10.1 hibernation shape (ADR 0017/0028/0035 §2): the run failed by an in-stream error is
+   * durable — a wake (fresh isolate after eviction) re-runs onStart and its reconciliation sweep,
+   * and the settled-failed run survives: it is not re-settled (its `ts_run_settled` mark stands)
+   * and reads back failed.
+   */
+  test("an in-stream-errored run's failed state survives a hibernation wake", async () => {
+    const addr = address("instream-hibernate");
+    const stub = agentAt(addr);
+    const target = makeComment({
+      id: "turn-comment-hibernate",
+      threadId: addr.threadId,
+      workspaceId: addr.workspaceId,
+    });
+    const settlements: RunSettlement[] = [];
+
+    await runInDurableObject(stub, (instance: Instance) => {
+      instance.applyTestSeed({
+        address: addr,
+        comments: [target],
+        nextRunId: () => runId("turn-run-hibernate"),
+        shapeSnapshot: makeShapeSnapshot(),
+        testModel: modelErroringMidStream("provider stream failed after headers"),
+      });
+      instance.completionFlow = {
+        settle: async (settlement) => {
+          settlements.push(settlement);
+          return ok();
+        },
+      };
+    });
+    await startAgent(stub, addr);
+
+    const receipt = unwrapOk(
+      await runInDurableObject(stub, (instance: Instance) =>
+        instance.run(makeDispatchTrigger({ targetCommentId: target.id }))
+      )
+    );
+    const settled = await waitForTerminalRun(stub, receipt.runId);
+    expect(settled.lifecycle).toBe("failed");
+    expect(settlements).toHaveLength(1);
+
+    // A wake re-runs the sweep; the already-settled failed run is left alone (idempotent).
+    await wake(stub);
+    expect(settlements).toHaveLength(1);
+
+    const detail = unwrapOk(
+      await runInDurableObject(stub, (instance: Instance) =>
+        instance.getRun({ runId: receipt.runId })
+      )
+    );
+    expect(detail?.run.lifecycle).toBe("failed");
   });
 });
 

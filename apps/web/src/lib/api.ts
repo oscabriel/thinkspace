@@ -357,6 +357,46 @@ export const fetchBranch = (
   );
 
 /**
+ * The DO-resident run lifecycle (ADR 0028). Mirrors the domain Run's `lifecycle` discriminant —
+ * a failed run carries a `failure` (no output comment ever lands for it), which is why the thread
+ * surface must READ this state to settle an errored run's card: the `run_lifecycle_changed` delta
+ * carries only the id. Dates serialize to ISO strings; the card needs only the discriminant.
+ */
+export type RunLifecycle = "complete" | "failed" | "queued" | "running";
+
+export interface Run {
+  readonly failure?: { readonly failureReason: string };
+  readonly id: string;
+  readonly lifecycle: RunLifecycle;
+}
+
+/** ADR 0028: sub-agent work is state OF the run, nested here; the live card does not render it yet. */
+export interface RunDetail {
+  readonly run: Run;
+  readonly subAgentActivity: readonly unknown[];
+}
+
+/**
+ * ADR 0028: the server-authoritative run-state read — `getRun(runId) → RunDetail`, DO-resident.
+ * 404 (ApiRequestError, kind unknown_resource) means the run is not resident, so the caller
+ * treats it as still-in-flight rather than terminal.
+ */
+export const fetchRun = (
+  workspaceId: string,
+  input: {
+    readonly channelId: string;
+    readonly runId: string;
+    readonly threadId: string;
+  }
+) =>
+  apiFetch<RunDetail>(
+    workspaceId,
+    `/channels/${encodeURIComponent(input.channelId)}/threads/${encodeURIComponent(
+      input.threadId
+    )}/runs/${encodeURIComponent(input.runId)}`
+  );
+
+/**
  * PUT create-and-ask (ADR 0034 §6): mints the opening comment and, when `askGestureId` is
  * given, chains a dispatch at it. The client mints threadId, openingCommentId and the gesture
  * id; a replay of the same ids converges on the same thread-plus-run receipt.

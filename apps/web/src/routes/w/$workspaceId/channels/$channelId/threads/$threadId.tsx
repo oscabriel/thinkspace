@@ -38,6 +38,7 @@ import {
   appendComment,
   clearThreadUnread,
   dispatchThread,
+  fetchRun,
 } from "@/lib/api";
 import { useChannelHub } from "@/lib/hub-socket";
 import type { ChannelHubEvent } from "@/lib/hub-socket";
@@ -50,7 +51,12 @@ import {
   workspaceKeys,
 } from "@/lib/workspace-queries";
 
-/** A run that has not settled after this long is shown as failed — no spinner in a void. */
+/**
+ * Last-resort fallback (ADR 0028): a run's card is settled authoritatively by reading DO-resident
+ * run state on its `run_lifecycle_changed` delta (see `reconcileRun`). This timeout only catches a
+ * run whose settlement delta never arrives at all (socket down the whole time AND the run never
+ * completes into the branch) — it is no longer the primary way an errored run leaves "Running".
+ */
 const RUN_STALE_MS = 120_000;
 
 /** Depth of each comment for indentation: walk parent links within the loaded slice. */
@@ -205,6 +211,34 @@ const ThreadConversation = ({
     });
   }, [channelId, queryClient, rootCommentId, threadId, workspaceId]);
 
+  // ADR 0028: settle a tracked run's card from server-authoritative state. The
+  // `run_lifecycle_changed` delta carries only the run id, so on it we READ the DO-resident run:
+  // a failed run (which never lands an output comment) flips the card to "failed"; a complete run
+  // retires it (its output comment arrives via the branch refetch). A 404 or a still-in-flight
+  // lifecycle leaves the card running — the last-resort timeout remains the only backstop for a
+  // settlement delta that never arrives.
+  const reconcileRun = useCallback(
+    (runId: string) => {
+      fetchRun(workspaceId, { channelId, runId, threadId })
+        .then((detail) => {
+          if (detail.run.lifecycle === "failed") {
+            setActiveRuns((runs) =>
+              runs.map((run) =>
+                run.runId === runId ? { ...run, status: "failed" } : run
+              )
+            );
+          } else if (detail.run.lifecycle === "complete") {
+            setActiveRuns((runs) => runs.filter((run) => run.runId !== runId));
+          }
+        })
+        .catch(() => {
+          // A 404 (run not yet resident) or a transient read error is benign: the card stays
+          // running and either the next delta or the timeout fallback settles it.
+        });
+    },
+    [channelId, threadId, workspaceId]
+  );
+
   const onEvent = useCallback(
     (event: ChannelHubEvent) => {
       if (event.threadId !== threadId) {
@@ -216,8 +250,11 @@ const ThreadConversation = ({
         // Member replies also announce comment_added (E8.4) and must not retire anything.
         setActiveRuns((runs) => runs.slice(1));
       }
+      if (event.kind === "run_lifecycle_changed") {
+        reconcileRun(event.runId);
+      }
     },
-    [refetchBranch, threadId]
+    [reconcileRun, refetchBranch, threadId]
   );
 
   const hubStatus = useChannelHub({ channelId, onEvent, workspaceId });
