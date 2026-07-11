@@ -239,6 +239,89 @@ export const defineTenantDataAccessContract = (input: {
     });
   });
 
+  describe("TenantDataAccess.listWorkspaceThreadAddresses — revoke fan-out enumeration (ADR 0037 decision 4, E10.4)", () => {
+    test("returns every thread's DO address in the workspace, across channels and regardless of visibility", async () => {
+      const data = await makeTenantDataAccess({
+        channels: [
+          makeChannel({ id: "channel-1" }),
+          makeChannel({ id: "channel-2", visibility: { kind: "private" } }),
+        ],
+        context: testTenantContext,
+        threads: [
+          makeThread({ channelId: "channel-1", id: "thread-a" }),
+          makeThread({ channelId: "channel-1", id: "thread-b" }),
+          makeThread({ channelId: "channel-2", id: "thread-c" }),
+        ],
+        workspace: testWorkspace,
+      });
+
+      const enumerated = unwrapOk(await data.listWorkspaceThreadAddresses());
+
+      expect(enumerated.workspaceId).toEqual(testWorkspaceId);
+      expect(
+        enumerated.addresses
+          .map((address) => ({
+            channelId: address.channelId,
+            threadId: address.threadId,
+          }))
+          .toSorted((left, right) =>
+            left.threadId.localeCompare(right.threadId)
+          )
+      ).toEqual([
+        { channelId: channelId("channel-1"), threadId: threadId("thread-a") },
+        { channelId: channelId("channel-1"), threadId: threadId("thread-b") },
+        { channelId: channelId("channel-2"), threadId: threadId("thread-c") },
+      ]);
+    });
+
+    test("an empty workspace enumerates to no addresses", async () => {
+      const data = await makeTenantDataAccess({
+        context: testTenantContext,
+        workspace: testWorkspace,
+      });
+
+      const enumerated = unwrapOk(await data.listWorkspaceThreadAddresses());
+
+      expect(enumerated.workspaceId).toEqual(testWorkspaceId);
+      expect(enumerated.addresses).toEqual([]);
+    });
+
+    test("fails closed on tenancy: another workspace's threads never enter the fan-out", async () => {
+      const home = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-home" })],
+        context: testTenantContext,
+        threads: [makeThread({ channelId: "channel-home", id: "thread-home" })],
+        workspace: testWorkspace,
+      });
+      // A second tenant seeded into the same store (shared D1 under the workers binder); the
+      // foreign thread carries otherWorkspaceId so its own batch clears the tenant guard.
+      await makeTenantDataAccess({
+        channels: [
+          makeChannel({ id: "channel-foreign", workspaceId: otherWorkspaceId }),
+        ],
+        context: {
+          memberId: testMemberId,
+          role: "member",
+          workspaceId: otherWorkspaceId,
+        },
+        threads: [
+          makeThread({
+            channelId: "channel-foreign",
+            id: "thread-foreign",
+            workspaceId: otherWorkspaceId,
+          }),
+        ],
+        workspace: { ...testWorkspace, id: otherWorkspaceId },
+      });
+
+      const enumerated = unwrapOk(await home.listWorkspaceThreadAddresses());
+
+      expect(enumerated.addresses.map((address) => address.threadId)).toEqual([
+        threadId("thread-home"),
+      ]);
+    });
+  });
+
   describe("TenantDataAccess.listRecentThreads — home feed (ADR 0020/0027)", () => {
     test("lists bumped threads across the member's visible channels, most recent first; other members' private and deleted channels are excluded", async () => {
       const sharedChannel = makeChannel({ id: "channel-shared" });

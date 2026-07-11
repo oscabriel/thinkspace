@@ -570,6 +570,17 @@ export const createMemoryTenantDataAccess = <
           isInTenant(config.context, skill)
         )
       ),
+    listWorkspaceThreadAddresses: async () =>
+      ok({
+        /** ADR 0037 decision 4: every tenant thread's DO address — no visibility filter. */
+        addresses: [...state.threads.values()]
+          .filter((thread) => isInTenant(config.context, thread))
+          .map((thread) => ({
+            channelId: thread.channelId,
+            threadId: thread.id,
+          })),
+        workspaceId: config.context.workspaceId,
+      }),
     listWorkspaceToolDisables: async () =>
       ok(
         [...state.workspaceToolDisables.values()].filter((toolDisable) =>

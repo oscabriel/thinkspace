@@ -10,6 +10,19 @@ const serversUrl = (workspaceId: string) =>
 const approveUrl = (workspaceId: string) =>
   `https://test.local/api/w/${workspaceId}/mcp/hosts/approve`;
 
+const revokeUrl = (workspaceId: string) =>
+  `https://test.local/api/w/${workspaceId}/mcp/hosts/revoke`;
+
+/** Whether the workspace still holds an egress approval for a host — the revoke ground truth. */
+const hostApproved = async (workspaceId: string, host: string) => {
+  const row = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM mcp_host_approval WHERE workspace_id = ?1 AND host = ?2"
+  )
+    .bind(workspaceId, host)
+    .first<{ n: number }>();
+  return (row?.n ?? 0) > 0;
+};
+
 const jsonPost = (
   url: string,
   cookie: string,
@@ -137,6 +150,52 @@ describe("MCP registry CRUD (owner-gated writes + egress gate + revoke fan-out)"
     expect(deleted.status).toBe(200);
     expect(await deleted.json()).toEqual({ mcpServerId: server.id });
     expect(await serverRowsForHost(workspaceId, "mcp.example.com")).toBe(0);
+  });
+
+  it("host revoke fans out across every workspace thread and stays durable-first (E10.4)", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "mcp-revoke@example.com",
+      slug: "mcp-revoke-space",
+    });
+    // Several live threads across channels (a private one included): the bounded fan-out must
+    // enumerate them all via the seam and dial each DO. Uninitialised DOs answer with a swallowed
+    // no-op, so the observable proof is a clean 200 plus the durable revoke — no thread aborts it.
+    await seedThread({
+      channelId: "revoke-ch-1",
+      memberId,
+      threadId: "revoke-th-1",
+      workspaceId,
+    });
+    await seedThread({
+      channelId: "revoke-ch-1",
+      memberId,
+      threadId: "revoke-th-2",
+      workspaceId,
+    });
+    await seedThread({
+      channelId: "revoke-ch-2",
+      memberId,
+      threadId: "revoke-th-3",
+      workspaceId,
+    });
+
+    await jsonPost(approveUrl(workspaceId), cookie, { host: "mcp.example.com" });
+    await jsonPost(serversUrl(workspaceId), cookie, {
+      host: "mcp.example.com",
+      name: "Docs",
+      url: "https://mcp.example.com/mcp",
+    });
+    expect(await serverRowsForHost(workspaceId, "mcp.example.com")).toBe(1);
+
+    const revoked = await jsonPost(revokeUrl(workspaceId), cookie, {
+      host: "mcp.example.com",
+    });
+    // 200 after fanning out over three threads proves the pool reached each DO without any dial
+    // aborting the rest; the durable revoke removed the approval while the server row survives.
+    expect(revoked.status).toBe(200);
+    expect(await revoked.json()).toEqual({ host: "mcp.example.com" });
+    expect(await hostApproved(workspaceId, "mcp.example.com")).toBe(false);
+    expect(await serverRowsForHost(workspaceId, "mcp.example.com")).toBe(1);
   });
 
   it("rejects a member registry write with 403 and persists nothing", async () => {
