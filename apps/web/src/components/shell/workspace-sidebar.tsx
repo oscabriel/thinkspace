@@ -10,6 +10,7 @@ import {
   KeyRound,
   Library,
   Plus,
+  ScrollText,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -101,6 +102,12 @@ export const WorkspaceSidebar = ({
           icon={KeyRound}
           label="Provider keys"
           to="/w/$workspaceId/settings/providers"
+          workspaceId={workspaceId}
+        />
+        <NavLink
+          icon={ScrollText}
+          label="Skills"
+          to="/w/$workspaceId/settings/skills"
           workspaceId={workspaceId}
         />
       </div>

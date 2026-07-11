@@ -143,7 +143,19 @@ export const ShapeForm = ({
       <ShapeSelectionSection
         description="Markdown playbooks the agent can load per turn. Selected skills freeze into every thread's shape."
         disabled={pending}
-        emptyState="No skills authored in this workspace yet — a skill is a reusable markdown playbook the agent can pull in."
+        emptyState={
+          <>
+            No skills authored in this workspace yet — author one under{" "}
+            <Link
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              params={{ workspaceId }}
+              to="/w/$workspaceId/settings/skills"
+            >
+              Skills
+            </Link>
+            .
+          </>
+        }
         itemId={(skill) => skill.id}
         itemLabel={(skill) => skill.name}
         label="Skills"
