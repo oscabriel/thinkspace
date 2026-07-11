@@ -8,10 +8,12 @@ import {
   fetchChannelShape,
   fetchChannelThreads,
   fetchHomeFeed,
+  fetchMcpServers,
   fetchMembers,
   fetchProviders,
 
   fetchModels,
+  fetchSkills,
   fetchUnread,
   fetchWorkspaceGraph,
 } from "./api";
@@ -56,10 +58,14 @@ export const workspaceKeys = {
     ["workspace", workspaceId, "channel", channelId, "threads"] as const,
   graph: (workspaceId: string) => ["workspace", workspaceId, "graph"] as const,
   home: (workspaceId: string) => ["workspace", workspaceId, "home"] as const,
+  mcpServers: (workspaceId: string) =>
+    ["workspace", workspaceId, "mcp-servers"] as const,
   members: (workspaceId: string) =>
     ["workspace", workspaceId, "members"] as const,
   providers: (workspaceId: string) =>
     ["workspace", workspaceId, "providers"] as const,
+  skills: (workspaceId: string) =>
+    ["workspace", workspaceId, "skills"] as const,
 
   models: (workspaceId: string) =>
     ["workspace", workspaceId, "models"] as const,
@@ -197,6 +203,28 @@ export const modelsQuery = (workspaceId: string) =>
     queryFn: () => fetchModels(workspaceId),
     queryKey: workspaceKeys.models(workspaceId),
     select: (data) => data.models,
+  });
+
+/**
+ * The shape form's two extra selectable pools (E8.2): the workspace's authored skills and its
+ * registered MCP servers. Read-through convergence like the graph — no realtime event fires on a
+ * skill/server registration (ADR 0010 pushes thread/run deltas only), so the form refetches on
+ * window focus rather than a timer. The artifact pool reuses {@link artifactsQuery}. Each selects
+ * its array so the picker consumes the list directly; an empty list is the honest "none authored
+ * yet" signal, not an error.
+ */
+export const skillsQuery = (workspaceId: string) =>
+  queryOptions({
+    queryFn: () => fetchSkills(workspaceId),
+    queryKey: workspaceKeys.skills(workspaceId),
+    select: (data) => data.skills,
+  });
+
+export const mcpServersQuery = (workspaceId: string) =>
+  queryOptions({
+    queryFn: () => fetchMcpServers(workspaceId),
+    queryKey: workspaceKeys.mcpServers(workspaceId),
+    select: (data) => data.servers,
   });
 
 /**

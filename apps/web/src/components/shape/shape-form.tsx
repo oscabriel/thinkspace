@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@thinkspace/ui/components/button";
 import { Label } from "@thinkspace/ui/components/label";
 import { Textarea } from "@thinkspace/ui/components/textarea";
@@ -7,21 +9,33 @@ import { useState } from "react";
 
 import type { ShapeStructure } from "@/lib/api";
 import { ModelPicker } from "@/components/shape/model-picker";
+import { ShapeSelectionSection } from "@/components/shape/shape-selection";
+import {
+  artifactsQuery,
+  mcpServersQuery,
+  skillsQuery,
+} from "@/lib/workspace-queries";
 
 /**
  * The shape authoring body (E7.5) — config-as-data (ADR 0007) rendered as a form. It is the
  * single surface behind both channel creation (a shape is authored at birth, ADR 0030) and shape
  * edit; the parent owns the mutation and, for creation, the goal/visibility controls it passes in
- * `header`. The form owns exactly the shape's two authored fields v1 ships: the model (via the
- * live picker) and the system prompt. Tool / skill / MCP / artifact selections are part of the
- * wire shape but have no authoring UI yet (scope guard) — they submit as empty arrays and render
- * as an explicit read-only "coming soon" section so the omission is honest, not hidden.
+ * `header`. The form authors every field the wire shape carries: the model (via the live picker),
+ * the system prompt, and the skill / MCP-server / artifact selections (E10.5, over the pools that
+ * already exist end-to-end since E8.2 — the ThreadAgent resolves the frozen selection per turn,
+ * ADR 0037). Built-in tools (`toolSelection`) have no selectable catalog yet — the v1 first-party
+ * catalog is frozen empty (ADR 0004 baked decision 7), so that axis stays an honest disabled note
+ * and any existing value passes through untouched rather than being blanked on edit.
  */
 export const ShapeForm = ({
   workspaceId,
   header,
   initialModelId,
   initialSystemPrompt,
+  initialSkillSelection,
+  initialMcpServerSelection,
+  initialArtifactSelection,
+  initialToolSelection,
   submitLabel,
   pendingLabel,
   pending,
@@ -35,6 +49,11 @@ export const ShapeForm = ({
   readonly header?: ReactNode;
   readonly initialModelId?: string | null;
   readonly initialSystemPrompt?: string;
+  readonly initialSkillSelection?: readonly string[];
+  readonly initialMcpServerSelection?: readonly string[];
+  readonly initialArtifactSelection?: readonly string[];
+  /** The shape's built-in-tool ids — no UI (empty catalog); passed through on submit unchanged. */
+  readonly initialToolSelection?: readonly string[];
   readonly submitLabel: string;
   readonly pendingLabel: string;
   readonly pending: boolean;
@@ -48,6 +67,19 @@ export const ShapeForm = ({
     initialModelId ?? null
   );
   const [systemPrompt, setSystemPrompt] = useState(initialSystemPrompt ?? "");
+  const [skillSelection, setSkillSelection] = useState<readonly string[]>(
+    initialSkillSelection ?? []
+  );
+  const [mcpServerSelection, setMcpServerSelection] = useState<
+    readonly string[]
+  >(initialMcpServerSelection ?? []);
+  const [artifactSelection, setArtifactSelection] = useState<readonly string[]>(
+    initialArtifactSelection ?? []
+  );
+
+  const skills = useQuery(skillsQuery(workspaceId));
+  const mcpServers = useQuery(mcpServersQuery(workspaceId));
+  const artifacts = useQuery(artifactsQuery(workspaceId));
 
   const canSubmit =
     modelId !== null &&
@@ -64,12 +96,13 @@ export const ShapeForm = ({
           return;
         }
         onSubmit({
-          artifactSelection: [],
-          mcpServerSelection: [],
+          artifactSelection,
+          mcpServerSelection,
           modelId,
-          skillSelection: [],
+          skillSelection,
           systemPrompt: systemPrompt.trim(),
-          toolSelection: [],
+          // No picker for built-in tools yet (empty catalog); preserve any existing value.
+          toolSelection: initialToolSelection ?? [],
         });
       }}
     >
@@ -107,7 +140,56 @@ export const ShapeForm = ({
         />
       </div>
 
-      <ComingSoonSection />
+      <ShapeSelectionSection
+        description="Markdown playbooks the agent can load per turn. Selected skills freeze into every thread's shape."
+        disabled={pending}
+        emptyState="No skills authored in this workspace yet — a skill is a reusable markdown playbook the agent can pull in."
+        itemId={(skill) => skill.id}
+        itemLabel={(skill) => skill.name}
+        label="Skills"
+        onToggle={toggleId(setSkillSelection)}
+        result={skills}
+        selected={skillSelection}
+      />
+
+      <ShapeSelectionSection
+        description="Registered MCP servers whose tools the agent may call. Only servers on an approved host connect at run time."
+        disabled={pending}
+        emptyState="No MCP servers registered in this workspace yet — an admin registers them before they can be selected here."
+        itemId={(server) => server.id}
+        itemLabel={(server) => server.name}
+        itemMeta={(server) => server.host}
+        label="MCP servers"
+        onToggle={toggleId(setMcpServerSelection)}
+        result={mcpServers}
+        selected={mcpServerSelection}
+      />
+
+      <ShapeSelectionSection
+        description="Cross-channel artifacts the agent may read. The home channel's own artifacts are always in scope."
+        disabled={pending}
+        emptyState={
+          <>
+            No artifacts in this workspace yet — agent runs write them to the{" "}
+            <Link
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              params={{ workspaceId }}
+              to="/w/$workspaceId/library"
+            >
+              Library
+            </Link>
+            .
+          </>
+        }
+        itemId={(artifact) => artifact.id}
+        itemLabel={(artifact) => artifact.name}
+        label="Artifacts"
+        onToggle={toggleId(setArtifactSelection)}
+        result={artifacts}
+        selected={artifactSelection}
+      />
+
+      <BuiltInToolsNote />
 
       {errorMessage && (
         <p className="text-destructive text-sm" role="alert">
@@ -129,21 +211,29 @@ export const ShapeForm = ({
   );
 };
 
+/** Add/remove an id in a selection array — the multi-select toggle shared by every section. */
+const toggleId =
+  (setter: React.Dispatch<React.SetStateAction<readonly string[]>>) =>
+  (id: string) =>
+    setter((prev) =>
+      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]
+    );
+
 /**
- * Tools, skills, MCP servers, and cross-channel artifacts are part of a shape (ADR 0007) but
- * have no picker yet. Rendered read-only so the member sees what the shape will grow to hold —
- * teaching the surface rather than hiding it — without implying it is authorable today.
+ * Built-in (first-party) tools are part of a shape (ADR 0007) but have no selectable catalog:
+ * the v1 first-party catalog is frozen empty (ADR 0004 baked decision 7 — v1 tools are the ones
+ * MCP servers provide, selected via the MCP section above). Rendered read-only so the axis is
+ * honest — present, not hidden — without implying it is authorable today.
  */
-const ComingSoonSection = () => (
-  <div className="flex flex-col gap-2 rounded-xl border border-border border-dashed bg-muted/30 p-3">
-    <div className="flex items-center gap-2 text-muted-foreground text-xs">
-      <Lock aria-hidden="true" className="size-3.5" />
-      <span className="font-medium">Coming soon</span>
-    </div>
-    <p className="text-muted-foreground text-xs leading-relaxed">
-      Tools, skills, MCP servers, and shared artifacts will be selectable here.
-      For now every channel starts with none — the model and system prompt define
-      the agent.
+const BuiltInToolsNote = () => (
+  <div className="flex flex-col gap-2">
+    <Label className="text-sm text-muted-foreground">Built-in tools</Label>
+    <p className="flex items-start gap-1.5 text-muted-foreground text-xs leading-relaxed">
+      <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+      <span>
+        The channel agent&apos;s tools come from the MCP servers you select
+        above. A first-party tool catalog is not part of v1.
+      </span>
     </p>
   </div>
 );

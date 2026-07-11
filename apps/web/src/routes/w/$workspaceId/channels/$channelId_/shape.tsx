@@ -182,8 +182,12 @@ const ShapeEditView = () => {
       ) : (
         <ShapeForm
           errorMessage={errorMessage}
+          initialArtifactSelection={shape.data.structure.artifactSelection}
+          initialMcpServerSelection={shape.data.structure.mcpServerSelection}
           initialModelId={shape.data.structure.modelId}
+          initialSkillSelection={shape.data.structure.skillSelection}
           initialSystemPrompt={shape.data.structure.systemPrompt}
+          initialToolSelection={shape.data.structure.toolSelection}
           onCancel={() =>
             navigate({
               params: { channelId, workspaceId },

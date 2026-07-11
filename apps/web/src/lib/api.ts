@@ -190,6 +190,34 @@ export const fetchModels = (workspaceId: string) =>
   apiFetch<{ models: readonly Model[] }>(workspaceId, "/models");
 
 /**
+ * The shape's selectable pools (E8.2): the workspace's authored skills (GET /skills, the
+ * R2-markdown registry index — identity only, no markdown body) and its registered MCP servers
+ * (GET /mcp/servers, registry facts only). Both are member-visible reads that back the shape
+ * form's multi-select (ADR 0007 config-as-data; the ThreadAgent resolves the frozen selection
+ * per turn, ADR 0037). Mirror packages/domain/src/{skill,mcp}.ts by hand — only the identity
+ * fields the picker renders; the R2 key / egress host stay server-side concerns.
+ */
+export interface WorkspaceSkill {
+  readonly id: string;
+  readonly name: string;
+}
+
+export const fetchSkills = (workspaceId: string) =>
+  apiFetch<{ skills: readonly WorkspaceSkill[] }>(workspaceId, "/skills");
+
+export interface WorkspaceMcpServer {
+  readonly host: string;
+  readonly id: string;
+  readonly name: string;
+}
+
+export const fetchMcpServers = (workspaceId: string) =>
+  apiFetch<{ servers: readonly WorkspaceMcpServer[] }>(
+    workspaceId,
+    "/mcp/servers"
+  );
+
+/**
  * Channel creation is a convergent upsert (PUT /channels/:channelId, ADR 0034): the client
  * mints both the channelId and the shapeId so a replay lands the same channel-plus-shape pair.
  * The channel is born with its authored shape (ADR 0030 strict 1:1) — the member picks the model
