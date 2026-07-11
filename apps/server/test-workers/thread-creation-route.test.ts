@@ -1,53 +1,12 @@
-import { createD1TenantDataAccess } from "@thinkspace/domain/adapters/production";
 import {
   channelId as brandChannelId,
-  makeChannel,
-  makeShape,
-  memberId as brandMemberId,
   unwrapOk,
-  workspaceId as brandWorkspaceId,
 } from "@thinkspace/domain/testing";
-import { env, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { signUpWithWorkspace } from "./auth-fixtures";
-
-/** The channel and its live shape exist before any creation gesture (ADR 0034). */
-const seedChannel = async (input: {
-  readonly channelId: string;
-  readonly memberId: string;
-  readonly shapeId: string;
-  readonly workspaceId: string;
-}) => {
-  const tenantDataAccess = createD1TenantDataAccess({
-    context: {
-      memberId: brandMemberId(input.memberId),
-      role: "owner",
-      workspaceId: brandWorkspaceId(input.workspaceId),
-    },
-    db: env.DB,
-  });
-  const shape = {
-    ...makeShape({ id: input.shapeId }),
-    workspaceId: brandWorkspaceId(input.workspaceId),
-  };
-  const channel = makeChannel({
-    id: input.channelId,
-    ownerMemberId: brandMemberId(input.memberId),
-    shapeId: input.shapeId,
-    workspaceId: brandWorkspaceId(input.workspaceId),
-  });
-  unwrapOk(
-    await tenantDataAccess.batch({
-      commands: [
-        { kind: "put_shape", shape },
-        { channel, kind: "put_channel" },
-      ],
-      workspaceId: brandWorkspaceId(input.workspaceId),
-    })
-  );
-  return tenantDataAccess;
-};
+import { seedChannel } from "./channel-fixtures";
 
 const putThread = (input: {
   readonly body: unknown;

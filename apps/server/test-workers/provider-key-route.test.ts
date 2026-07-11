@@ -1,16 +1,8 @@
-import { createD1TenantDataAccess } from "@thinkspace/domain/adapters/production";
-import {
-  makeChannel,
-  makeShape,
-  makeShapeStructure,
-  memberId as brandMemberId,
-  unwrapOk,
-  workspaceId as brandWorkspaceId,
-} from "@thinkspace/domain/testing";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { signUpWithWorkspace } from "./auth-fixtures";
+import { seedChannel } from "./channel-fixtures";
 
 /** Mirrors CF_BYOK_WRITE_FAIL_KEY in the outbound mock: this raw key makes the mock store 500. */
 const CF_BYOK_WRITE_FAIL_KEY = "cf-byok-write-should-fail";
@@ -47,43 +39,6 @@ const demoteToMember = (memberId: string) =>
   env.DB.prepare("UPDATE member SET role = 'member' WHERE id = ?1")
     .bind(memberId)
     .run();
-
-/** Seed a channel + shape so a dispatch can reach the ModelRouter byok gate (from dispatch-route). */
-const seedChannel = async (input: {
-  readonly channelId: string;
-  readonly memberId: string;
-  readonly shapeId: string;
-  readonly workspaceId: string;
-}) => {
-  const tenantDataAccess = createD1TenantDataAccess({
-    context: {
-      memberId: brandMemberId(input.memberId),
-      role: "owner",
-      workspaceId: brandWorkspaceId(input.workspaceId),
-    },
-    db: env.DB,
-  });
-  const shape = {
-    ...makeShape({ id: input.shapeId }),
-    structure: makeShapeStructure({ modelId: cataloguedModelId }),
-    workspaceId: brandWorkspaceId(input.workspaceId),
-  };
-  const channel = makeChannel({
-    id: input.channelId,
-    ownerMemberId: brandMemberId(input.memberId),
-    shapeId: input.shapeId,
-    workspaceId: brandWorkspaceId(input.workspaceId),
-  });
-  unwrapOk(
-    await tenantDataAccess.batch({
-      commands: [
-        { kind: "put_shape", shape },
-        { channel, kind: "put_channel" },
-      ],
-      workspaceId: brandWorkspaceId(input.workspaceId),
-    })
-  );
-};
 
 const postKey = (workspaceId: string, cookie: string, key: string) =>
   SELF.fetch(keyUrl(workspaceId), {
@@ -174,6 +129,7 @@ describe("POST/DELETE /api/w/:workspaceId/providers/:provider/key", () => {
     await seedChannel({
       channelId: "gf-ch-1",
       memberId,
+      modelId: cataloguedModelId,
       shapeId: "gf-shape-1",
       workspaceId,
     });

@@ -1,18 +1,11 @@
-import { env, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { signUpWithWorkspace } from "./auth-fixtures";
+import { keyWorkspaceForAnthropic } from "./channel-fixtures";
 
 /** The curator's fixed first-party model id (provider allowlist default, ADR 0021). */
 const curatorModelId = "anthropic/claude-sonnet-5";
-
-/** ADR 0036: registering a provider key is what makes a workspace's models routable. */
-const keyWorkspaceForAnthropic = (workspaceId: string) =>
-  env.DB.prepare(
-    "INSERT INTO workspace_provider_key (workspace_id, provider, created_at) VALUES (?1, ?2, ?3)"
-  )
-    .bind(workspaceId, "anthropic", Date.now())
-    .run();
 
 const sessionsUrl = (workspaceId: string) =>
   `https://test.local/api/w/${workspaceId}/curator/sessions`;

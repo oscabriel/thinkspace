@@ -1,98 +1,14 @@
-import { createD1TenantDataAccess } from "@thinkspace/domain/adapters/production";
-import {
-  makeChannel,
-  makeShape,
-  makeThread,
-  makeUnread,
-  memberId as brandMemberId,
-  unwrapOk,
-  workspaceId as brandWorkspaceId,
-} from "@thinkspace/domain/testing";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { signUpWithWorkspace } from "./auth-fixtures";
 import { addWorkspaceMember, signUpUser } from "./auth-fixtures";
+import { seedChannel } from "./channel-fixtures";
 
 const base = (workspaceId: string) => `https://test.local/api/w/${workspaceId}`;
 
 const get = (url: string, cookie?: string) =>
   SELF.fetch(url, { headers: cookie === undefined ? {} : { cookie } });
-
-interface SeedThread {
-  readonly id: string;
-  readonly lastActivityAt: Date;
-}
-
-/** Seeds a channel (plus its live shape, threads and unread) through the real D1 write path. */
-const seedChannel = async (input: {
-  readonly channelId: string;
-  readonly memberId: string;
-  readonly ownerMemberId?: string;
-  readonly shapeId: string;
-  readonly threads?: readonly SeedThread[];
-  readonly unreadThreadIds?: readonly string[];
-  readonly visibility?: { readonly kind: "private" } | { readonly kind: "shared" };
-  readonly workspaceId: string;
-}) => {
-  const workspaceId = brandWorkspaceId(input.workspaceId);
-  const tenantDataAccess = createD1TenantDataAccess({
-    context: {
-      memberId: brandMemberId(input.memberId),
-      role: "owner",
-      workspaceId,
-    },
-    db: env.DB,
-  });
-
-  const shape = { ...makeShape({ id: input.shapeId }), workspaceId };
-  const channel = {
-    ...makeChannel({
-      id: input.channelId,
-      ownerMemberId: brandMemberId(input.ownerMemberId ?? input.memberId),
-      shapeId: input.shapeId,
-      visibility: input.visibility ?? { kind: "shared" },
-    }),
-    workspaceId,
-  };
-
-  unwrapOk(
-    await tenantDataAccess.batch({
-      commands: [
-        { kind: "put_shape", shape },
-        { channel, kind: "put_channel" },
-        ...(input.threads ?? []).map(
-          (thread) =>
-            ({
-              kind: "put_thread_index",
-              thread: {
-                ...makeThread({
-                  channelId: input.channelId,
-                  id: thread.id,
-                  lastActivityAt: thread.lastActivityAt,
-                }),
-                workspaceId,
-              },
-            }) as const
-        ),
-        ...(input.unreadThreadIds ?? []).map(
-          (threadId) =>
-            ({
-              kind: "put_unread",
-              unread: {
-                ...makeUnread({ threadId }),
-                memberId: brandMemberId(input.memberId),
-                workspaceId,
-              },
-            }) as const
-        ),
-      ],
-      workspaceId,
-    })
-  );
-
-  return tenantDataAccess;
-};
 
 describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
   it("serves the workspace graph — the sidebar payload of visible channels", async () => {

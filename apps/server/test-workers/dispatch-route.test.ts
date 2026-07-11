@@ -1,29 +1,13 @@
-import { createD1TenantDataAccess } from "@thinkspace/domain/adapters/production";
-import {
-  makeChannel,
-  makeShape,
-  makeShapeStructure,
-  memberId as brandMemberId,
-  unwrapOk,
-  workspaceId as brandWorkspaceId,
-} from "@thinkspace/domain/testing";
-import { env, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { signUpWithWorkspace } from "./auth-fixtures";
+import { keyWorkspaceForAnthropic, seedChannel } from "./channel-fixtures";
 
 const gestureId = "01980d13-93a2-7000-8000-000000000000";
 
 /** A model the outbound mock's models.dev fixture serves and the allowlist admits. */
 const cataloguedModelId = "anthropic/claude-test-sonnet";
-
-/** ADR 0036: registering a provider key is what makes a workspace's models routable. */
-const keyWorkspaceForAnthropic = (workspaceId: string) =>
-  env.DB.prepare(
-    "INSERT INTO workspace_provider_key (workspace_id, provider, created_at) VALUES (?1, ?2, ?3)"
-  )
-    .bind(workspaceId, "anthropic", Date.now())
-    .run();
 
 const dispatchUrl = (input: {
   readonly channelId: string;
@@ -31,45 +15,6 @@ const dispatchUrl = (input: {
   readonly workspaceId: string;
 }) =>
   `https://test.local/api/w/${input.workspaceId}/channels/${input.channelId}/threads/${input.threadId}/dispatch`;
-
-const seedChannel = async (input: {
-  readonly channelId: string;
-  readonly memberId: string;
-  readonly modelId?: string;
-  readonly shapeId: string;
-  readonly workspaceId: string;
-}) => {
-  const tenantDataAccess = createD1TenantDataAccess({
-    context: {
-      memberId: brandMemberId(input.memberId),
-      role: "owner",
-      workspaceId: brandWorkspaceId(input.workspaceId),
-    },
-    db: env.DB,
-  });
-  const shape = {
-    ...makeShape({ id: input.shapeId }),
-    structure: makeShapeStructure({
-      modelId: input.modelId ?? cataloguedModelId,
-    }),
-    workspaceId: brandWorkspaceId(input.workspaceId),
-  };
-  const channel = makeChannel({
-    id: input.channelId,
-    ownerMemberId: brandMemberId(input.memberId),
-    shapeId: input.shapeId,
-    workspaceId: brandWorkspaceId(input.workspaceId),
-  });
-  unwrapOk(
-    await tenantDataAccess.batch({
-      commands: [
-        { kind: "put_shape", shape },
-        { channel, kind: "put_channel" },
-      ],
-      workspaceId: brandWorkspaceId(input.workspaceId),
-    })
-  );
-};
 
 describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatch", () => {
   it("rejects a dispatch without a gestureId as 400 — required on the wire from day one (ADR 0035 §7)", async () => {
@@ -127,6 +72,7 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatc
     await seedChannel({
       channelId: "ds-ch-1",
       memberId,
+      modelId: cataloguedModelId,
       shapeId: "ds-shape-1",
       workspaceId,
     });
@@ -182,6 +128,7 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatc
     await seedChannel({
       channelId: "dd-ch-1",
       memberId,
+      modelId: cataloguedModelId,
       shapeId: "dd-shape-1",
       workspaceId,
     });
@@ -228,6 +175,7 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatc
     await seedChannel({
       channelId: "ca-ch-1",
       memberId,
+      modelId: cataloguedModelId,
       shapeId: "ca-shape-1",
       workspaceId,
     });
@@ -274,6 +222,7 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatc
     await seedChannel({
       channelId: "uk-ch-1",
       memberId,
+      modelId: cataloguedModelId,
       shapeId: "uk-shape-1",
       workspaceId,
     });
@@ -347,6 +296,7 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatc
     await seedChannel({
       channelId: "rd-ch-1",
       memberId,
+      modelId: cataloguedModelId,
       shapeId: "rd-shape-1",
       workspaceId,
     });

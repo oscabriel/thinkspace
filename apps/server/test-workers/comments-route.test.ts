@@ -1,12 +1,4 @@
-import { createD1TenantDataAccess } from "@thinkspace/domain/adapters/production";
-import {
-  makeChannel,
-  makeShape,
-  memberId as brandMemberId,
-  unwrapOk,
-  workspaceId as brandWorkspaceId,
-} from "@thinkspace/domain/testing";
-import { env, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -14,6 +6,7 @@ import {
   signUpUser,
   signUpWithWorkspace,
 } from "./auth-fixtures";
+import { seedChannel } from "./channel-fixtures";
 
 const gestureId = "01980d13-93a2-7000-8000-000000000000";
 const replyGestureId = "01980d13-93a2-7000-8000-000000000001";
@@ -24,44 +17,6 @@ const commentsUrl = (input: {
   readonly workspaceId: string;
 }) =>
   `https://test.local/api/w/${input.workspaceId}/channels/${input.channelId}/threads/${input.threadId}/comments`;
-
-/** Seeds a channel + shape row so a thread can be created against it (no model needed). */
-const seedChannel = async (input: {
-  readonly channelId: string;
-  readonly memberId: string;
-  readonly shapeId: string;
-  readonly visibility?: { readonly kind: "private" } | { readonly kind: "shared" };
-  readonly workspaceId: string;
-}) => {
-  const tenantDataAccess = createD1TenantDataAccess({
-    context: {
-      memberId: brandMemberId(input.memberId),
-      role: "owner",
-      workspaceId: brandWorkspaceId(input.workspaceId),
-    },
-    db: env.DB,
-  });
-  const shape = {
-    ...makeShape({ id: input.shapeId }),
-    workspaceId: brandWorkspaceId(input.workspaceId),
-  };
-  const channel = makeChannel({
-    id: input.channelId,
-    ownerMemberId: brandMemberId(input.memberId),
-    shapeId: input.shapeId,
-    visibility: input.visibility ?? { kind: "shared" },
-    workspaceId: brandWorkspaceId(input.workspaceId),
-  });
-  unwrapOk(
-    await tenantDataAccess.batch({
-      commands: [
-        { kind: "put_shape", shape },
-        { channel, kind: "put_channel" },
-      ],
-      workspaceId: brandWorkspaceId(input.workspaceId),
-    })
-  );
-};
 
 /** Creates a thread via the PUT create gesture (no ask — no model routing involved). */
 const createThread = (input: {

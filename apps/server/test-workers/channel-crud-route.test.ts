@@ -15,17 +15,10 @@ import {
   signUpUser,
   signUpWithWorkspace,
 } from "./auth-fixtures";
+import { keyWorkspaceForAnthropic } from "./channel-fixtures";
 
 /** A model the outbound mock's models.dev fixture serves and the allowlist admits. */
 const cataloguedModelId = "anthropic/claude-test-sonnet";
-
-/** ADR 0036: registering a provider key is what makes a workspace's models routable. */
-const keyWorkspaceForAnthropic = (workspaceId: string) =>
-  env.DB.prepare(
-    "INSERT INTO workspace_provider_key (workspace_id, provider, created_at) VALUES (?1, ?2, ?3)"
-  )
-    .bind(workspaceId, "anthropic", Date.now())
-    .run();
 
 const shapeStructure = (input?: {
   readonly modelId?: string;

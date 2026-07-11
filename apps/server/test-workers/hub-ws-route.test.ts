@@ -1,18 +1,9 @@
-import {
-  createD1TenantDataAccess,
-  HUB_UPGRADE_REJECT_CODE,
-} from "@thinkspace/domain/adapters/production";
-import {
-  makeChannel,
-  makeShape,
-  memberId as brandMemberId,
-  unwrapOk,
-  workspaceId as brandWorkspaceId,
-} from "@thinkspace/domain/testing";
-import { env, SELF } from "cloudflare:test";
+import { HUB_UPGRADE_REJECT_CODE } from "@thinkspace/domain/adapters/production";
+import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { signUpWithWorkspace } from "./auth-fixtures";
+import { seedChannel } from "./channel-fixtures";
 
 /**
  * E7.4: the edge proxies a browser WS upgrade to the ChannelHubDurableObject. partyserver
@@ -24,41 +15,6 @@ import { signUpWithWorkspace } from "./auth-fixtures";
  */
 
 const base = (workspaceId: string) => `https://test.local/api/w/${workspaceId}`;
-
-const seedChannel = async (input: {
-  readonly channelId: string;
-  readonly memberId: string;
-  readonly shapeId: string;
-  readonly workspaceId: string;
-}) => {
-  const workspaceId = brandWorkspaceId(input.workspaceId);
-  const tenantDataAccess = createD1TenantDataAccess({
-    context: {
-      memberId: brandMemberId(input.memberId),
-      role: "owner",
-      workspaceId,
-    },
-    db: env.DB,
-  });
-  const shape = { ...makeShape({ id: input.shapeId }), workspaceId };
-  const channel = {
-    ...makeChannel({
-      id: input.channelId,
-      ownerMemberId: brandMemberId(input.memberId),
-      shapeId: input.shapeId,
-    }),
-    workspaceId,
-  };
-  unwrapOk(
-    await tenantDataAccess.batch({
-      commands: [
-        { kind: "put_shape", shape },
-        { channel, kind: "put_channel" },
-      ],
-      workspaceId,
-    })
-  );
-};
 
 const openUpgrade = (url: string, cookie?: string) =>
   SELF.fetch(url, {
