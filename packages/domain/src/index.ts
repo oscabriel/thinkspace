@@ -67,6 +67,7 @@ export type {
 export {
   authzErrorSchema,
   byokKeyMissingErrorSchema,
+  byokKeyUndecryptableErrorSchema,
   catalogUnavailableErrorSchema,
   createNotImplementedError,
   curatorExecutionFailedErrorSchema,
@@ -84,6 +85,7 @@ export {
 export type {
   AuthzError,
   ByokKeyMissingError,
+  ByokKeyUndecryptableError,
   CatalogUnavailableError,
   CuratorExecutionFailedError,
   CuratorSessionNotFoundError,
@@ -340,6 +342,7 @@ export type {
   ChannelListingRequest,
   HomeFeed,
   HomeFeedRequest,
+  ProviderKeyCiphertext,
   TenantContext,
   TenantDataAccess,
   TenantDataAccessError,
@@ -349,6 +352,16 @@ export type {
   ThreadIndex,
   WorkspaceGraph,
 } from "./seams/tenant-data-access";
+export type {
+  KeyResolveError,
+  KeyStore,
+  KeyStoreWriteError,
+  ProviderAuthAlias,
+  ProviderAuthHeader,
+  ProviderAuthRequest,
+  ResolvedProviderAuth,
+} from "./seams/key-store";
+export { openProviderKey, sealProviderKey } from "./key-envelope";
 export type {
   SkillContent,
   SkillDraft,

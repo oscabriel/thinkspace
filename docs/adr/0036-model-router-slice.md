@@ -194,7 +194,14 @@ re-litigate key state, and a failed run is the correct, observable outcome (ADR 
 
 ## Consequences, risks, and recorded facts
 
-### Secrets Store 100-secret scale blocker (recorded risk, not an E1 blocker)
+### Secrets Store 100-secret scale blocker (recorded risk — RESOLVED by ADR 0040)
+
+**[Resolved by ADR 0040 — 2026-07-11]** The scale blocker below is dissolved: the BYOK `KeyStore`
+port's `EnvelopeD1KeyStore` (the production default) seals keys into D1's `key_ciphertext` column
+instead of Secrets Store, so workspace count is no longer capped at 100. §4-5's `byokSecretAlias`
+/ `byokSecretName` / Secrets Store name anatomy become the retained legacy `SecretsStoreKeyStore`
+adapter's concern; every other §-mechanism here is reused unchanged. The original recorded risk
+stands as history below.
 
 Spike finding 2, verified: the Secrets Store open beta caps at **100 production secrets per
 account, one store per account**. One secret per workspace×provider means even ~100

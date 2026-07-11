@@ -8,7 +8,10 @@ import type { ProviderAllowEntry } from "../../provider-allowlist";
 import { providerAllowlist } from "../../provider-allowlist";
 import { err, ok } from "../../result";
 import type { ModelRouter } from "../../seams/model-routing";
-import type { TenantContext } from "../../seams/tenant-data-access";
+import type {
+  DataAccessContext,
+  TenantContext,
+} from "../../seams/tenant-data-access";
 import { hasSameId, idKey, tenantGuardViolation } from "../helpers";
 import type { ModelCatalog } from "./model-catalog";
 
@@ -183,7 +186,8 @@ export const resolveCuratorModelId = async (
 
 export interface D1ProviderKeyRegistryConfig {
   readonly clock?: () => Date;
-  readonly context: TenantContext;
+  /** Widened to any workspace-scoped context (ADR 0040): the registry only reads `workspaceId`. */
+  readonly context: DataAccessContext;
   readonly db: D1Database;
 }
 
@@ -198,7 +202,7 @@ export interface D1ProviderKeyRegistryConfig {
  * lives solely in Secrets Store), so these writes carry nothing redaction-sensitive.
  */
 export interface ProviderKeyRegistry {
-  readonly context: TenantContext;
+  readonly context: DataAccessContext;
   readonly put: (provider: ModelProvider) => Promise<void>;
   readonly remove: (provider: ModelProvider) => Promise<void>;
 }

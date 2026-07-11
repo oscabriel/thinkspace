@@ -102,6 +102,10 @@ export const workspaceProviderKey = sqliteTable(
   "workspace_provider_key",
   {
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    // ADR 0040: AES-256-GCM sealed provider key (`v1:<iv>:<ct>`) for the EnvelopeD1KeyStore.
+    // Nullable and additive: rows registered under the legacy Secrets Store adapter carry null
+    // until re-registered, so the migration is backward-compatible with existing keyed workspaces.
+    keyCiphertext: text("key_ciphertext"),
     provider: text("provider").notNull(),
     workspaceId: text("workspace_id").notNull(),
   },

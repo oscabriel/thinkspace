@@ -53,6 +53,22 @@ export const byokKeyMissingErrorSchema = z.object({
 });
 export type ByokKeyMissingError = z.infer<typeof byokKeyMissingErrorSchema>;
 
+/**
+ * ADR 0040: an envelope-sealed provider key that will not open — a wrong `BYOK_MASTER_KEY`, a
+ * corrupt ciphertext/IV, or a failed GCM tag check. The turn-time KeyStore resolve fails closed
+ * with this instead of decrypting to garbage or throwing a raw crypto error (which the run path
+ * would surface). Redaction-safe by construction: it carries only routing ids, never key bytes.
+ */
+export const byokKeyUndecryptableErrorSchema = z.object({
+  kind: z.literal("byok_key_undecryptable"),
+  modelId: modelIdSchema,
+  provider: modelProviderSchema,
+  workspaceId: workspaceIdSchema,
+});
+export type ByokKeyUndecryptableError = z.infer<
+  typeof byokKeyUndecryptableErrorSchema
+>;
+
 export const modelNotInCatalogErrorSchema = z.object({
   kind: z.literal("model_not_in_catalog"),
   modelId: modelIdSchema,

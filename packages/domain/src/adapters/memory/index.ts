@@ -10,6 +10,10 @@ export {
   type MemoryCuratorScriptedTurn,
 } from "./curator-agent";
 export {
+  createMemoryKeyStore,
+  type MemoryKeyStoreConfig,
+} from "./key-store";
+export {
   createMemoryModelRouter,
   type MemoryModelRouterConfig,
   type MemoryModelSecretAlias,

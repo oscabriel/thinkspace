@@ -14,6 +14,7 @@ import { err, ok } from "../../result";
 import type { Result } from "../../result";
 import type {
   DataAccessContext,
+  ProviderKeyCiphertext,
   TenantContext,
   TenantDataAccess,
   TenantDataAccessError,
@@ -48,6 +49,12 @@ interface ChannelRow {
   readonly owner_member_id: string;
   readonly shape_id: string;
   readonly visibility: string;
+  readonly workspace_id: string;
+}
+
+interface ProviderKeyCiphertextRow {
+  readonly key_ciphertext: string | null;
+  readonly provider: string;
   readonly workspace_id: string;
 }
 
@@ -585,6 +592,28 @@ export const createD1TenantDataAccess = <
         .bind(input.mcpServerId)
         .first<McpServerRow>();
       return guardedRow(context, row, rowToMcpServer);
+    },
+    getProviderKeyCiphertext: async (input) => {
+      const row = await db
+        .prepare(
+          "SELECT provider, key_ciphertext, workspace_id FROM workspace_provider_key WHERE workspace_id = ?1 AND provider = ?2"
+        )
+        .bind(context.workspaceId, input.provider)
+        .first<ProviderKeyCiphertextRow>();
+      if (row === null) {
+        return ok(null);
+      }
+      if (!hasSameId(row.workspace_id, context.workspaceId)) {
+        return err(
+          tenantGuardViolation(context, row.workspace_id as WorkspaceId)
+        );
+      }
+      const ciphertext: ProviderKeyCiphertext = {
+        provider: input.provider,
+        sealedKey: row.key_ciphertext,
+        workspaceId: context.workspaceId,
+      };
+      return ok(ciphertext);
     },
     getSchedule: async (_input) =>
       notImplemented("D1TenantDataAccess.getSchedule"),

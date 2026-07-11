@@ -206,6 +206,7 @@ _(ADRs land in `docs/adr/`; this table is the running index.)_
 | 0037 | Effective toolset by per-turn pull: DO resolves at turn start (dispatched + scheduled) over its own D1 access feeding the snapshot's selections; MCP delivery = SDK connection reconciliation (`addMcpServer`/`removeMcpServer`, egress-gated per connect); resolution failure fails the run closed; registry revoke fans out `removeMcpServer` via the directory; resolver skills layer = `dataAccess.listSkills()` (refines 0002, 0004, 0007, 0036)                                                                                                                                                              | accepted             |
 | 0038 | OpenAI joins the provider allowlist (`@ai-sdk/openai` at the `ai@6`-matching pin, gateway recipe code-verified before implementation); curator model = default model of the workspace's **earliest-keyed provider** (registry `created_at` ASC, provider ASC tie-break), edge-resolved and passed to the DO at `startSession` (persisted in DO SQLite, `getModel` self-constructs from it), 409 `byok_key_missing` when unkeyed; per-workspace curator-model setting deferred (refines 0021, 0026, 0036)                                                                                                          | accepted             |
 | 0039 | Deployment environments: two named stages (dev / `prod`), one registrable domain — web at apex `think-space.app`, server at `api.think-space.app` (same-site cookies). `isProd = app.stage === "prod"` drives a stage-driven origin block (literal prod hosts vs `caddyDevOrigin ?? env`), closes the `VITE_SERVER_URL`→`workers.dev` and `INVITATION_ORIGIN` dev-origin leaks, and attaches custom domains only in prod. Per-stage data isolation via alchemy's name-suffixing (free). `crossSubDomainCookies` + `session.cookieCache{60}` gated on a prod-only `AUTH_COOKIE_DOMAIN` binding (absent in dev). Fresh prod `BETTER_AUTH_SECRET` via gitignored `.env.prod` (override, prod-only); all other secrets shared. Shared-gateway destroy hazard (single `gatewayName:"thinkspace"`, unconditional delete in alchemy 0.91.2) → guardrail: never `alchemy destroy` a stage while another is live; dedicated-shared-scope extraction = fast-follow; path-routing rejected (refines 0008, 0011, 0035) | accepted             |
+| 0040 | BYOK `KeyStore` port + two adapters: `EnvelopeD1KeyStore` (production default — AES-256-GCM seals the raw key into `workspace_provider_key.key_ciphertext` via WebCrypto + a `BYOK_MASTER_KEY` worker secret; the edge/DO decrypts and sends the real provider-auth header the gateway forwards verbatim) and `SecretsStoreKeyStore` (retained legacy — today's Secrets Store `cf-aig-byok-alias` substitution). DO obtains ciphertext via a narrow tenant-scoped `getProviderKeyCiphertext` seam read (never a raw SELECT) and decrypts to a transient non-hibernating field; resolve fails closed (`byok_key_missing`/`byok_key_undecryptable`). Migration 0009 adds the nullable ciphertext column (additive; legacy rows fall back to the alias until re-registered). Dissolves 0036's 100-secret scale blocker. Tiered any-provider allowlist = issue #56, separate. (supersedes 0011's key-storage half; amends 0036 §4-5, dissolves its scale-blocker note; refines 0038) | accepted             |
 
 ## Persistence tiers (locked)
 
@@ -315,8 +316,9 @@ sweep** (on DO wake, replay terminal-but-unsettled runs through the self-constru
 completion flow; idempotent), then **E4 — hub WebSocket authz** (better-auth JWT/JWKS,
 hub-DO verification at WS upgrade). Recorded debt from 0035: dispatch-dedupe enforcement,
 invitations (needs an email sender), JWT/JWKS for hub WebSocket authz (E4),
-`getWorkspaceGraph`. Recorded risk from 0036: the Secrets Store 100-secret/account open-beta
-cap (fine for MVP; limit-increase form or alternative key store before GA). Remaining
+`getWorkspaceGraph`. Recorded risk from 0036 — the Secrets Store 100-secret/account open-beta
+cap — is **RESOLVED via the KeyStore port (ADR 0040):** `EnvelopeD1KeyStore` seals keys into D1
+(no per-account cap), the default over the retained legacy Secrets Store adapter. Remaining
 memory-only seams: CuratorAgent, McpEgressPolicy + ToolResolver v2 (E6.3),
 ArtifactStore (ADR 0032 reshape pending), SkillStore.
 
@@ -330,7 +332,10 @@ ArtifactStore (ADR 0032 reshape pending), SkillStore.
   per-shape doc selection across channels (0014), multiplayer-thread fan-out not architected out (0013).
 - **Escape hatches (documented, unbuilt):** per-tenant D1 for residency (0009) · WorkspaceHub
   sub-shard by member-bucket if band exceeded (0012) · fork/vendor SDK on blocking bug (0015).
-- **Recorded scale risk (0036):** Secrets Store open beta = 100 production secrets per account
-  (one store/account) — one secret per workspace×provider caps at ~100 single-provider
-  workspaces; fine for dev/MVP, pursue the Cloudflare limit-increase form or an alternative
-  key-storage architecture before GA. (Resolves 0011's "undocumented" BYOK-key-count note.)
+- **Recorded scale risk (0036) — RESOLVED (ADR 0040):** the Secrets Store open beta = 100
+  production secrets per account was the recorded GA blocker (one secret per workspace×provider
+  caps at ~100 single-provider workspaces). ADR 0040's `EnvelopeD1KeyStore` (the production
+  default) removes the cap: keys are AES-256-GCM-sealed into D1's `key_ciphertext` column, not
+  Secrets Store, so workspace count is bounded only by D1. The legacy `SecretsStoreKeyStore`
+  adapter is retained; existing keys re-register to migrate. (Also resolves 0011's "undocumented"
+  BYOK-key-count note.)

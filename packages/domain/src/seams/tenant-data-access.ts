@@ -25,6 +25,7 @@ import type {
   WorkspaceId,
 } from "../ids";
 import type { McpHostApproval, McpServer } from "../mcp";
+import type { ModelProvider } from "../model";
 import type { DisplayName, McpHost } from "../primitives";
 import type { AsyncResult } from "../result";
 import type { Schedule } from "../run";
@@ -124,6 +125,21 @@ export interface WorkspaceThreadAddresses {
   readonly workspaceId: WorkspaceId;
 }
 
+/**
+ * ADR 0040: the narrow tenant-scoped read the DO uses to obtain a workspace's sealed provider key
+ * on the turn hot path — the seam method that replaces a raw DO→D1 SELECT (the class ADR 0038
+ * §Rejected barred). `sealedKey` is the `workspace_provider_key.key_ciphertext` column: `null` for
+ * a row registered under the legacy Secrets Store adapter (no ciphertext yet), a `v1:<iv>:<ct>`
+ * value once re-registered under the envelope adapter. Carries only the sealed value — never
+ * plaintext. A missing registry row resolves to `null` at the seam (the key was never registered
+ * or was revoked); the KeyStore turns that into a fail-closed `byok_key_missing`.
+ */
+export interface ProviderKeyCiphertext {
+  readonly provider: ModelProvider;
+  readonly sealedKey: string | null;
+  readonly workspaceId: WorkspaceId;
+}
+
 export type ChannelListingRequest =
   | { readonly kind: "sidebar" }
   | { readonly kind: "directory"; readonly search: DirectorySearch };
@@ -217,6 +233,14 @@ export interface TenantDataAccess<
   readonly getMcpServer: (input: {
     readonly mcpServerId: McpServerId;
   }) => AsyncResult<McpServer | null, TenantDataAccessError>;
+  /**
+   * ADR 0040: the sealed provider key for `(context.workspaceId, provider)` — the DO's only path
+   * to ciphertext (never a raw SELECT). `null` when no registry row exists; a row with no
+   * ciphertext yields `{ sealedKey: null }`. Workspace-scoped, so it serves a system context too.
+   */
+  readonly getProviderKeyCiphertext: (input: {
+    readonly provider: ModelProvider;
+  }) => AsyncResult<ProviderKeyCiphertext | null, TenantDataAccessError>;
   readonly getSchedule: (input: {
     readonly scheduleId: ScheduleId;
   }) => AsyncResult<Schedule | null, TenantDataAccessError>;

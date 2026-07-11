@@ -51,11 +51,21 @@ export {
 } from "./curator-agent";
 export {
   createGatewayModel,
+  gatewayAuthHeaders,
   gatewayModelFactories,
   type GatewayModelEnv,
   type GatewayModelFactory,
   type GatewayModelFactoryOptions,
 } from "./model-gateway";
+export {
+  createEnvelopeD1KeyStore,
+  createKeyStore,
+  createSecretsStoreKeyStore,
+  type CreateKeyStoreConfig,
+  type EnvelopeD1KeyStoreConfig,
+  type KeyStoreEnv,
+  type SecretsStoreKeyStoreConfig,
+} from "./key-store";
 export {
   AI_GATEWAY_SECRET_SCOPE,
   type ByokFetch,
