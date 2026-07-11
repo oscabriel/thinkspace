@@ -117,8 +117,82 @@ keyed; the router/curator/catalog reads (`model-routing.ts`) are semantically un
 - Scheduled runs (ADR 0036 §10) resolve provider auth through the same KeyStore at turn time; a key
   revoked since scheduling now fails the run closed at decrypt rather than only at the gateway.
 
-## Deferred — the second half of E11.8
+## Second half (E11.9 / issue #56): tiered any-provider allowlist + generic openai-compatible factory
 
-This ADR ships the KeyStore port. The **tiered any-provider allowlist** (letting a workspace key any
-provider, not only the curated allowlist) is **issue #56 and lands separately** — it builds on this
-port but is an independent decision.
+The first half (above) shipped the KeyStore port. E11.9 builds on it to let a workspace key **any** of
+models.dev's ~159 providers, not only the hand-curated two, without hand-verifying each. It retires
+ADR 0038's hand-curated-allowlist framing.
+
+### 6. The allowlist is models.dev-derived, tier-annotated, and BUILD-TIME-GENERATED data
+
+`ProviderAllowEntry` gains `tier`, `authKind`, `routing`, `displayName`, and optional
+`unsupportedReason`/`upstreamBaseUrl`. The long tail (157 non-first-party providers) is **generated
+data checked into the repo** — `packages/domain/src/provider-allowlist.generated.ts`, emitted by
+`scripts/refresh-provider-allowlist.ts` from the models.dev registry — **not** a live models.dev
+dependency at module scope. (The live catalog already consumes models.dev at the edge; the ALLOWLIST
+is the static, tier-annotated derivation, so a models.dev outage can never empty the allowlist or
+change tiers under a running deploy.) The refresh procedure is: run the script, review the diff, run
+the domain gates, commit. `openai`/`anthropic` stay hand-authored first-party entries in
+`provider-allowlist.ts` so their tiers and exact `defaultModelSlug`s (`gpt-5.5`, `claude-sonnet-5` —
+the curator's earliest-keyed ordering, ADR 0038 §2) are preserved verbatim; anthropic heads the list
+so the curator's allowlist-head fallback is unchanged.
+
+**Three honest tiers, no key-buying.** `verified` = a code-verified factory smoke-tested with a real
+key (openai only). `best-effort` = the generic openai-compatible path; "first run confirms" — a bad
+key or base URL settles as a visible `run_failure` (ADR 0028), never a hung run. `unsupported` =
+sigv4/oauth/local/per-resource providers, greyed in the UI with a one-line reason, never a dead form.
+anthropic stays `best-effort` until a real anthropic key exists (ADR 0038 addendum).
+
+**Classification (deterministic, keyed off the models.dev `npm` package + `api` base URL).** Only
+`bearer`/`x-api-key` are key-registrable. `@ai-sdk/amazon-bedrock` → `sigv4` unsupported;
+`@ai-sdk/google-vertex*` → `oauth` unsupported; `@ai-sdk/azure` → `x-api-key` but unsupported
+(per-resource base URL, not uniformly routable); localhost `api` → `local` unsupported; meta-gateway
+SDKs → unsupported (register upstreams directly); a `${VAR}`-templated or non-http `api` → unsupported
+(no usable base URL). Everything else with a documented native slug or a usable base URL is
+`best-effort`.
+
+**ModelId relaxation.** The composite `<providerId>/<modelSlug>` regex was tightened to allow the
+model slug to contain slashes: aggregators (openrouter, togetherai, fireworks, …) publish
+`org/model`-shaped ids. `parseModelId` already split on the FIRST slash, so this is a pure regex
+widening — the provider is still the first path element.
+
+### 7. One generic openai-compatible factory; native slug vs Custom Provider route
+
+`gatewayModelFactories` keeps the hand-authored anthropic/openai recipes; every other registrable
+provider rides a single `createGenericGatewayModel`, parameterized by the allowlist entry's base URL
+and auth kind. It **rides the SAME `ResolvedProviderAuth` verbatim-header mechanism the first half
+shipped** — no second auth path: `bearer` sends `Authorization: Bearer <key>`, `x-api-key` sends
+`x-api-key: <key>`, and the gateway forwards the present header verbatim. It is built on
+`@ai-sdk/openai`'s `.chat()` (the chat-completions surface every OpenAI-compatible upstream exposes),
+not `.responses()` (the first-party openai default), so no new dependency is added. This restates the
+ADR 0038 `allowlist ⊆ factory-map` invariant as **every eligible (registrable) allowlist entry
+resolves to a factory** — the generic path is the catch-all, so a registrable provider is never a
+latent 500 (contract-tested across all ~135 registrable entries).
+
+Routing: `native` → the provider's documented gateway slug (`${GW}/${slug}`); `custom-provider` → an
+AI Gateway Custom Provider route (`${GW}/compat/${slug}`) whose upstream `base_url` is the models.dev
+`api`. Custom Provider configs are **account-level / shared across workspaces** — acceptable, because
+native provider routes are equally shared and **the key, not the route, is the isolation boundary**
+(each workspace's key resolves through its own KeyStore row; the shared route carries no key).
+
+**UNVERIFIED (explicit).** The exact CF AI Gateway Custom Provider API — both the provisioning write
+and the `/compat/<slug>` route segment — is underdocumented and **not verified against a live
+gateway**. Per the "no pretend implementation" rule, provisioning is a narrow seam
+(`CustomProviderProvisioner`, `adapters/production/custom-provider.ts`) whose **default production
+adapter is an honest no-op stub returning the typed `custom_provider_provisioning_unverified`
+result**. The write route calls it **best-effort at key-registration time** (lazy, idempotent, using
+the account-scoped `BYOK_CF_*` creds the write path already holds) and **never fails key registration
+on its result** — the key is already sealed. A non-native provider is therefore honestly Tier-B "first
+run confirms": the first real turn either succeeds or settles as a visible `run_failure`, never a
+false "provisioned" claim. The native slugs for the long tail (groq, mistral, cohere, …) are
+likewise documented-but-unsmoke-tested — a wrong slug settles the same Tier-B way. The real CF-API
+adapter and native-slug verification are follow-up.
+
+### 8. Write route + UI
+
+`POST /providers/:provider/key` accepts any registrable (Tier A/B) provider, rejects Tier-C with a
+typed **422 `provider_unsupported`** (never a 500, never a dead 404), 404s a genuinely un-allowlisted
+id, and never echoes the key. The provider-settings UI is search-first and tier-grouped (usable at
+100+ entries per DESIGN.md's compact scale): keyed providers pull to the top, registrable providers
+group under Verified / Best-effort ("first run confirms"), and Unsupported providers render greyed
+with their reason and NO key form.

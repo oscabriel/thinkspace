@@ -66,9 +66,13 @@ describe("byokSecretName — {gateway_id}_{provider_slug}_{alias} (spike §1)", 
   });
 
   test("throws for a non-allowlisted provider", () => {
-    // openai joined the allowlist (ADR 0038 §1); use a provider still off it.
+    // E11.9 widened the allowlist to the models.dev registry, so use an id genuinely off it.
     expect(() =>
-      byokSecretName("gw", workspaceId, modelProviderSchema.parse("google"))
+      byokSecretName(
+        "gw",
+        workspaceId,
+        modelProviderSchema.parse("definitely-not-a-real-provider")
+      )
     ).toThrow(/not allowlisted/u);
   });
 });

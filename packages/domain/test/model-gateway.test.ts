@@ -1,31 +1,93 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  createGatewayModel,
   gatewayAuthHeaders,
-  gatewayModelFactories,
+  genericGatewayBaseUrl,
 } from "../src/adapters/production/model-gateway";
+import type { GatewayModelEnv } from "../src/adapters/production/model-gateway";
+import { formatModelId } from "../src/ids";
 import { secretAliasSchema } from "../src/primitives";
-import { providerAllowlist } from "../src/provider-allowlist";
+import {
+  isRegistrableTier,
+  providerAllowlist,
+} from "../src/provider-allowlist";
+import { workspaceId } from "../src/testing";
 
-describe("gatewayModelFactories — provider allowlist coverage (E1.7 / ADR 0038)", () => {
-  test("every allowlisted provider has an AI Gateway factory", () => {
-    const factoryProviders = new Set(Object.keys(gatewayModelFactories));
+const fakeEnv: GatewayModelEnv = {
+  AI_GATEWAY_TOKEN: "gw-token",
+  AI_GATEWAY_URL: "https://gateway.example/v1/acct/gw",
+};
 
-    for (const entry of providerAllowlist) {
-      expect(factoryProviders.has(entry.provider)).toBe(true);
+describe("createGatewayModel — allowlist ⊆ factory invariant restated (E11.9 / ADR 0040)", () => {
+  const ws = workspaceId("factory-ws");
+
+  // The header path avoids the byokSecretAlias parse so this only exercises factory construction.
+  const build = (modelsDevId: string, slug: string) =>
+    createGatewayModel(formatModelId(modelsDevId, slug), {
+      env: fakeEnv,
+      providerAuth: { kind: "header", value: "sk-test" },
+      workspaceId: ws,
+    });
+
+  test("EVERY registrable allowlist entry resolves to a factory (generic or first-party)", () => {
+    const registrable = providerAllowlist.filter((entry) =>
+      isRegistrableTier(entry.tier)
+    );
+    // The whole point of E11.9: the long tail is one code path, so this spans ~140 providers.
+    expect(registrable.length).toBeGreaterThan(100);
+    for (const entry of registrable) {
+      const model = build(entry.modelsDevId, entry.defaultModelSlug);
+      expect(model).toBeDefined();
     }
   });
 
-  test("the allowlist ⊆ factory-map invariant now spans both providers", () => {
-    const allowlisted = providerAllowlist
-      .map((entry) => String(entry.provider))
-      .toSorted();
-    expect(allowlisted).toEqual(["anthropic", "openai"]);
-    for (const provider of allowlisted) {
-      expect(
-        Object.prototype.hasOwnProperty.call(gatewayModelFactories, provider)
-      ).toBe(true);
+  test("an unsupported-tier provider is rejected, never constructed as a latent 500", () => {
+    const unsupported = providerAllowlist.find(
+      (entry) => entry.tier === "unsupported"
+    );
+    expect(unsupported).toBeDefined();
+    if (unsupported === undefined) {
+      return;
     }
+    expect(() =>
+      build(unsupported.modelsDevId, unsupported.defaultModelSlug)
+    ).toThrow(/not key-registrable/);
+  });
+
+  test("an un-allowlisted provider throws a clear not-allowlisted error", () => {
+    expect(() => build("no-such-provider", "some-model")).toThrow(
+      /not allowlisted/
+    );
+  });
+});
+
+describe("genericGatewayBaseUrl — native slug vs Custom Provider route (E11.9)", () => {
+  const nativeEntry = providerAllowlist.find(
+    (entry) => entry.routing === "native" && isRegistrableTier(entry.tier)
+  );
+  const customEntry = providerAllowlist.find(
+    (entry) => entry.routing === "custom-provider"
+  );
+
+  test("a native-routed provider posts to the bare gateway slug segment", () => {
+    expect(nativeEntry).toBeDefined();
+    if (nativeEntry === undefined) {
+      return;
+    }
+    expect(genericGatewayBaseUrl(fakeEnv, nativeEntry)).toBe(
+      `${fakeEnv.AI_GATEWAY_URL}/${nativeEntry.gatewaySlug}`
+    );
+  });
+
+  test("a non-native provider posts to the /compat Custom Provider route segment", () => {
+    expect(customEntry).toBeDefined();
+    if (customEntry === undefined) {
+      return;
+    }
+    expect(genericGatewayBaseUrl(fakeEnv, customEntry)).toBe(
+      `${fakeEnv.AI_GATEWAY_URL}/compat/${customEntry.gatewaySlug}`
+    );
   });
 });
 

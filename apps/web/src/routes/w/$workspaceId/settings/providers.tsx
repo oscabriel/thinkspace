@@ -1,13 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useParams } from "@tanstack/react-router";
-import { Button } from "@thinkspace/ui/components/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@thinkspace/ui/components/card";
+  providerAllowlist,
+  type ProviderAllowEntry,
+  type ProviderTier,
+} from "@thinkspace/domain/provider-allowlist";
+import { Button } from "@thinkspace/ui/components/button";
 import {
   Empty,
   EmptyDescription,
@@ -18,9 +16,14 @@ import {
 import { Input } from "@thinkspace/ui/components/input";
 import { Label } from "@thinkspace/ui/components/label";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
-import { providerAllowlist } from "@thinkspace/domain/provider-allowlist";
-import { CheckCircle2, KeyRound, TriangleAlert } from "lucide-react";
-import { useState } from "react";
+import {
+  CheckCircle2,
+  KeyRound,
+  Search,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -32,45 +35,68 @@ import {
 import { providersQuery, workspaceKeys } from "@/lib/workspace-queries";
 
 /**
- * E7.2 provider-key settings (ADR 0011 key-first, ADR 0036 byok gate, ADR 0038 multi-provider).
- * One card per allowlisted provider — the list of providers is the domain's `providerAllowlist`,
- * not a local constant, so the surface widens with the allowlist (ADR 0038 consequence). The page
- * teaches the key-first invariant: until a key is registered the workspace is browsable but no
- * agent can run. The raw key is write-only — it is sent once to POST /providers/:p/key, never read
- * back (GET /providers returns registry facts only), and the input is cleared the moment a submit
- * succeeds. Registration is owner/admin only; a member sees the 403 kind surfaced as a teaching
- * message rather than a dead form.
+ * E7.2 / E11.9 provider-key settings (ADR 0011 key-first, ADR 0036 byok gate, ADR 0038/0040 tiered
+ * any-provider allowlist). The provider list is the domain's `providerAllowlist` — now models.dev-
+ * derived at ~159 entries across three honest tiers — so the surface widens with the allowlist. At
+ * that scale the page is search-first and tier-grouped rather than one big card per provider: a
+ * keyed provider is pulled to the top, registrable providers group under Verified / Best-effort,
+ * and Unsupported providers render greyed with a one-line reason and NO key form (never a dead
+ * form). The key-first invariant still teaches: until a key is registered no agent can run. The raw
+ * key is write-only — sent once to POST /providers/:p/key, never read back, cleared on success.
+ * Registration is owner/admin only; the 403 kind surfaces as a teaching toast, not a broken form.
  */
 
-/**
- * Presentation-only chrome per provider id — the display label and a provider-appropriate key
- * placeholder. Purely how a provider looks; the domain owns *which* providers exist. Any
- * allowlisted provider absent here falls back to a capitalized id + generic placeholder, so the
- * surface never breaks when the allowlist grows ahead of this map.
- */
-const PROVIDER_PRESENTATION: Readonly<
-  Record<string, { readonly label: string; readonly keyPlaceholder: string }>
-> = {
-  anthropic: { label: "Anthropic", keyPlaceholder: "sk-ant-…" },
-  openai: { label: "OpenAI", keyPlaceholder: "sk-…" },
+/** Key-input placeholder by auth kind — cosmetic only; the domain owns which providers exist. */
+const keyPlaceholderFor = (entry: ProviderAllowEntry): string =>
+  entry.authKind === "x-api-key" ? "sk-ant-…" : "sk-…";
+
+interface TierMeta {
+  readonly label: string;
+  readonly hint?: string;
+  /** Section-heading blurb. */
+  readonly blurb: string;
+}
+
+const TIER_META: Readonly<Record<ProviderTier, TierMeta>> = {
+  "best-effort": {
+    blurb:
+      "One code path for the models.dev long tail. The first run confirms the key and endpoint work.",
+    hint: "first run confirms",
+    label: "Best-effort",
+  },
+  unsupported: {
+    blurb:
+      "These providers authenticate in a way we can't register a key for (request signing, OAuth, or a local/per-resource endpoint).",
+    label: "Unsupported",
+  },
+  verified: {
+    blurb: "Smoke-tested end to end with a real key.",
+    label: "Verified",
+  },
 };
 
-const presentationFor = (
-  providerId: string
-): { readonly label: string; readonly keyPlaceholder: string } =>
-  PROVIDER_PRESENTATION[providerId] ?? {
-    label: providerId.charAt(0).toUpperCase() + providerId.slice(1),
-    keyPlaceholder: "sk-…",
-  };
-
-const PROVIDER_ROWS: readonly {
-  readonly id: string;
-  readonly label: string;
-  readonly keyPlaceholder: string;
-}[] = providerAllowlist.map((entry) => ({
-  id: entry.provider,
-  ...presentationFor(entry.provider),
-}));
+const TierBadge = ({ tier }: { readonly tier: ProviderTier }) => {
+  const meta = TIER_META[tier];
+  const tone =
+    tier === "verified"
+      ? "border-success/30 text-success"
+      : tier === "best-effort"
+        ? "border-border text-muted-foreground"
+        : "border-border/60 text-muted-foreground/70";
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6875rem] leading-none ${tone}`}
+    >
+      {tier === "verified" && (
+        <ShieldCheck aria-hidden="true" className="size-3" />
+      )}
+      {meta.label}
+      {meta.hint !== undefined && (
+        <span className="text-muted-foreground/60">· {meta.hint}</span>
+      )}
+    </span>
+  );
+};
 
 const formatKeyedAt = (iso: string): string => {
   const parsed = new Date(iso);
@@ -83,21 +109,130 @@ const formatKeyedAt = (iso: string): string => {
       });
 };
 
-const ProviderKeyCard = ({
-  provider,
+interface RowActions {
+  readonly expandedId: string | null;
+  readonly isMutating: boolean;
+  readonly onExpand: (id: string | null) => void;
+  readonly onRegister: (entry: ProviderAllowEntry, key: string) => void;
+  readonly onRemove: (entry: ProviderAllowEntry) => void;
+}
+
+const ProviderRow = ({
+  entry,
   status,
-  workspaceId,
+  actions,
 }: {
-  readonly provider: {
-    readonly id: string;
-    readonly label: string;
-    readonly keyPlaceholder: string;
-  };
+  readonly entry: ProviderAllowEntry;
   readonly status: ProviderKeyStatus | undefined;
-  readonly workspaceId: string;
+  readonly actions: RowActions;
 }) => {
   const [key, setKey] = useState("");
+  const id = entry.provider;
+  const isKeyed = status !== undefined;
+  const isUnsupported = entry.tier === "unsupported";
+  const isExpanded = actions.expandedId === id;
+  const canSubmit = key.trim().length > 0 && !actions.isMutating;
+
+  return (
+    <li className="rounded-lg border border-border bg-background">
+      <div className="flex items-center gap-3 px-3 py-2">
+        <KeyRound
+          aria-hidden="true"
+          className={`size-4 ${isUnsupported ? "opacity-40" : "opacity-70"}`}
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span
+            className={`truncate font-medium text-sm ${isUnsupported ? "text-muted-foreground" : "text-foreground"}`}
+          >
+            {entry.displayName}
+          </span>
+          {isUnsupported && entry.unsupportedReason !== undefined && (
+            <span className="truncate text-muted-foreground/70 text-xs">
+              {entry.unsupportedReason}
+            </span>
+          )}
+          {isKeyed && (
+            <span className="flex items-center gap-1 text-success text-xs">
+              <CheckCircle2 aria-hidden="true" className="size-3" />
+              Key on file — registered {formatKeyedAt(status.createdAt)}
+            </span>
+          )}
+        </div>
+        <TierBadge tier={entry.tier} />
+        {isKeyed ? (
+          <Button
+            disabled={actions.isMutating}
+            onClick={() => actions.onRemove(entry)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Remove
+          </Button>
+        ) : isUnsupported ? null : (
+          <Button
+            onClick={() => actions.onExpand(isExpanded ? null : id)}
+            size="sm"
+            type="button"
+            variant={isExpanded ? "outline" : "default"}
+          >
+            {isExpanded ? "Cancel" : "Register"}
+          </Button>
+        )}
+      </div>
+      {isExpanded && !isKeyed && !isUnsupported && (
+        <form
+          className="flex flex-col gap-2 border-border border-t px-3 py-2.5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (canSubmit) {
+              actions.onRegister(entry, key.trim());
+              setKey("");
+            }
+          }}
+        >
+          <Label className="sr-only" htmlFor={`provider-key-${id}`}>
+            {entry.displayName} API key
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              autoComplete="off"
+              autoFocus
+              id={`provider-key-${id}`}
+              onChange={(event) => setKey(event.target.value)}
+              placeholder={keyPlaceholderFor(entry)}
+              spellCheck={false}
+              type="password"
+              value={key}
+            />
+            <Button disabled={!canSubmit} size="sm" type="submit">
+              Save
+            </Button>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Stored encrypted; never logged or shown again. It is sent once and
+            cleared the moment it is saved.
+          </p>
+        </form>
+      )}
+    </li>
+  );
+};
+
+const TIER_ORDER: readonly ProviderTier[] = [
+  "verified",
+  "best-effort",
+  "unsupported",
+];
+
+const ProvidersSettings = () => {
+  const { workspaceId } = useParams({
+    from: "/w/$workspaceId/settings/providers",
+  });
+  const providers = useQuery(providersQuery(workspaceId));
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const invalidate = () =>
     queryClient.invalidateQueries({
@@ -105,7 +240,8 @@ const ProviderKeyCard = ({
     });
 
   const register = useMutation({
-    mutationFn: () => registerProviderKey(workspaceId, provider.id, key.trim()),
+    mutationFn: (input: { readonly entry: ProviderAllowEntry; readonly key: string }) =>
+      registerProviderKey(workspaceId, input.entry.provider, input.key),
     onError: (error) => {
       const kind =
         error instanceof ApiRequestError ? error.kind : "unknown_error";
@@ -115,16 +251,16 @@ const ProviderKeyCard = ({
           : `Could not register key: ${kind}`
       );
     },
-    onSuccess: () => {
-      // The raw key must not linger in component state — clear it the instant it lands.
-      setKey("");
+    onSuccess: (_data, input) => {
+      setExpandedId(null);
       invalidate();
-      toast.success(`${provider.label} key registered`);
+      toast.success(`${input.entry.displayName} key registered`);
     },
   });
 
   const remove = useMutation({
-    mutationFn: () => removeProviderKey(workspaceId, provider.id),
+    mutationFn: (entry: ProviderAllowEntry) =>
+      removeProviderKey(workspaceId, entry.provider),
     onError: (error) => {
       const kind =
         error instanceof ApiRequestError ? error.kind : "unknown_error";
@@ -134,93 +270,48 @@ const ProviderKeyCard = ({
           : `Could not remove key: ${kind}`
       );
     },
-    onSuccess: () => {
+    onSuccess: (_data, entry) => {
       invalidate();
-      toast.success(`${provider.label} key removed`);
+      toast.success(`${entry.displayName} key removed`);
     },
   });
 
-  const isKeyed = status !== undefined;
-  const canSubmit = key.trim().length > 0 && !register.isPending;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <KeyRound aria-hidden="true" className="size-4 opacity-80" />
-          {provider.label}
-        </CardTitle>
-        <CardDescription>
-          {isKeyed
-            ? `Registered ${formatKeyedAt(status.createdAt)}. Agents in this workspace can run on ${provider.label} models.`
-            : `No key yet. Agents cannot run on ${provider.label} models until a key is registered.`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isKeyed ? (
-          <div className="flex items-center justify-between gap-4">
-            <span className="flex items-center gap-2 text-sm text-success">
-              <CheckCircle2 aria-hidden="true" className="size-4 text-success" />
-              Key on file — the raw key is never displayed.
-            </span>
-            <Button
-              disabled={remove.isPending}
-              onClick={() => remove.mutate()}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              {remove.isPending ? "Removing…" : "Remove key"}
-            </Button>
-          </div>
-        ) : (
-          <form
-            className="flex flex-col gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (canSubmit) {
-                register.mutate();
-              }
-            }}
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`provider-key-${provider.id}`}>
-                {provider.label} API key
-              </Label>
-              <Input
-                autoComplete="off"
-                id={`provider-key-${provider.id}`}
-                onChange={(event) => setKey(event.target.value)}
-                placeholder={provider.keyPlaceholder}
-                spellCheck={false}
-                type="password"
-                value={key}
-              />
-              <p className="text-xs text-muted-foreground">
-                Stored encrypted in Cloudflare Secrets Store. It is never logged
-                or shown again.
-              </p>
-            </div>
-            <div className="flex justify-end">
-              <Button disabled={!canSubmit} size="sm" type="submit">
-                {register.isPending ? "Registering…" : "Register key"}
-              </Button>
-            </div>
-          </form>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-
-const ProvidersSettings = () => {
-  const { workspaceId } = useParams({
-    from: "/w/$workspaceId/settings/providers",
-  });
-  const providers = useQuery(providersQuery(workspaceId));
-
   const statusFor = (providerId: string): ProviderKeyStatus | undefined =>
     providers.data?.find((entry) => entry.provider === providerId);
+
+  const query = search.trim().toLowerCase();
+  const matches = (entry: ProviderAllowEntry): boolean =>
+    query.length === 0 ||
+    entry.displayName.toLowerCase().includes(query) ||
+    entry.provider.toLowerCase().includes(query);
+
+  const { keyed, byTier } = useMemo(() => {
+    const keyedRows: ProviderAllowEntry[] = [];
+    const tiers: Record<ProviderTier, ProviderAllowEntry[]> = {
+      "best-effort": [],
+      unsupported: [],
+      verified: [],
+    };
+    for (const entry of providerAllowlist) {
+      if (!matches(entry)) {
+        continue;
+      }
+      if (statusFor(entry.provider) !== undefined) {
+        keyedRows.push(entry);
+      } else {
+        tiers[entry.tier].push(entry);
+      }
+    }
+    return { byTier: tiers, keyed: keyedRows };
+  }, [query, providers.data]);
+
+  const actions: RowActions = {
+    expandedId,
+    isMutating: register.isPending || remove.isPending,
+    onExpand: setExpandedId,
+    onRegister: (entry, key) => register.mutate({ entry, key }),
+    onRemove: (entry) => remove.mutate(entry),
+  };
 
   const hasAnyKey = (providers.data?.length ?? 0) > 0;
 
@@ -231,9 +322,9 @@ const ProvidersSettings = () => {
           Provider keys
         </h1>
         <p className="text-muted-foreground text-sm">
-          Bring your own key. A workspace is browsable without one, but no agent
-          can run until a provider key is on file — this is where you register
-          it.
+          Bring your own key for any of {providerAllowlist.length} providers. A
+          workspace is browsable without one, but no agent can run until a
+          provider key is on file.
         </p>
       </header>
 
@@ -258,21 +349,81 @@ const ProvidersSettings = () => {
       ) : (
         <>
           {!hasAnyKey && (
-            <p className="rounded-lg border border-dashed border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border border-dashed bg-muted/40 px-4 py-3 text-muted-foreground text-sm">
               Register a key below to unlock agents. Only a workspace owner or
               admin can do this.
             </p>
           )}
-          <div className="flex flex-col gap-4">
-            {PROVIDER_ROWS.map((provider) => (
-              <ProviderKeyCard
-                key={provider.id}
-                provider={provider}
-                status={statusFor(provider.id)}
-                workspaceId={workspaceId}
-              />
-            ))}
+
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground"
+            />
+            <Input
+              aria-label="Search providers"
+              className="pl-9"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search providers…"
+              type="search"
+              value={search}
+            />
           </div>
+
+          {keyed.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <h2 className="font-medium text-foreground text-sm">Your keys</h2>
+              <ul className="flex flex-col gap-2">
+                {keyed.map((entry) => (
+                  <ProviderRow
+                    actions={actions}
+                    entry={entry}
+                    key={entry.provider}
+                    status={statusFor(entry.provider)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {TIER_ORDER.map((tier) => {
+            const rows = byTier[tier];
+            if (rows.length === 0) {
+              return null;
+            }
+            return (
+              <section className="flex flex-col gap-2" key={tier}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="flex items-center gap-2 font-medium text-foreground text-sm">
+                    {TIER_META[tier].label}
+                    <span className="text-muted-foreground text-xs">
+                      {rows.length}
+                    </span>
+                  </h2>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  {TIER_META[tier].blurb}
+                </p>
+                <ul className="flex flex-col gap-2">
+                  {rows.map((entry) => (
+                    <ProviderRow
+                      actions={actions}
+                      entry={entry}
+                      key={entry.provider}
+                      status={undefined}
+                    />
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+
+          {keyed.length === 0 &&
+            TIER_ORDER.every((tier) => byTier[tier].length === 0) && (
+              <p className="rounded-lg border border-border border-dashed px-4 py-6 text-center text-muted-foreground text-sm">
+                No providers match “{search}”.
+              </p>
+            )}
         </>
       )}
     </div>

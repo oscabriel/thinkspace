@@ -89,15 +89,61 @@ describe("POST/DELETE /api/w/:workspaceId/providers/:provider/key", () => {
       slug: "byok-unknown-space",
     });
 
-    // openai joined the allowlist (ADR 0038 §1); use a provider still outside it.
-    const response = await SELF.fetch(keyUrl(workspaceId, "google"), {
-      body: JSON.stringify({ key: "sk-live-google" }),
+    // E11.9 widened the allowlist to the models.dev registry; use an id genuinely outside it.
+    const response = await SELF.fetch(
+      keyUrl(workspaceId, "definitely-not-a-real-provider"),
+      {
+        body: JSON.stringify({ key: "sk-live-nope" }),
+        headers: { "content-type": "application/json", cookie },
+        method: "POST",
+      }
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({
+      error: { kind: "unknown_resource" },
+    });
+    expect(
+      await providerKeyRows(workspaceId, "definitely-not-a-real-provider")
+    ).toBe(0);
+  });
+
+  it("rejects a Tier-C unsupported provider with a typed 422, storing nothing", async () => {
+    const { cookie, workspaceId } = await signUpWithWorkspace({
+      email: "byok-unsupported@example.com",
+      slug: "byok-unsupported-space",
+    });
+
+    // amazon-bedrock is allowlisted but Tier-C (sigv4) — a real provider that can't take a key.
+    const response = await SELF.fetch(keyUrl(workspaceId, "amazon-bedrock"), {
+      body: JSON.stringify({ key: "sk-live-bedrock" }),
       headers: { "content-type": "application/json", cookie },
       method: "POST",
     });
 
-    expect(response.status).toBe(404);
-    expect(await providerKeyRows(workspaceId, "google")).toBe(0);
+    expect(response.status).toBe(422);
+    const body = (await response.json()) as { error: { kind: string } };
+    expect(body.error.kind).toBe("provider_unsupported");
+    expect(await providerKeyRows(workspaceId, "amazon-bedrock")).toBe(0);
+  });
+
+  it("registers a key for a best-effort generic (custom-provider) provider", async () => {
+    const { cookie, workspaceId } = await signUpWithWorkspace({
+      email: "byok-generic@example.com",
+      slug: "byok-generic-space",
+    });
+
+    // 302ai — a models.dev-derived openai-compatible provider on the generic path (Tier B). The
+    // key seals into the registry regardless of Custom Provider provisioning (best-effort).
+    const response = await SELF.fetch(keyUrl(workspaceId, "302ai"), {
+      body: JSON.stringify({ key: "sk-live-302ai" }),
+      headers: { "content-type": "application/json", cookie },
+      method: "POST",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ provider: "302ai" });
+    expect(await providerKeyRows(workspaceId, "302ai")).toBe(1);
   });
 
   it("maps a Secrets Store write failure to 502 and writes no registry row", async () => {

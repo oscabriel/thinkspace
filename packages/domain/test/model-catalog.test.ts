@@ -71,40 +71,44 @@ const countingFetch = (body: unknown) => {
 };
 
 describe("assembleCatalog — allowlist filtering + skip-don't-fail", () => {
-  test("keeps allowlisted providers (anthropic + openai) and drops the rest", () => {
+  test("keeps every allowlisted provider and drops genuinely unknown ones (E11.9)", () => {
     const warn = spyOn(console, "warn").mockImplementation(() => {
       // silence expected provider-absent / skip warnings
     });
     const models = assembleCatalog(
       payload({
         extraProviders: {
-          // ADR 0038 §1: openai is now allowlisted, so its models pass assembly.
           openai: {
             id: "openai",
             models: { "gpt-5.5": goodModel("gpt-5.5", "GPT-5.5") },
             name: "OpenAI",
           },
-          // Still off the allowlist — the whole provider must be dropped.
+          // E11.9: the allowlist is now the models.dev registry, so google (native, best-effort)
+          // IS allowlisted and its payload models pass assembly.
           google: {
             id: "google",
             models: { "gemini-3": goodModel("gemini-3", "Gemini 3") },
             name: "Google",
+          },
+          // Genuinely off the models.dev registry — the whole provider must be dropped.
+          "definitely-not-real": {
+            id: "definitely-not-real",
+            models: { x: goodModel("x", "X") },
+            name: "Nope",
           },
         },
       })
     );
     warn.mockRestore();
 
-    expect(models.map((m) => String(m.id)).toSorted()).toEqual([
-      "anthropic/claude-opus-4-5",
-      "anthropic/claude-sonnet-4-5",
-      // ADR 0038 amendment: anthropic's allowlist default is absent from this payload, so it is
-      // synthesized and unioned in; openai's default (gpt-5.5) is present, so it dedupes to one.
-      "anthropic/claude-sonnet-5",
-      "openai/gpt-5.5",
-    ]);
-    // No non-allowlisted provider leaked through.
-    expect(models.some((m) => String(m.id).startsWith("google/"))).toBe(false);
+    const ids = models.map((m) => String(m.id));
+    expect(ids).toContain("anthropic/claude-opus-4-5");
+    expect(ids).toContain("openai/gpt-5.5");
+    expect(ids).toContain("google/gemini-3");
+    // A genuinely un-allowlisted provider never leaks through.
+    expect(ids.some((id) => id.startsWith("definitely-not-real/"))).toBe(false);
+    // The widened allowlist unions in every entry's default, so the catalog spans the long tail.
+    expect(models.length).toBeGreaterThan(100);
   });
 
   test("maps models.dev fields into the domain Model shape", () => {
@@ -163,13 +167,13 @@ describe("assembleCatalog — allowlist filtering + skip-don't-fail", () => {
       // capture
     });
     // ADR 0038 amendment: a garbage-but-200 payload is not fatal — the allowlist defaults are
-    // unioned in regardless, so a keyed provider is never left with an empty picker.
+    // unioned in regardless, so a keyed provider is never left with an empty picker. E11.9 widened
+    // the allowlist to the models.dev registry, so this unions in every provider's default.
     for (const raw of ["not a provider map", null]) {
-      expect(
-        assembleCatalog(raw)
-          .map((m) => String(m.id))
-          .toSorted()
-      ).toEqual(["anthropic/claude-sonnet-5", "openai/gpt-5.5"]);
+      const ids = assembleCatalog(raw).map((m) => String(m.id));
+      expect(ids).toContain("anthropic/claude-sonnet-5");
+      expect(ids).toContain("openai/gpt-5.5");
+      expect(ids.length).toBeGreaterThan(100);
     }
     warn.mockRestore();
   });

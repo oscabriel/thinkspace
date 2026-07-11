@@ -6,7 +6,12 @@ import { byokSecretAlias } from "../../byok";
 import { parseModelId } from "../../ids";
 import type { ModelId, WorkspaceId } from "../../ids";
 import type { ModelProvider } from "../../model";
-import { providerAllowlist } from "../../provider-allowlist";
+import {
+  findAllowEntry,
+  isRegistrableTier,
+  providerAllowlist,
+} from "../../provider-allowlist";
+import type { ProviderAllowEntry } from "../../provider-allowlist";
 import type { ResolvedProviderAuth } from "../../seams/key-store";
 
 export interface GatewayModelEnv {
@@ -137,32 +142,97 @@ export const gatewayModelFactories = {
   },
 } satisfies Record<string, GatewayModelFactory>;
 
+/**
+ * ADR 0040 §7 (E11.9): the AI Gateway path segment a non-native Custom Provider route lives under.
+ * UNVERIFIED against a live gateway — the CF Custom Provider API surface is underdocumented, so both
+ * the provisioning write (see `custom-provider.ts`) and this route segment are recorded as
+ * explicitly-unverified. A wrong segment settles as a visible first-run failure (ADR 0028), which is
+ * exactly the Tier-B "first run confirms" contract, never a silent success.
+ */
+export const AI_GATEWAY_CUSTOM_PROVIDER_SEGMENT = "compat";
+
+/**
+ * The gateway base URL a generic openai-compatible provider posts to. `native` → the provider's
+ * documented native gateway slug (`${GW}/${slug}`); `custom-provider` → the Custom Provider route
+ * (`${GW}/compat/${slug}`) whose upstream `base_url` (models.dev's `api`) is provisioned lazily at
+ * key registration. Either way the SDK's `.chat()` model posts `${baseURL}/chat/completions`, the
+ * OpenAI-compatible surface the whole long tail speaks.
+ */
+export const genericGatewayBaseUrl = (
+  env: GatewayModelEnv,
+  entry: ProviderAllowEntry
+): string =>
+  entry.routing === "native"
+    ? `${env.AI_GATEWAY_URL}/${entry.gatewaySlug}`
+    : `${env.AI_GATEWAY_URL}/${AI_GATEWAY_CUSTOM_PROVIDER_SEGMENT}/${entry.gatewaySlug}`;
+
+/**
+ * The single generic openai-compatible factory (E11.9). ~124 of models.dev's 159 providers are one
+ * uniform `@ai-sdk/openai-compatible` code path; this factory is that path, parameterized by the
+ * allowlist entry's base URL and auth kind. It rides the SAME `ResolvedProviderAuth` verbatim-header
+ * mechanism E11.8 shipped (`gatewayAuthHeaders`) — no second auth path is invented: `bearer` sends
+ * `Authorization: Bearer <key>`, `x-api-key` sends `x-api-key: <key>`, and the gateway forwards the
+ * present header verbatim. Built on `@ai-sdk/openai`'s `.chat()` (the chat-completions surface every
+ * OpenAI-compatible upstream exposes), NOT `.responses()` (the first-party openai recipe's default).
+ */
+export const createGenericGatewayModel = (
+  entry: ProviderAllowEntry,
+  modelSlug: string,
+  { env, providerAuth, workspaceId }: GatewayModelFactoryOptions
+): LanguageModel => {
+  const bearer = entry.authKind === "bearer";
+  const headerName: "Authorization" | "x-api-key" = bearer
+    ? "Authorization"
+    : "x-api-key";
+  return createOpenAI({
+    apiKey: "gateway-managed",
+    baseURL: genericGatewayBaseUrl(env, entry),
+    headers: {
+      "cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
+      "cf-aig-metadata": JSON.stringify({ workspace: workspaceId }),
+      ...gatewayAuthHeaders({
+        bearer,
+        headerName,
+        providerAuth: effectiveProviderAuth(
+          workspaceId,
+          entry.provider,
+          providerAuth
+        ),
+      }),
+    },
+  }).chat(modelSlug);
+};
+
+/**
+ * Construct a gateway-routed model for a composite `ModelId`. Dispatch: an `unsupported`-tier
+ * provider (sigv4/oauth/local/per-resource) never resolves to a factory and throws; a provider with
+ * a hand-authored first-party recipe (anthropic/openai) uses it; every other registrable provider
+ * rides {@link createGenericGatewayModel}. This restates the ADR 0038 `allowlist ⊆ factory-map`
+ * invariant as **every eligible (registrable) allowlist entry resolves to a factory** — the generic
+ * path is the catch-all, so a registrable provider can never be a latent 500.
+ */
 export const createGatewayModel = (
   modelId: ModelId,
   opts: GatewayModelFactoryOptions
 ): LanguageModel => {
   const { modelSlug, providerId } = parseModelId(modelId);
-  const entry = providerAllowlist.find(
-    (candidate) =>
-      candidate.provider === providerId ||
-      candidate.gatewaySlug === providerId ||
-      candidate.modelsDevId === providerId
-  );
+  const entry = findAllowEntry(providerId);
 
   if (entry === undefined) {
     throw new Error(
       `createGatewayModel: provider '${providerId}' is not allowlisted`
     );
   }
-
-  const factory = gatewayModelFactories[
-    entry.provider as keyof typeof gatewayModelFactories
-  ] as GatewayModelFactory | undefined;
-  if (factory === undefined) {
+  if (!isRegistrableTier(entry.tier)) {
     throw new Error(
-      `createGatewayModel: no AI Gateway model factory for provider '${entry.provider}'`
+      `createGatewayModel: provider '${entry.provider}' is tier '${entry.tier}' (not key-registrable)`
     );
   }
 
-  return factory(modelSlug, opts);
+  const firstParty = gatewayModelFactories[
+    entry.provider as keyof typeof gatewayModelFactories
+  ] as GatewayModelFactory | undefined;
+  return firstParty === undefined
+    ? createGenericGatewayModel(entry, modelSlug, opts)
+    : firstParty(modelSlug, opts);
 };

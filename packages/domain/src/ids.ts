@@ -57,8 +57,13 @@ export type McpServerId = z.infer<typeof mcpServerIdSchema>;
 /**
  * A ModelId is the composite `<providerId>/<modelSlug>`. models.dev model ids are unique only
  * within a provider, so the provider segment is what makes the id globally addressable (E1.2).
+ *
+ * The provider segment is the FIRST path element (no slash); the model slug is everything after it
+ * and MAY itself contain slashes — E11.9 widened the allowlist to the models.dev long tail, whose
+ * aggregators (openrouter, togetherai, fireworks, …) publish `org/model`-shaped ids. `parseModelId`
+ * already splits on the first slash, so the router/factory read the full slug intact.
  */
-const modelIdPattern = /^[^/]+\/[^/]+$/u;
+const modelIdPattern = /^[^/]+\/.+$/u;
 export const modelIdSchema = nonEmptyIdSchema
   .regex(modelIdPattern, "ModelId must be '<providerId>/<modelSlug>'")
   .brand<"ModelId">();

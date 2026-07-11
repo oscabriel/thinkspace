@@ -50,9 +50,19 @@ export {
   serializeCuratorEnvelope,
 } from "./curator-agent";
 export {
+  createNoopCustomProviderProvisioner,
+  createUnverifiedCustomProviderProvisioner,
+  type CustomProviderProvisioner,
+  type CustomProviderProvisionError,
+  type CustomProviderRoute,
+} from "./custom-provider";
+export {
+  AI_GATEWAY_CUSTOM_PROVIDER_SEGMENT,
   createGatewayModel,
+  createGenericGatewayModel,
   gatewayAuthHeaders,
   gatewayModelFactories,
+  genericGatewayBaseUrl,
   type GatewayModelEnv,
   type GatewayModelFactory,
   type GatewayModelFactoryOptions,
