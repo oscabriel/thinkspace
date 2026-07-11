@@ -139,8 +139,17 @@ const ThreadView = () => {
         />
       ) : threads.isPending ? (
         <BranchSkeleton />
-      ) : (
+      ) : import.meta.env.DEV ? (
         <MissingRootNotice />
+      ) : (
+        <Empty className="m-6 border">
+          <EmptyHeader>
+            <EmptyTitle>Thread unavailable</EmptyTitle>
+            <EmptyDescription>
+              This thread could not be loaded. Try returning to the channel.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       )}
     </div>
   );
