@@ -7,6 +7,9 @@ import { demoteToMember } from "./role-fixtures";
 const serversUrl = (workspaceId: string) =>
   `https://test.local/api/w/${workspaceId}/mcp/servers`;
 
+const hostsUrl = (workspaceId: string) =>
+  `https://test.local/api/w/${workspaceId}/mcp/hosts`;
+
 const approveUrl = (workspaceId: string) =>
   `https://test.local/api/w/${workspaceId}/mcp/hosts/approve`;
 
@@ -99,6 +102,36 @@ describe("MCP registry CRUD (owner-gated writes + egress gate + revoke fan-out)"
     expect(listBody.servers.map((server) => server.id)).toEqual([
       registeredBody.server.id,
     ]);
+  });
+
+  it("lists the approved-host allowlist (member-visible) after an owner approves one", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "mcp-hosts@example.com",
+      slug: "mcp-hosts-space",
+    });
+
+    // The allowlist is empty before any approval.
+    const before = await SELF.fetch(hostsUrl(workspaceId), {
+      headers: { cookie },
+    });
+    expect(before.status).toBe(200);
+    expect((await before.json<{ hosts: unknown[] }>()).hosts).toEqual([]);
+
+    await jsonPost(approveUrl(workspaceId), cookie, { host: "mcp.example.com" });
+
+    // A member (not only the owner) may read the allowlist — the read is a registry fact.
+    await demoteToMember(memberId);
+    const listed = await SELF.fetch(hostsUrl(workspaceId), {
+      headers: { cookie },
+    });
+    expect(listed.status).toBe(200);
+    const body = await listed.json<{
+      hosts: { approvedByOwnerMemberId: string; host: string }[];
+    }>();
+    expect(body.hosts.map((approval) => approval.host)).toEqual([
+      "mcp.example.com",
+    ]);
+    expect(body.hosts[0]?.approvedByOwnerMemberId).toBe(memberId);
   });
 
   it("fails closed registering on an unapproved host — 403 and nothing persisted", async () => {

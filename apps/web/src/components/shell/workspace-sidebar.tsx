@@ -11,6 +11,7 @@ import {
   Library,
   Plus,
   ScrollText,
+  Server,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -108,6 +109,12 @@ export const WorkspaceSidebar = ({
           icon={ScrollText}
           label="Skills"
           to="/w/$workspaceId/settings/skills"
+          workspaceId={workspaceId}
+        />
+        <NavLink
+          icon={Server}
+          label="MCP servers"
+          to="/w/$workspaceId/settings/mcp"
           workspaceId={workspaceId}
         />
       </div>

@@ -221,6 +221,65 @@ export const fetchMcpServers = (workspaceId: string) =>
   );
 
 /**
+ * The MCP registry management surface (E11.3, ADR 0002). Registration gates the target host
+ * against the workspace's egress allowlist BEFORE anything persists — an unapproved host is a 403
+ * `mcp_host_not_allowed` and nothing lands, so the settings page must guide the owner to approve
+ * the host first. The allowlist itself (GET /mcp/hosts) is a member-visible registry fact; growing
+ * (approve) or shrinking (revoke) it is owner-only and surfaces `insufficient_role` for non-owners.
+ * Mirrors packages/domain/src/mcp.ts by hand — `approvedAt` is the ISO string it serializes to.
+ */
+export interface WorkspaceMcpHost {
+  readonly approvedAt: string;
+  readonly approvedByOwnerMemberId: string;
+  readonly host: string;
+}
+
+export const fetchApprovedHosts = (workspaceId: string) =>
+  apiFetch<{ hosts: readonly WorkspaceMcpHost[] }>(workspaceId, "/mcp/hosts");
+
+/**
+ * Register a server on an approved host (owner/admin only). The host must already be on the egress
+ * allowlist or the server rejects with 403 `mcp_host_not_allowed` and persists nothing.
+ */
+export const registerMcpServer = (
+  workspaceId: string,
+  input: {
+    readonly host: string;
+    readonly name: string;
+    readonly url: string;
+  }
+) =>
+  apiFetch<{ server: WorkspaceMcpServer }>(workspaceId, "/mcp/servers", {
+    body: JSON.stringify(input),
+    method: "POST",
+  });
+
+/** Remove a server from the registry (owner/admin only); severs its live connections server-side. */
+export const deleteMcpServer = (workspaceId: string, mcpServerId: string) =>
+  apiFetch<{ mcpServerId: string }>(
+    workspaceId,
+    `/mcp/servers/${encodeURIComponent(mcpServerId)}`,
+    { method: "DELETE" }
+  );
+
+/** Grow the egress allowlist (owner-only); a non-owner is rejected with `insufficient_role`. */
+export const approveHost = (workspaceId: string, host: string) =>
+  apiFetch<{ host: string }>(workspaceId, "/mcp/hosts/approve", {
+    body: JSON.stringify({ host }),
+    method: "POST",
+  });
+
+/**
+ * Shrink the egress allowlist (owner-only); servers on the revoked host stay registered but stop
+ * clearing the gate. A non-owner is rejected with `insufficient_role`.
+ */
+export const revokeHost = (workspaceId: string, host: string) =>
+  apiFetch<{ host: string }>(workspaceId, "/mcp/hosts/revoke", {
+    body: JSON.stringify({ host }),
+    method: "POST",
+  });
+
+/**
  * Channel creation is a convergent upsert (PUT /channels/:channelId, ADR 0034): the client
  * mints both the channelId and the shapeId so a replay lands the same channel-plus-shape pair.
  * The channel is born with its authored shape (ADR 0030 strict 1:1) — the member picks the model

@@ -168,6 +168,19 @@ export const mcpRoutes = new Hono<{ Variables: TenantVariables }>()
     return c.json({ servers: servers.value }, 200);
   })
   /**
+   * The workspace's approved egress hosts — the ADR 0002 allowlist, member-visible. Reading the
+   * allowlist is a registry fact (which hosts a server may sit on), so any member may see it; only
+   * an owner grows or shrinks it via the approve/revoke routes below.
+   */
+  .get("/mcp/hosts", async (c) => {
+    const context = c.get("tenantContext");
+    const hosts = await buildTenantDataAccess(context).listMcpHostApprovals();
+    if (!hosts.ok) {
+      return c.json({ error: hosts.error }, domainErrorStatus(hosts.error));
+    }
+    return c.json({ hosts: hosts.value }, 200);
+  })
+  /**
    * Register a server (owner/admin). The flow gates the host against the egress allowlist BEFORE
    * persisting; an unapproved host is `mcp_host_not_allowed` (403) and nothing lands in D1.
    */
