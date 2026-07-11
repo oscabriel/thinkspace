@@ -239,6 +239,55 @@ export const defineTenantDataAccessContract = (input: {
     });
   });
 
+  describe("TenantDataAccess.getThread — single index row by id (E10.3)", () => {
+    test("returns the thread when it is present in the tenant", async () => {
+      const thread = makeThread({ channelId: "channel-1", id: "thread-1" });
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testTenantContext,
+        threads: [thread],
+        workspace: testWorkspace,
+      });
+
+      expect(unwrapOk(await data.getThread({ threadId: thread.id }))).toEqual(
+        thread
+      );
+    });
+
+    test("returns null when no such thread exists", async () => {
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testTenantContext,
+        workspace: testWorkspace,
+      });
+
+      expect(
+        unwrapOk(await data.getThread({ threadId: threadId("thread-absent") }))
+      ).toBeNull();
+    });
+
+    test("fails closed against a thread owned by another workspace", async () => {
+      const foreignThread = {
+        ...makeThread({ channelId: "channel-foreign", id: "thread-foreign" }),
+        workspaceId: otherWorkspaceId,
+      };
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testTenantContext,
+        threads: [foreignThread],
+        workspace: testWorkspace,
+      });
+
+      expect(
+        unwrapErr(await data.getThread({ threadId: foreignThread.id }))
+      ).toEqual({
+        expectedWorkspaceId: testWorkspaceId,
+        kind: "tenant_guard_violation",
+        observed: { kind: "workspace", workspaceId: otherWorkspaceId },
+      });
+    });
+  });
+
   describe("TenantDataAccess.listRecentThreads — home feed (ADR 0020/0027)", () => {
     test("lists bumped threads across the member's visible channels, most recent first; other members' private and deleted channels are excluded", async () => {
       const sharedChannel = makeChannel({ id: "channel-shared" });

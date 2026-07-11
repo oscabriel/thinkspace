@@ -602,6 +602,13 @@ export const createD1TenantDataAccess = <
         .first<SkillRow>();
       return guardedRow(context, row, rowToSkill);
     },
+    getThread: async (input) => {
+      const row = await db
+        .prepare("SELECT * FROM thread WHERE id = ?1")
+        .bind(input.threadId)
+        .first<ThreadRow>();
+      return guardedRow(context, row, rowToThread);
+    },
     getWorkspaceGraph: async () => {
       const member = requireMemberContext(context);
       if (!member.ok) {
