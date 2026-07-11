@@ -12,6 +12,16 @@ import { config } from "dotenv";
 config({ path: "./.env" });
 config({ path: "../../apps/web/.env" });
 config({ path: "../../apps/server/.env" });
+/**
+ * ADR 0039: the `prod` stage's prod-only overrides (a FRESH BETTER_AUTH_SECRET that never equals
+ * the dev value) live in a gitignored `./.env.prod`, loaded ONLY under `ALCHEMY_STAGE=prod` and
+ * with `override: true` so they win over any dev value the `.env` loads above already set. Shared
+ * secrets (AI_GATEWAY_TOKEN, BYOK_*, RESEND_*, CLOUDFLARE_*, INVITATION_FROM) stay in `.env` and
+ * are inherited — `.env.prod` need only carry what actually differs per stage.
+ */
+if (process.env.ALCHEMY_STAGE === "prod") {
+  config({ override: true, path: "./.env.prod" });
+}
 
 const required = <Value>(value: Value | undefined, name: string): Value => {
   if (value === undefined) {
@@ -26,14 +36,28 @@ const webDevPort = 3002;
 const serverDevPort = 3003;
 const caddyDevHost = alchemy.env.CADDY_DEV_HOST || undefined;
 const caddyDevOrigin = caddyDevHost ? `https://${caddyDevHost}` : undefined;
-const authUrl = required(
-  caddyDevOrigin ?? alchemy.env.BETTER_AUTH_URL,
-  "BETTER_AUTH_URL"
-);
-const corsOrigin = required(
-  caddyDevOrigin ?? alchemy.env.CORS_ORIGIN,
-  "CORS_ORIGIN"
-);
+/**
+ * ADR 0039: origins are stage-driven. In the `prod` stage they are the literal apex/api hosts on
+ * think-space.app; every other stage keeps the existing `caddyDevOrigin ?? env` fallback so the
+ * dev stage's resolved bindings are byte-for-byte unchanged. better-auth lives on the SERVER
+ * worker (JWKS + cookies), so `authUrl` is the server origin; the browser calls the WEB origin, so
+ * `corsOrigin`/`INVITATION_ORIGIN` are the web origin.
+ */
+const isProd = app.stage === "prod";
+const webOrigin = isProd
+  ? "https://think-space.app"
+  : required(caddyDevOrigin ?? alchemy.env.CORS_ORIGIN, "CORS_ORIGIN");
+const serverOrigin = isProd
+  ? "https://api.think-space.app"
+  : required(caddyDevOrigin ?? alchemy.env.BETTER_AUTH_URL, "BETTER_AUTH_URL");
+const authUrl = serverOrigin;
+const corsOrigin = webOrigin;
+/**
+ * ADR 0039: apex (web) and `api.` (server) share the registrable domain, so a single cross-
+ * subdomain cookie domain covers both with no third-party-cookie exposure. Present ONLY in prod —
+ * absent in dev, which gates `crossSubDomainCookies`/`cookieCache` OFF in apps/server/src/auth.ts.
+ */
+const cookieDomain = isProd ? ".think-space.app" : undefined;
 
 const db = await D1Database("database", {
   migrationsDir: "../../packages/db/src/migrations",
@@ -157,6 +181,12 @@ export const server = await Worker("server", {
      * socket dies at upgrade, silently degrading clients to polling.
      */
     AUTH_JWKS_URL: `${authUrl}/api/auth/jwks`,
+    /**
+     * ADR 0039: prod-only cross-subdomain cookie domain. Absent in dev — its presence is the gate
+     * that turns crossSubDomainCookies + cookieCache on in apps/server/src/auth.ts, so dev must
+     * never carry this key.
+     */
+    ...(cookieDomain ? { AUTH_COOKIE_DOMAIN: cookieDomain } : {}),
     BETTER_AUTH_SECRET: required(
       alchemy.secret.env.BETTER_AUTH_SECRET,
       "BETTER_AUTH_SECRET"
@@ -186,10 +216,8 @@ export const server = await Worker("server", {
     // E5.5: Resend invitation email. INVITATION_ORIGIN builds the accept link;
     // INVITATION_FROM is the verified Resend sender; RESEND_API_KEY is a secret.
     INVITATION_FROM: required(alchemy.env.INVITATION_FROM, "INVITATION_FROM"),
-    INVITATION_ORIGIN: required(
-      caddyDevOrigin ?? alchemy.env.INVITATION_ORIGIN ?? corsOrigin,
-      "INVITATION_ORIGIN"
-    ),
+    // ADR 0039: the accept link opens in the browser, so it targets the WEB origin.
+    INVITATION_ORIGIN: webOrigin,
     RESEND_API_KEY: required(
       alchemy.secret.env.RESEND_API_KEY,
       "RESEND_API_KEY"
@@ -203,6 +231,11 @@ export const server = await Worker("server", {
   dev: {
     port: serverDevPort,
   },
+  /**
+   * ADR 0039: in prod the server binds api.think-space.app (proxied DNS + TLS auto-provisioned in
+   * the zone); `url: true` stays as the workers.dev fallback. No custom domain in dev.
+   */
+  domains: isProd ? ["api.think-space.app"] : undefined,
   entrypoint: "src/index.ts",
   url: true,
 });
@@ -216,7 +249,11 @@ export const web = await TanStackStart("web", {
     BETTER_AUTH_URL: authUrl,
     CORS_ORIGIN: corsOrigin,
     DB: db,
-    VITE_SERVER_URL: required(caddyDevOrigin ?? server.url, "server.url"),
+    // ADR 0039: the browser calls the server at its stage origin; prod pins api.think-space.app
+    // (fixes the workers.dev fallback `server.url` baked for non-Caddy stages).
+    VITE_SERVER_URL: isProd
+      ? serverOrigin
+      : required(caddyDevOrigin ?? server.url, "server.url"),
   },
   cwd: "../../apps/web",
   dev: caddyDevHost
@@ -231,6 +268,11 @@ export const web = await TanStackStart("web", {
     : {
         command: `bun vite dev --host 127.0.0.1 --port ${webDevPort}`,
       },
+  /**
+   * ADR 0039: in prod the web app binds the apex think-space.app (apex proxied DNS + TLS
+   * auto-provisioned in the zone). No custom domain in dev.
+   */
+  domains: isProd ? ["think-space.app"] : undefined,
 });
 
 console.log(`Web    -> ${web.url}`);
