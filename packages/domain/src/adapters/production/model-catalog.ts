@@ -133,22 +133,77 @@ const toModel = (
 };
 
 /**
+ * Prettify an allowlist slug into a display name for a synthesized default entry, e.g.
+ * `claude-sonnet-5` → "Claude Sonnet 5", `gpt-5.5` → "Gpt 5.5". Title-cases each hyphen segment;
+ * good enough for a picker label when models.dev carries no `name` for the model.
+ */
+const displayNameFromSlug = (slug: string): string =>
+  slug
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+/**
+ * Synthesize the minimal {@link Model} for an allowlist entry's `defaultModelSlug` (ADR 0038
+ * amendment). Used only when models.dev omits the default: models.dev-only metadata is absent, so
+ * every non-id field is a neutral stub the shape's `min`/`positive` constraints still accept —
+ * capabilities all `false`, cost all `0`, limits `1/1` (positive-int floor), and an epoch sentinel
+ * release date. Returns `null` (skip + log) if even the stub fails domain validation.
+ */
+const synthesizeDefaultModel = (entry: ProviderAllowEntry): Model | null => {
+  const mapped = {
+    capabilities: {
+      attachment: false,
+      reasoning: false,
+      structuredOutput: false,
+      toolCall: false,
+    },
+    cost: { cacheRead: 0, cacheWrite: 0, input: 0, output: 0 },
+    displayName: displayNameFromSlug(entry.defaultModelSlug),
+    id: `${entry.provider}/${entry.defaultModelSlug}`,
+    limits: { context: 1, output: 1 },
+    provider: entry.provider,
+    releaseDate: "1970-01-01",
+  };
+
+  const parsed = modelSchema.safeParse(mapped);
+  if (!parsed.success) {
+    console.warn(
+      `[model-catalog] dropping synthesized default ${mapped.id}: failed domain Model validation`,
+      parsed.error.issues
+    );
+    return null;
+  }
+  return parsed.data;
+};
+
+/**
  * Filter the raw models.dev payload through the provider allowlist and map survivors into
  * {@link Model}. Total by construction: any per-model or per-provider defect is skipped + logged.
+ *
+ * ADR 0038 amendment (2026-07-10): models.dev is a moving target — it dropped `gpt-5.5` the day the
+ * 5.6 family shipped — so the raw intersection can offer NO model an allowlisted provider can
+ * actually run. Every allowlist entry's `defaultModelSlug` is therefore UNIONED into the catalog:
+ * when models.dev already lists it the models.dev entry wins (dedupe by id); when it does not, a
+ * minimal entry is synthesized. This runs before the D1 router's per-workspace keyed intersection,
+ * so an unkeyed provider's default never surfaces — the union only guarantees every *keyed*
+ * provider always offers at least its default.
  */
 export const assembleCatalog = (raw: unknown): readonly Model[] => {
   const envelope = catalogEnvelopeSchema.safeParse(raw);
   if (!envelope.success) {
+    // A garbage-but-200 payload is not fatal: the allowlist defaults are still unioned below, so a
+    // keyed provider keeps its default even when models.dev is unusable.
     console.warn(
-      "[model-catalog] models.dev payload is not a provider map; skipping"
+      "[model-catalog] models.dev payload is not a provider map; serving allowlist defaults only"
     );
-    return [];
   }
 
+  const providerMap = envelope.success ? envelope.data : {};
   const models: Model[] = [];
   for (const entry of providerAllowlist) {
     const providerRaw = providerEntrySchema.safeParse(
-      envelope.data[entry.modelsDevId]
+      providerMap[entry.modelsDevId]
     );
     if (!providerRaw.success) {
       console.warn(
@@ -172,6 +227,21 @@ export const assembleCatalog = (raw: unknown): readonly Model[] => {
       }
     }
   }
+
+  // Union each allowlist entry's default, deduping when models.dev already listed it.
+  const present = new Set(models.map((model) => String(model.id)));
+  for (const entry of providerAllowlist) {
+    const defaultId = `${entry.provider}/${entry.defaultModelSlug}`;
+    if (present.has(defaultId)) {
+      continue;
+    }
+    const synthesized = synthesizeDefaultModel(entry);
+    if (synthesized !== null) {
+      models.push(synthesized);
+      present.add(defaultId);
+    }
+  }
+
   return models;
 };
 

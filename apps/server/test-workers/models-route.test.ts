@@ -53,8 +53,11 @@ describe("GET /api/w/:workspaceId/models", () => {
     };
 
     // Both allowlisted anthropic models; the malformed fixture entry is skipped, openai is dropped.
-    const ids = body.models.map((model) => model.id).sort();
+    // ADR 0038 amendment: anthropic's allowlist default (claude-sonnet-5) is absent from the
+    // fixture, so it is synthesized and unioned into the catalog before the keyed intersection.
+    const ids = body.models.map((model) => model.id).toSorted();
     expect(ids).toEqual([
+      "anthropic/claude-sonnet-5",
       "anthropic/claude-test-haiku",
       "anthropic/claude-test-sonnet",
     ]);
