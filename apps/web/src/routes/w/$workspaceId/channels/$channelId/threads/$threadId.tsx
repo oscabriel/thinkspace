@@ -301,7 +301,15 @@ const ThreadConversation = ({
       const previous =
         queryClient.getQueryData<BranchSnapshot>(branchKey);
       const optimistic: Comment = {
-        author: { kind: "member", memberId: members.data?.selfMemberId ?? "" },
+        author: {
+          // Label the optimistic reply with the author's own name so it reads correctly before
+          // the branch refetch replaces it with the edge-joined comment (E10.6).
+          displayName: members.data?.labels.get(
+            members.data.selfMemberId
+          ),
+          kind: "member",
+          memberId: members.data?.selfMemberId ?? "",
+        },
         body: input.body,
         createdAt: new Date().toISOString(),
         id: input.commentId,

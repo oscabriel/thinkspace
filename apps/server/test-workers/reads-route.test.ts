@@ -322,6 +322,108 @@ describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
     });
   });
 
+  it("joins the author's display name onto member comments in the branch read (E10.6)", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "author-name@example.com",
+      slug: "author-name-space",
+    });
+    await seedChannel({
+      channelId: "an-ch-1",
+      memberId,
+      shapeId: "an-shape-1",
+      workspaceId,
+    });
+
+    const created = await SELF.fetch(
+      `${base(workspaceId)}/channels/an-ch-1/threads/an-th-1`,
+      {
+        body: JSON.stringify({
+          openingBody: "Name my author",
+          openingCommentId: "an-comment-1",
+        }),
+        headers: { "content-type": "application/json", cookie },
+        method: "PUT",
+      }
+    );
+    expect(created.status).toBe(200);
+
+    const response = await get(
+      `${base(workspaceId)}/channels/an-ch-1/threads/an-th-1/branches/an-comment-1`,
+      cookie
+    );
+    expect(response.status).toBe(200);
+    const branch = await response.json<{
+      subtree: {
+        author: { displayName?: string; kind: string; memberId: string };
+        id: string;
+      }[];
+    }>();
+    const opening = branch.subtree.find((c) => c.id === "an-comment-1");
+    expect(opening?.author).toMatchObject({
+      displayName: "Test Member",
+      kind: "member",
+    });
+  });
+
+  it("degrades a member comment whose author left the workspace to no joined name (E10.6)", async () => {
+    // The reader (owner) stays a member so the read passes, but the opening comment's author is
+    // a member who has since left — their roster row is gone, so the join finds no name and the
+    // author name is absent, letting the client fall back to "Member" rather than erroring.
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "ghost-reader@example.com",
+      slug: "ghost-reader-space",
+    });
+    const author = await signUpUser({ email: "ghost-author@example.com" });
+    const { memberId: authorMemberId } = await addWorkspaceMember({
+      role: "member",
+      userId: author.userId,
+      workspaceId,
+    });
+    await seedChannel({
+      channelId: "ga-ch-1",
+      memberId,
+      shapeId: "ga-shape-1",
+      workspaceId,
+    });
+
+    // The author (a plain member) opens the branch in the shared channel — the opening comment
+    // carries their memberId.
+    const created = await SELF.fetch(
+      `${base(workspaceId)}/channels/ga-ch-1/threads/ga-th-1`,
+      {
+        body: JSON.stringify({
+          openingBody: "Who am I",
+          openingCommentId: "ga-comment-1",
+        }),
+        headers: { "content-type": "application/json", cookie: author.cookie },
+        method: "PUT",
+      }
+    );
+    expect(created.status).toBe(200);
+
+    // The author leaves the workspace: their roster row is dropped, so the join can no longer
+    // name them. The comment persists in the DO with their memberId.
+    await env.DB.prepare("DELETE FROM member WHERE id = ?1")
+      .bind(authorMemberId)
+      .run();
+
+    const response = await get(
+      `${base(workspaceId)}/channels/ga-ch-1/threads/ga-th-1/branches/ga-comment-1`,
+      cookie
+    );
+    expect(response.status).toBe(200);
+    const branch = await response.json<{
+      subtree: {
+        author: { displayName?: string; kind: string; memberId: string };
+        id: string;
+      }[];
+    }>();
+    const opening = branch.subtree.find((c) => c.id === "ga-comment-1");
+    expect(opening?.author.memberId).toBe(authorMemberId);
+    expect(opening?.author.kind).toBe("member");
+    expect(opening?.author.displayName).toBeUndefined();
+  });
+
   it("rejects a read without a session as 401", async () => {
     const { memberId, workspaceId } = await signUpWithWorkspace({
       email: "no-session-read@example.com",

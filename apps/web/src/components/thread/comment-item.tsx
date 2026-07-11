@@ -17,7 +17,9 @@ import { relativeTime } from "@/lib/format";
  */
 const authorLabel = (author: Comment["author"]): string => {
   if (author.kind === "member") {
-    return "Member";
+    // `||` (not `??`) so an empty display name — better-auth does not forbid one — falls back
+    // instead of rendering blank, matching memberLabel's convention on the other surfaces.
+    return author.displayName || "Member";
   }
   return author.facet.kind === "sub_agent"
     ? author.facet.name
