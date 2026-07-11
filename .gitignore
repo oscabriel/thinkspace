@@ -14,6 +14,8 @@ apps/web/src/routeTree.gen.ts
 # Environment variables
 .env
 .env*.local
+# ADR 0039: prod-stage secret overrides (fresh BETTER_AUTH_SECRET); user-populated, never committed
+.env.prod
 
 # IDEs and editors
 .vscode/*

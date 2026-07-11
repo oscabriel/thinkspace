@@ -19,6 +19,14 @@ export const createAuth = (options?: { readonly sendEmail?: EmailSender }) => {
   const db = createDb();
   const sendEmail = options?.sendEmail ?? createResendEmailSender();
 
+  /**
+   * ADR 0039: cross-subdomain cookies + cookie-cache are gated on the prod-only
+   * AUTH_COOKIE_DOMAIN binding (set to the registrable domain in alchemy.run.ts, absent in dev).
+   * Its presence is the sole prod signal — no stage literal leaks into the auth code. Absent in
+   * dev, both features stay off and cookies behave exactly as before.
+   */
+  const cookieDomain = env.AUTH_COOKIE_DOMAIN;
+
   return betterAuth({
     advanced: {
       defaultCookieAttributes: {
@@ -26,12 +34,9 @@ export const createAuth = (options?: { readonly sendEmail?: EmailSender }) => {
         sameSite: "none",
         secure: true,
       },
-      // uncomment crossSubDomainCookies setting when ready to deploy and replace <your-workers-subdomain> with your actual workers subdomain
-      // https://developers.cloudflare.com/workers/wrangler/configuration/#workersdev
-      // crossSubDomainCookies: {
-      //   enabled: true,
-      //   domain: "<your-workers-subdomain>",
-      // },
+      ...(cookieDomain
+        ? { crossSubDomainCookies: { domain: cookieDomain, enabled: true } }
+        : {}),
     },
     baseURL: env.BETTER_AUTH_URL,
     database: drizzleAdapter(db, {
@@ -82,13 +87,15 @@ export const createAuth = (options?: { readonly sendEmail?: EmailSender }) => {
       }),
     ],
     secret: env.BETTER_AUTH_SECRET,
-    // uncomment cookieCache setting when ready to deploy to Cloudflare using *.workers.dev domains
-    // session: {
-    //   cookieCache: {
-    //     enabled: true,
-    //     maxAge: 60,
-    //   },
-    // },
+    /**
+     * ADR 0039: prod-only, gated on the same cookie-domain signal. cookieCache serves the session
+     * from a signed cookie for up to 60s, cutting per-request DB reads under the cross-subdomain
+     * cookie regime. Off in dev.
+     */
+    ...(cookieDomain
+      ? { session: { cookieCache: { enabled: true, maxAge: 60 } } }
+      : {}),
+    // ADR 0039: prod CORS_ORIGIN resolves to https://think-space.app (the web apex).
     trustedOrigins: [env.CORS_ORIGIN],
   });
 };
