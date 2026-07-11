@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import {
+  fetchApprovedHosts,
   fetchArtifact,
   fetchArtifacts,
   fetchArtifactVersionContent,
@@ -58,6 +59,8 @@ export const workspaceKeys = {
     ["workspace", workspaceId, "channel", channelId, "threads"] as const,
   graph: (workspaceId: string) => ["workspace", workspaceId, "graph"] as const,
   home: (workspaceId: string) => ["workspace", workspaceId, "home"] as const,
+  mcpHosts: (workspaceId: string) =>
+    ["workspace", workspaceId, "mcp-hosts"] as const,
   mcpServers: (workspaceId: string) =>
     ["workspace", workspaceId, "mcp-servers"] as const,
   members: (workspaceId: string) =>
@@ -225,6 +228,20 @@ export const mcpServersQuery = (workspaceId: string) =>
     queryFn: () => fetchMcpServers(workspaceId),
     queryKey: workspaceKeys.mcpServers(workspaceId),
     select: (data) => data.servers,
+  });
+
+/**
+ * The workspace's approved egress hosts (E11.3, ADR 0002) — the allowlist the MCP settings page
+ * reads to show which hosts a server may sit on. Read-through convergence like the servers list; an
+ * approve/revoke mutation invalidates this key alongside the servers query so a host's approved
+ * state and the servers depending on it re-render together. An empty list is the honest "no host
+ * approved yet" signal, not an error.
+ */
+export const mcpHostsQuery = (workspaceId: string) =>
+  queryOptions({
+    queryFn: () => fetchApprovedHosts(workspaceId),
+    queryKey: workspaceKeys.mcpHosts(workspaceId),
+    select: (data) => data.hosts,
   });
 
 /**

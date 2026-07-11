@@ -155,7 +155,19 @@ export const ShapeForm = ({
       <ShapeSelectionSection
         description="Registered MCP servers whose tools the agent may call. Only servers on an approved host connect at run time."
         disabled={pending}
-        emptyState="No MCP servers registered in this workspace yet — an admin registers them before they can be selected here."
+        emptyState={
+          <>
+            No MCP servers registered in this workspace yet — register them under{" "}
+            <Link
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              params={{ workspaceId }}
+              to="/w/$workspaceId/settings/mcp"
+            >
+              MCP servers
+            </Link>{" "}
+            before they can be selected here.
+          </>
+        }
         itemId={(server) => server.id}
         itemLabel={(server) => server.name}
         itemMeta={(server) => server.host}

@@ -10,6 +10,7 @@ import {
   KeyRound,
   Library,
   Plus,
+  Server,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -101,6 +102,12 @@ export const WorkspaceSidebar = ({
           icon={KeyRound}
           label="Provider keys"
           to="/w/$workspaceId/settings/providers"
+          workspaceId={workspaceId}
+        />
+        <NavLink
+          icon={Server}
+          label="MCP servers"
+          to="/w/$workspaceId/settings/mcp"
           workspaceId={workspaceId}
         />
       </div>
