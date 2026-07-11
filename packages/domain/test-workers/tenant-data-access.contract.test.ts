@@ -64,6 +64,36 @@ const seedTenantState = async (
     ]);
   }
 
+  /**
+   * A thread scoped to a foreign workspace can't ride the tenant-guarded batch (it fails
+   * closed, as production intends), so it's seeded directly — exactly like the foreign-member
+   * roster rows above — to exercise the getThread cross-tenant guard against a real row.
+   */
+  const tenantThreads = (seed.threads ?? []).filter(
+    (thread) => thread.workspaceId === seed.context.workspaceId
+  );
+  for (const thread of seed.threads ?? []) {
+    if (thread.workspaceId === seed.context.workspaceId) {
+      continue;
+    }
+    await env.DB.prepare(
+      `INSERT INTO thread (id, channel_id, created_at, created_by_member_id, last_activity_at, lifecycle, name, root_comment_id, workspace_id)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+    )
+      .bind(
+        thread.id,
+        thread.channelId,
+        thread.createdAt.getTime(),
+        thread.createdByMemberId,
+        thread.lastActivityAt.getTime(),
+        JSON.stringify(thread.lifecycle),
+        thread.name,
+        thread.rootCommentId,
+        thread.workspaceId
+      )
+      .run();
+  }
+
   const commands = [
     ...(seed.shapes ?? []).map(
       (shape) => ({ kind: "put_shape", shape }) as const
@@ -71,7 +101,7 @@ const seedTenantState = async (
     ...(seed.channels ?? []).map(
       (channel) => ({ channel, kind: "put_channel" }) as const
     ),
-    ...(seed.threads ?? []).map(
+    ...tenantThreads.map(
       (thread) => ({ kind: "put_thread_index", thread }) as const
     ),
     ...(seed.unread ?? []).map(

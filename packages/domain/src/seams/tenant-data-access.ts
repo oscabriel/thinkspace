@@ -209,6 +209,9 @@ export interface TenantDataAccess<
   readonly getSkill: (input: {
     readonly skillId: SkillId;
   }) => AsyncResult<Skill | null, TenantDataAccessError>;
+  readonly getThread: (input: {
+    readonly threadId: ThreadId;
+  }) => AsyncResult<Thread | null, TenantDataAccessError>;
   readonly getWorkspaceGraph: () => AsyncResult<
     WorkspaceGraph,
     TenantDataAccessError

@@ -440,6 +440,8 @@ export const createMemoryTenantDataAccess = <
       getTenantScoped(config.context, state.shapes.get(idKey(input.shapeId))),
     getSkill: async (input) =>
       getTenantScoped(config.context, state.skills.get(idKey(input.skillId))),
+    getThread: async (input) =>
+      getTenantScoped(config.context, state.threads.get(idKey(input.threadId))),
     getWorkspaceGraph: async () => {
       const member = requireMemberContext(config.context);
       if (!member.ok) {

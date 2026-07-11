@@ -113,17 +113,15 @@ export const createCommentAppendFlow = (
     // The bump reads the D1 index row and rewrites its lastActivityAt, exactly as run
     // settlement does — participants (minus the author, who just posted) get a
     // co-participant unread. The whole bump is one atomic batch (ADR 0027).
-    const indexLoaded = await deps.tenantDataAccess.listChannelThreads({
-      channelId: channel.id,
+    const indexLoaded = await deps.tenantDataAccess.getThread({
+      threadId: input.threadId,
     });
     if (!indexLoaded.ok) {
       return indexLoaded;
     }
 
-    const thread = indexLoaded.value.threads.find(
-      (candidate) => candidate.id === input.threadId
-    );
-    if (thread === undefined) {
+    const thread = indexLoaded.value;
+    if (thread === null) {
       return err(
         createNotImplementedError("CommentAppendFlow.missingThreadIndexRow")
       );

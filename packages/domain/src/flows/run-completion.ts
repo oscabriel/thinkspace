@@ -99,17 +99,15 @@ export const createRunCompletionFlow = (
 
     const { run } = input;
 
-    const indexLoaded = await deps.tenantDataAccess.listChannelThreads({
-      channelId: run.channelId,
+    const indexLoaded = await deps.tenantDataAccess.getThread({
+      threadId: run.threadId,
     });
     if (!indexLoaded.ok) {
       return indexLoaded;
     }
 
-    const thread = indexLoaded.value.threads.find(
-      (candidate) => candidate.id === run.threadId
-    );
-    if (thread === undefined) {
+    const thread = indexLoaded.value;
+    if (thread === null) {
       return err(
         createNotImplementedError("RunCompletionFlow.missingThreadIndexRow")
       );
