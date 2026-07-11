@@ -201,6 +201,8 @@ export const fetchModels = (workspaceId: string) =>
 export interface WorkspaceSkill {
   readonly id: string;
   readonly name: string;
+  /** ISO timestamp of the skill's last markdown edit — the list surface's "last updated" (E11.2). */
+  readonly updatedAt: string;
 }
 
 export const fetchSkills = (workspaceId: string) =>
@@ -686,3 +688,40 @@ export interface MemberRoster {
 
 export const fetchMembers = (workspaceId: string) =>
   apiFetch<MemberRoster>(workspaceId, "/members");
+
+/* ── E11.2 skill authoring surface ───────────────────────────────────────────
+ * The write half of the R2-markdown skill registry (apps/server/src/skills.ts, ADR 0029).
+ * The list read (fetchSkills) already backs the shape form's picker; these add the detail
+ * read + the two owner/admin writes the settings surface needs. A skill's markdown body is
+ * fetched on demand (GET /skills/:id) rather than shipped in the list, so the list stays an
+ * identity index. Writes 403 `insufficient_role` for a member — surfaced as teaching copy,
+ * never a dead form. There is deliberately no delete (a frozen shape may reference a skill).
+ * The wire shape mirrors the domain SkillContent (packages/domain/src/seams/skill-store.ts):
+ * `{ markdown, skill }`; Dates serialize to ISO strings as everywhere. */
+export interface SkillContent {
+  readonly markdown: string;
+  readonly skill: WorkspaceSkill;
+}
+
+export const fetchSkill = (workspaceId: string, skillId: string) =>
+  apiFetch<SkillContent>(workspaceId, `/skills/${encodeURIComponent(skillId)}`);
+
+export const createSkill = (
+  workspaceId: string,
+  input: { readonly name: string; readonly markdown: string }
+) =>
+  apiFetch<SkillContent>(workspaceId, "/skills", {
+    body: JSON.stringify({ markdown: input.markdown, name: input.name }),
+    method: "POST",
+  });
+
+export const updateSkill = (
+  workspaceId: string,
+  skillId: string,
+  input: { readonly markdown: string }
+) =>
+  apiFetch<SkillContent>(
+    workspaceId,
+    `/skills/${encodeURIComponent(skillId)}`,
+    { body: JSON.stringify({ markdown: input.markdown }), method: "PUT" }
+  );

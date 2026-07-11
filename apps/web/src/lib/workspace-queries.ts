@@ -13,6 +13,7 @@ import {
   fetchProviders,
 
   fetchModels,
+  fetchSkill,
   fetchSkills,
   fetchUnread,
   fetchWorkspaceGraph,
@@ -64,6 +65,8 @@ export const workspaceKeys = {
     ["workspace", workspaceId, "members"] as const,
   providers: (workspaceId: string) =>
     ["workspace", workspaceId, "providers"] as const,
+  skill: (workspaceId: string, skillId: string) =>
+    ["workspace", workspaceId, "skill", skillId] as const,
   skills: (workspaceId: string) =>
     ["workspace", workspaceId, "skills"] as const,
 
@@ -225,6 +228,17 @@ export const mcpServersQuery = (workspaceId: string) =>
     queryFn: () => fetchMcpServers(workspaceId),
     queryKey: workspaceKeys.mcpServers(workspaceId),
     select: (data) => data.servers,
+  });
+
+/**
+ * A single skill's live markdown body (E11.2), fetched on demand when the settings surface opens
+ * an editor — the list read carries identity only, so the body is a lazy detail read. Invalidated
+ * alongside the skills index after an edit lands; there is no realtime event for skill writes.
+ */
+export const skillQuery = (workspaceId: string, skillId: string) =>
+  queryOptions({
+    queryFn: () => fetchSkill(workspaceId, skillId),
+    queryKey: workspaceKeys.skill(workspaceId, skillId),
   });
 
 /**
