@@ -156,8 +156,19 @@ export type {
   ModelLimits,
   ModelProvider,
 } from "./model";
-export { providerAllowlist } from "./provider-allowlist";
-export type { ProviderAllowEntry } from "./provider-allowlist";
+export {
+  findAllowEntry,
+  isRegistrableTier,
+  providerAllowlist,
+  registrableAllowlist,
+} from "./provider-allowlist";
+export type {
+  GeneratedAllowEntry,
+  ProviderAllowEntry,
+  ProviderAuthKind,
+  ProviderRouting,
+  ProviderTier,
+} from "./provider-allowlist";
 export {
   artifactNameSchema,
   artifactSearchQuerySchema,

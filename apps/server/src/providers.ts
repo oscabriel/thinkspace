@@ -1,6 +1,12 @@
-import { createKeyStore } from "@thinkspace/domain/adapters/production";
-import type { ModelProvider } from "@thinkspace/domain/model";
-import { providerAllowlist } from "@thinkspace/domain/provider-allowlist";
+import {
+  createKeyStore,
+  createUnverifiedCustomProviderProvisioner,
+} from "@thinkspace/domain/adapters/production";
+import {
+  findAllowEntry,
+  isRegistrableTier,
+} from "@thinkspace/domain/provider-allowlist";
+import type { ProviderAllowEntry } from "@thinkspace/domain/provider-allowlist";
 import type { KeyStoreWriteError } from "@thinkspace/domain/seams/key-store";
 import type { TenantContext } from "@thinkspace/domain/seams/tenant-data-access";
 import { env } from "@thinkspace/env/server";
@@ -28,10 +34,26 @@ import { WORKSPACE_MANAGER_ROLES } from "./tenant-context";
 /** The raw key is opaque here: a non-empty string, validated only for presence, never inspected. */
 const keyBodySchema = z.object({ key: z.string().min(1) });
 
-/** Resolve a path `:provider` segment to an allowlisted brand, or `null` for anything else. */
-const allowlistedProvider = (provider: string): ModelProvider | null =>
-  providerAllowlist.find((entry) => entry.provider === provider)?.provider ??
-  null;
+/**
+ * Resolve a path `:provider` segment against the E11.9 tiered allowlist. Three outcomes the route
+ * maps to distinct statuses: `unknown` (not allowlisted at all → 404), an `unsupported`-tier entry
+ * (sigv4/oauth/local/per-resource → typed 422, never a 500 and never a dead 404), or a registrable
+ * entry (Tier A/B → proceed).
+ */
+type ResolvedProviderTarget =
+  | { readonly kind: "registrable"; readonly entry: ProviderAllowEntry }
+  | { readonly kind: "unknown" }
+  | { readonly kind: "unsupported"; readonly entry: ProviderAllowEntry };
+
+const resolveProviderTarget = (provider: string): ResolvedProviderTarget => {
+  const entry = findAllowEntry(provider);
+  if (entry === undefined) {
+    return { kind: "unknown" };
+  }
+  return isRegistrableTier(entry.tier)
+    ? { entry, kind: "registrable" }
+    : { entry, kind: "unsupported" };
+};
 
 /**
  * ADR 0040: the BYOK KeyStore port. `createKeyStore` selects `EnvelopeD1KeyStore` when
@@ -41,6 +63,39 @@ const allowlistedProvider = (provider: string): ModelProvider | null =>
  */
 const buildKeyStore = (context: TenantContext) =>
   createKeyStore({ context, env });
+
+/**
+ * ADR 0040 §7 (E11.9): the AI Gateway Custom Provider provisioner. The default production adapter is
+ * the honest UNVERIFIED no-op stub — the CF Custom Provider write surface is not yet verified, so
+ * provisioning returns a typed `unverified` result the write route logs and proceeds past. A
+ * non-native provider is therefore honestly Tier-B "first run confirms" (never a false "provisioned"
+ * claim); the real CF-API adapter swaps in here once the surface is verified.
+ */
+const customProviderProvisioner = createUnverifiedCustomProviderProvisioner();
+
+/**
+ * Best-effort Custom Provider provisioning for a non-native (`custom-provider`) entry, run lazily
+ * after the key is sealed. Provisioning failure NEVER fails key registration — the key is already
+ * stored; a non-native route that isn't (yet) provisioned settles as a visible first-run failure
+ * (ADR 0028), which is the Tier-B contract. Holds no key material (only the public upstream URL).
+ */
+const provisionCustomProvider = async (
+  entry: ProviderAllowEntry
+): Promise<void> => {
+  if (entry.routing !== "custom-provider" || entry.upstreamBaseUrl === undefined) {
+    return;
+  }
+  const provisioned = await customProviderProvisioner.ensureProvider({
+    slug: entry.gatewaySlug,
+    upstreamBaseUrl: entry.upstreamBaseUrl,
+  });
+  if (!provisioned.ok) {
+    // Redaction-safe: the provisioner's message carries no key (it never sees one).
+    console.warn(
+      `[providers] custom-provider provisioning for '${entry.provider}' unconfirmed: ${provisioned.error.kind}`
+    );
+  }
+};
 
 /**
  * A key-store write/delete failure is an upstream-dependency fault, not a client error and not a
@@ -93,10 +148,26 @@ export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
       return c.json({ error: { kind: "insufficient_role" } }, 403);
     }
 
-    const provider = allowlistedProvider(c.req.param("provider"));
-    if (provider === null) {
+    const target = resolveProviderTarget(c.req.param("provider"));
+    if (target.kind === "unknown") {
       return c.json({ error: { kind: "unknown_resource" } }, 404);
     }
+    if (target.kind === "unsupported") {
+      // E11.9: the provider is real but its auth (sigv4/oauth/local/per-resource) isn't a static
+      // header we can register — a typed 4xx, never a 500 and never a dead 404. The key never
+      // reaches storage (and the body is not even read), so nothing sensitive is touched here.
+      return c.json(
+        {
+          error: {
+            kind: "provider_unsupported",
+            reason: target.entry.unsupportedReason,
+            tier: target.entry.tier,
+          },
+        },
+        422
+      );
+    }
+    const { entry } = target;
 
     const body = keyBodySchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
@@ -107,7 +178,7 @@ export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
     // The KeyStore owns the storage write AND the registry-row upsert (envelope: one D1 upsert;
     // legacy: Secrets Store secret first, then the row) — the row never exists without stored key.
     const written = await buildKeyStore(context).writeKey(
-      provider,
+      entry.provider,
       body.data.key
     );
     if (!written.ok) {
@@ -117,7 +188,10 @@ export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
       );
     }
 
-    return c.json({ provider }, 200);
+    // Lazy, idempotent, best-effort — a non-native route's provisioning never fails registration.
+    await provisionCustomProvider(entry);
+
+    return c.json({ provider: entry.provider }, 200);
   })
   .delete("/providers/:provider/key", async (c) => {
     const context = c.get("tenantContext");
@@ -125,15 +199,18 @@ export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
       return c.json({ error: { kind: "insufficient_role" } }, 403);
     }
 
-    const provider = allowlistedProvider(c.req.param("provider"));
-    if (provider === null) {
+    // Delete resolves against the allowlist but does not gate on tier: a key can only exist for a
+    // registrable provider, and `deleteKey` is an idempotent no-op otherwise, so an unsupported or
+    // since-demoted provider converges to success rather than 4xx-ing a revocation.
+    const entry = findAllowEntry(c.req.param("provider"));
+    if (entry === undefined) {
       return c.json({ error: { kind: "unknown_resource" } }, 404);
     }
 
     // The KeyStore owns the delete ordering (envelope: drop the row; legacy: registry row first,
     // then the Secrets Store secret) so a row can never outlive a deleted secret. Idempotent — a
     // retry after a failed delete converges.
-    const deleted = await buildKeyStore(context).deleteKey(provider);
+    const deleted = await buildKeyStore(context).deleteKey(entry.provider);
     if (!deleted.ok) {
       return c.json(
         registrationFailure(deleted.error),
@@ -141,5 +218,5 @@ export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
       );
     }
 
-    return c.json({ provider }, 200);
+    return c.json({ provider: entry.provider }, 200);
   });

@@ -18,8 +18,18 @@ describe("modelIdSchema — composite <providerId>/<modelSlug> (E1.2)", () => {
     expect(() => modelIdSchema.parse("anthropic/")).toThrow();
   });
 
-  test("rejects an id carrying more than one slash", () => {
-    expect(() => modelIdSchema.parse("anthropic/claude/5")).toThrow();
+  test("accepts a model slug carrying slashes (E11.9 aggregator `org/model` ids)", () => {
+    // openrouter/togetherai/… publish `org/model` ids; the provider is the FIRST segment and the
+    // slug is everything after, so the composite has more than one slash by design.
+    expect(String(modelIdSchema.parse("openrouter/anthropic/claude-sonnet-5"))).toBe(
+      "openrouter/anthropic/claude-sonnet-5"
+    );
+    expect(
+      parseModelId(modelIdSchema.parse("openrouter/anthropic/claude-sonnet-5"))
+    ).toEqual({
+      modelSlug: "anthropic/claude-sonnet-5",
+      providerId: "openrouter",
+    });
   });
 
   test("formatModelId composes a valid composite id", () => {
