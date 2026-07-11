@@ -9,6 +9,7 @@ const validModel = {
     structuredOutput: true,
     toolCall: true,
   },
+  catalogSource: "models_dev",
   cost: { cacheRead: 0.2, cacheWrite: 2.5, input: 2, output: 10 },
   displayName: "Claude Sonnet 5",
   id: "anthropic/claude-sonnet-5",

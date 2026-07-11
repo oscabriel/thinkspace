@@ -176,14 +176,20 @@ const ModelRow = ({
       )}
     </div>
 
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
-      <span>
-        {formatPrice(model.cost.input)} in · {formatPrice(model.cost.output)} out
-        <span className="text-muted-foreground/70"> /Mtok</span>
+    {model.catalogSource === "provider_default" ? (
+      <span className="w-fit rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs">
+        Provider default
       </span>
-      <span aria-hidden="true">·</span>
-      <span>{formatContext(model.limits.context)}</span>
-    </div>
+    ) : (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
+        <span>
+          {formatPrice(model.cost.input)} in · {formatPrice(model.cost.output)} out
+          <span className="text-muted-foreground/70"> /Mtok</span>
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>{formatContext(model.limits.context)}</span>
+      </div>
+    )}
 
     <div className="flex flex-wrap items-center gap-1.5">
       {model.capabilities.toolCall && (

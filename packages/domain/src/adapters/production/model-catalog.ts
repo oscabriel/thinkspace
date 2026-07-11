@@ -108,6 +108,7 @@ const toModel = (
       structuredOutput: raw.structured_output,
       toolCall: raw.tool_call,
     },
+    catalogSource: "models_dev",
     cost: {
       cacheRead: raw.cost.cache_read,
       cacheWrite: raw.cost.cache_write,
@@ -158,6 +159,7 @@ const synthesizeDefaultModel = (entry: ProviderAllowEntry): Model | null => {
       structuredOutput: false,
       toolCall: false,
     },
+    catalogSource: "provider_default",
     cost: { cacheRead: 0, cacheWrite: 0, input: 0, output: 0 },
     displayName: displayNameFromSlug(entry.defaultModelSlug),
     id: `${entry.provider}/${entry.defaultModelSlug}`,

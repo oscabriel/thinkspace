@@ -178,6 +178,7 @@ export interface ModelCapabilities {
 
 export interface Model {
   readonly capabilities: ModelCapabilities;
+  readonly catalogSource: "models_dev" | "provider_default";
   readonly cost: ModelCost;
   readonly displayName: string;
   readonly id: string;

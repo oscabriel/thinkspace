@@ -45,6 +45,7 @@ const catalogModel: Model = {
     structuredOutput: true,
     toolCall: true,
   },
+  catalogSource: "models_dev",
   cost: { cacheRead: 0, cacheWrite: 0, input: 1, output: 1 },
   displayName: nonEmptyStringSchema.parse("Test Model"),
   id: modelIdSchema.parse("test-provider/model-1"),
