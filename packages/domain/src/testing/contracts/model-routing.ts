@@ -38,6 +38,7 @@ const makeModel = (input?: {
     structuredOutput: true,
     toolCall: true,
   },
+  catalogSource: "models_dev",
   cost: { cacheRead: 0.1, cacheWrite: 0.2, input: 1, output: 5 },
   displayName: "Claude Sonnet Test",
   id: modelIdSchema.parse(input?.id ?? "anthropic/claude-sonnet-test"),

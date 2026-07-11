@@ -34,6 +34,7 @@ export type ModelCapabilities = z.infer<typeof modelCapabilitiesSchema>;
 
 export const modelSchema = z.object({
   capabilities: modelCapabilitiesSchema,
+  catalogSource: z.enum(["models_dev", "provider_default"]),
   cost: modelCostSchema,
   displayName: nonEmptyStringSchema,
   id: modelIdSchema,

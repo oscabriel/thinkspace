@@ -119,6 +119,7 @@ describe("assembleCatalog — allowlist filtering + skip-don't-fail", () => {
     if (model === undefined) {
       return;
     }
+    expect(model.catalogSource).toBe("models_dev");
     expect(model.displayName).toBe("Claude Opus 4.5");
     expect(model.cost).toEqual({
       cacheRead: 0.5,
@@ -200,6 +201,7 @@ describe("assembleCatalog — allowlist filtering + skip-don't-fail", () => {
     // Absent default → synthesized minimal entry with a slug-derived display name and stubs.
     const synthesized = byId.get("anthropic/claude-sonnet-5");
     expect(synthesized).toBeDefined();
+    expect(synthesized?.catalogSource).toBe("provider_default");
     expect(synthesized?.displayName).toBe("Claude Sonnet 5");
     expect(String(synthesized?.provider)).toBe("anthropic");
     expect(synthesized?.cost).toEqual({
@@ -220,6 +222,7 @@ describe("assembleCatalog — allowlist filtering + skip-don't-fail", () => {
     expect(
       models.filter((m) => String(m.id) === "openai/gpt-5.5")
     ).toHaveLength(1);
+    expect(byId.get("openai/gpt-5.5")?.catalogSource).toBe("models_dev");
     expect(byId.get("openai/gpt-5.5")?.displayName).toBe("GPT-5.5");
   });
 });
