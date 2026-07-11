@@ -70,8 +70,10 @@ describe("D1 ModelRouter × live catalog through the outbound mock (E1.5)", () =
     // The mock fixture carries 2 valid anthropic models, 1 boundary-schema reject (skipped, not
     // fatal), and 1 openai model. openai is now allowlisted (ADR 0038 §1), so it survives the
     // allowlist filter — but this workspace is keyed for anthropic only, so the BYOK key gate
-    // drops the openai model here.
+    // drops the openai model here. ADR 0038 amendment: the anthropic allowlist default
+    // (claude-sonnet-5) is absent from the fixture, so it is synthesized and unioned in.
     expect(models.map((model) => model.id).toSorted()).toEqual([
+      "anthropic/claude-sonnet-5",
       "anthropic/claude-test-haiku",
       "anthropic/claude-test-sonnet",
     ]);
@@ -87,9 +89,13 @@ describe("D1 ModelRouter × live catalog through the outbound mock (E1.5)", () =
 
     // Same live fixture, keyed for openai instead: the openai model now passes both the allowlist
     // and the key gate, while the anthropic models are dropped by the (now-unkeyed) anthropic gate.
+    // ADR 0038 amendment: openai's allowlist default (gpt-5.5) is absent from the fixture, so it is
+    // synthesized and unioned in alongside the live gpt-test.
     expect(
-      unwrapOk(await router.listAvailableModels()).map((model) => model.id)
-    ).toEqual(["openai/gpt-test"]);
+      unwrapOk(await router.listAvailableModels())
+        .map((model) => model.id)
+        .toSorted()
+    ).toEqual(["openai/gpt-5.5", "openai/gpt-test"]);
   });
 
   test("listAvailableModels is empty for an unkeyed workspace even with a live catalog", async () => {
@@ -99,6 +105,9 @@ describe("D1 ModelRouter × live catalog through the outbound mock (E1.5)", () =
       db: env.DB,
     });
 
+    // ADR 0038 amendment: the union adds every allowlist default to the catalog, but the keyed
+    // intersection runs downstream — an unkeyed workspace still sees nothing, so no provider's
+    // default ever leaks to a workspace that has not keyed it.
     expect(unwrapOk(await router.listAvailableModels())).toEqual([]);
   });
 

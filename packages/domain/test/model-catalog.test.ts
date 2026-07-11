@@ -98,6 +98,9 @@ describe("assembleCatalog — allowlist filtering + skip-don't-fail", () => {
     expect(models.map((m) => String(m.id)).toSorted()).toEqual([
       "anthropic/claude-opus-4-5",
       "anthropic/claude-sonnet-4-5",
+      // ADR 0038 amendment: anthropic's allowlist default is absent from this payload, so it is
+      // synthesized and unioned in; openai's default (gpt-5.5) is present, so it dedupes to one.
+      "anthropic/claude-sonnet-5",
       "openai/gpt-5.5",
     ]);
     // No non-allowlisted provider leaked through.
@@ -146,19 +149,78 @@ describe("assembleCatalog — allowlist filtering + skip-don't-fail", () => {
       })
     );
 
-    expect(models).toHaveLength(1);
-    expect(String(models[0]?.id)).toBe("anthropic/claude-opus-4-5");
+    const ids = models.map((m) => String(m.id));
+    // The good models.dev model survives; the malformed one is dropped (never fatal).
+    expect(ids).toContain("anthropic/claude-opus-4-5");
+    expect(ids).not.toContain("anthropic/claude-broken");
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
 
-  test("an unparseable payload yields an empty catalog, never throws", () => {
+  test("an unparseable payload still yields the allowlist defaults, never throws", () => {
     const warn = spyOn(console, "warn").mockImplementation(() => {
       // capture
     });
-    expect(assembleCatalog("not a provider map")).toEqual([]);
-    expect(assembleCatalog(null)).toEqual([]);
+    // ADR 0038 amendment: a garbage-but-200 payload is not fatal — the allowlist defaults are
+    // unioned in regardless, so a keyed provider is never left with an empty picker.
+    for (const raw of ["not a provider map", null]) {
+      expect(
+        assembleCatalog(raw)
+          .map((m) => String(m.id))
+          .toSorted()
+      ).toEqual(["anthropic/claude-sonnet-5", "openai/gpt-5.5"]);
+    }
     warn.mockRestore();
+  });
+
+  test("synthesizes an absent allowlist default and dedupes a present one (ADR 0038 amendment)", () => {
+    const warn = spyOn(console, "warn").mockImplementation(() => {
+      // silence provider-absent warnings
+    });
+    // anthropic's default is absent from models.dev here → synthesized; openai's default is
+    // present with real metadata → the models.dev entry wins, deduped to one.
+    const models = assembleCatalog(
+      payload({
+        anthropic: {
+          "claude-opus-4-5": goodModel("claude-opus-4-5", "Claude Opus 4.5"),
+        },
+        extraProviders: {
+          openai: {
+            id: "openai",
+            models: { "gpt-5.5": goodModel("gpt-5.5", "GPT-5.5") },
+            name: "OpenAI",
+          },
+        },
+      })
+    );
+    warn.mockRestore();
+
+    const byId = new Map(models.map((m) => [String(m.id), m]));
+
+    // Absent default → synthesized minimal entry with a slug-derived display name and stubs.
+    const synthesized = byId.get("anthropic/claude-sonnet-5");
+    expect(synthesized).toBeDefined();
+    expect(synthesized?.displayName).toBe("Claude Sonnet 5");
+    expect(String(synthesized?.provider)).toBe("anthropic");
+    expect(synthesized?.cost).toEqual({
+      cacheRead: 0,
+      cacheWrite: 0,
+      input: 0,
+      output: 0,
+    });
+    expect(synthesized?.capabilities).toEqual({
+      attachment: false,
+      reasoning: false,
+      structuredOutput: false,
+      toolCall: false,
+    });
+    expect(synthesized?.limits).toEqual({ context: 1, output: 1 });
+
+    // Present default → deduped to exactly one entry carrying the real models.dev metadata.
+    expect(
+      models.filter((m) => String(m.id) === "openai/gpt-5.5")
+    ).toHaveLength(1);
+    expect(byId.get("openai/gpt-5.5")?.displayName).toBe("GPT-5.5");
   });
 });
 

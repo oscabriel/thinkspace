@@ -88,3 +88,41 @@ client's stale timeout — the run-state-read debt (0028) plus in-stream error s
 allowlist `defaultModelSlug` is not guaranteed to be in the models.dev catalog (models.dev dropped
 gpt-5.5 the day the 5.6 family shipped), so the picker may offer no model a given provider account
 can actually run while the curator default still works.
+
+## Amendment — the catalog always unions keyed providers' allowlist defaults (2026-07-10, E10.2)
+
+**Motivation.** The recorded gap above bit: the catalog is `models.dev ∩ allowlist ∩ keyed`
+(ADR 0036 §6), and models.dev is a moving target — it dropped `gpt-5.5` the day the 5.6 family
+shipped. A keyed workspace could therefore see an EMPTY picker for a provider it has a live key
+for, while the curator default (which composes `defaultModelSlug` directly, never the catalog)
+kept working. The picker and the curator disagreeing on what a provider can run is the defect.
+
+**Decision.** The effective catalog for a keyed workspace is
+`(models.dev ∩ allowlist ∩ keyed) ∪ { each keyed provider's allowlist defaultModelSlug }`. The
+union guarantees every keyed provider always offers at least its default. When models.dev already
+lists the default, the models.dev entry wins (dedupe by `ModelId`); when it does not, a minimal
+entry is synthesized.
+
+**Where the union lives (smallest faithful formulation).** The `keyed` intersection is applied
+downstream by the D1 `ModelRouter.listAvailableModels`, not in catalog assembly. So rather than
+thread the per-workspace key set into the pure `assembleCatalog`, assembly unions in EVERY
+allowlist entry's default; the router's unchanged keyed intersection then reduces the set to the
+keyed providers' defaults for free — algebraically identical, and it keeps the change to
+`packages/domain/src/adapters/production/model-catalog.ts` alone. A consequence worth stating: an
+unkeyed provider's default is present in the raw catalog but never surfaces to a workspace, because
+the keyed intersection drops it (verified by the unkeyed-workspace integration test). Assembly also
+now unions the defaults even when the models.dev payload is unparseable-but-200 — a keyed provider
+is never left with an empty picker by a bad registry response.
+
+**Synthesized-entry stubs.** The domain `Model` shape requires `capabilities`, `cost`,
+`displayName`, `id`, `limits`, `provider`, `releaseDate` — none optional. A synthesized default
+carries only what the allowlist knows: `id = {provider}/{defaultModelSlug}`, `provider`, and a
+`displayName` prettified from the slug (`claude-sonnet-5` → "Claude Sonnet 5"). Every models.dev-
+only field is a neutral stub the schema's `min`/`positive` constraints still accept: capabilities
+all `false`, cost all `0`, limits `1/1` (the positive-int floor), and `releaseDate` an epoch
+sentinel `1970-01-01`. These stubs are cosmetic in the picker; the model runs regardless because
+the gateway route keys off the `ModelId`, not the metadata.
+
+**Scope.** Domain-only. The picker consumes the `/models` read and updates for free; no allowlist,
+curator, or web changes. The curator already bypasses the catalog, so this only closes the picker
+side of the same `defaultModelSlug` guarantee.
