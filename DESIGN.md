@@ -20,36 +20,47 @@ colors:
   night-ink-muted: "oklch(0.68 0.02 230)"
   night-cobalt: "oklch(0.75 0.09 230)"
 typography:
+  # Compact component scale — the blessed tighter scale carried by the semantic
+  # tokens in packages/ui/src/styles/globals.css (--text-headline / title / body
+  # / label / meta) and used by the packages/ui primitives. See §3.
   headline:
-    fontFamily: "Inter Variable, system-ui, sans-serif"
-    fontSize: "1.25rem"
-    fontWeight: 600
-    lineHeight: 1.3
-    letterSpacing: "-0.01em"
-  title:
     fontFamily: "Inter Variable, system-ui, sans-serif"
     fontSize: "1rem"
     fontWeight: 600
     lineHeight: 1.4
+    letterSpacing: "-0.01em"
+  title:
+    fontFamily: "Inter Variable, system-ui, sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 600
+    lineHeight: 1.43
   body:
     fontFamily: "Inter Variable, system-ui, sans-serif"
-    fontSize: "0.9375rem"
+    fontSize: "0.875rem"
     fontWeight: 400
-    lineHeight: 1.6
+    lineHeight: 1.43
   label:
     fontFamily: "Inter Variable, system-ui, sans-serif"
-    fontSize: "0.8125rem"
+    fontSize: "0.75rem"
     fontWeight: 500
-    lineHeight: 1.4
+    lineHeight: 1.33
   meta:
     fontFamily: "Inter Variable, system-ui, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 400
-    lineHeight: 1.4
+    lineHeight: 1.33
   code:
     fontFamily: "ui-monospace, 'JetBrains Mono', monospace"
     fontSize: "0.875em"
     fontWeight: 400
+  # Content / prose scale — long-form reading, distinct from the compact scale
+  # above. The run card is the exemplar (run-card.tsx) and an intentional
+  # exception to the component scale; not tokenized in globals.css.
+  proseBody:
+    fontFamily: "Inter Variable, system-ui, sans-serif"
+    fontSize: "0.9375rem"
+    fontWeight: 400
+    lineHeight: 1.6
 rounded:
   sm: "6px"
   md: "8px"
@@ -171,17 +182,38 @@ avatars, not in empty states. Flat fills only.
 **Label/Mono Font:** ui-monospace / JetBrains Mono — code blocks and path chips ONLY.
 
 **Character:** One quiet humanist sans doing every job through weight and size, never
-through novelty. Hierarchy is tight (≈1.2 ratio, fixed rem — no fluid clamp in product
-UI); the loudest thing on a screen is a 600-weight 1.25rem headline.
+through novelty. The one family works in two registers: a **compact component scale** that
+keeps packages/ui primitives dense and legible, and a **content/prose scale** for
+long-form reading. Hierarchy is tight (fixed rem — no fluid clamp in product UI). Within
+the generic UI primitives the ceiling is a 600-weight 1rem title; the loudest type on a
+screen — a 600-weight page heading up to 1.25rem — belongs to page-level headers *outside*
+the generic primitives (channel pages, dialog titles), never to a card, button, or bubble.
 
-### Hierarchy
-- **Headline** (600, 1.25rem, 1.3, -0.01em): channel names on channel pages, dialog
-  titles. The ceiling.
-- **Title** (600, 1rem, 1.4): thread names in the feed, run-card titles, section heads.
-- **Body** (400, 0.9375rem, 1.6): comments and prose. Max width 70ch in threads.
-- **Label** (500, 0.8125rem, 1.4): buttons, form labels, sidebar items, tabs.
-- **Meta** (400, 0.75rem, 1.4, Ink Muted): timestamps, counts, "2 replies", run duration.
+### Compact component scale
+The blessed working scale for packages/ui primitives — buttons, cards, chat bubbles,
+labels, empty states. Deliberately tighter than the prose scale so dense surfaces stay
+scannable, and carried by semantic tokens (`--text-headline`, `--text-title`,
+`--text-body`, `--text-label`, `--text-meta` in globals.css) rather than raw utility sizes
+repeated per component.
+- **Headline** (600, 1rem, 1.4, -0.01em): the ceiling for a generic primitive, and the
+  size page-level headings settle at. Dialog titles, channel names.
+- **Title** (600, 0.875rem, 1.43): card titles, empty-state titles, section heads.
+- **Body** (400, 0.875rem, 1.43; 1.6 relaxed for descriptions): readable text inside
+  compact components — empty-state copy, card content.
+- **Label** (500, 0.75rem, 1.33): buttons, form labels, sidebar items, tabs, message
+  author names.
+- **Meta** (400, 0.75rem, 1.33, Ink Muted): timestamps, counts, "2 replies", card
+  descriptions, run duration.
 - **Code** (mono, 0.875em): fenced code blocks and inline path/branch chips on Panel bg.
+
+### Content / prose scale
+Long-form reading register — thread comments and run output, where line length and rhythm
+matter more than density.
+- **Prose body** (400, 0.9375rem, 1.6): comments and run-card prose. Max width 70ch in
+  threads. The **run card is the exemplar and an intentional exception** to the compact
+  scale: its body renders at 0.9375rem/1.6 (`run-card.tsx:99-108`) and its section
+  headings and status at 0.8125rem (`run-card.tsx:89`, `:139`) — a deliberately roomier
+  register for reviewable agent output, not a candidate for the compact tokens above.
 
 ### Named Rules
 **The Mono-Means-Code Rule.** Monospace appears only inside code blocks and file-path /
@@ -212,7 +244,7 @@ Soft, consistent, state-complete. Every interactive component ships default, hov
 active, disabled, loading, and (where applicable) error — no half-vocabularies.
 
 ### Buttons
-- **Shape:** full pill (9999px radius), 8px 20px padding, Label type (500, 0.8125rem).
+- **Shape:** full pill (9999px radius), 8px 20px padding, Label type (500, 0.75rem).
 - **Primary:** Deep Cobalt fill, white text. Hover darkens fill ~6% L; focus-visible shows
   a 2px cobalt ring offset 2px; disabled drops to 50% opacity, never a different hue.
 - **Secondary:** Panel fill, Ink text, no border. Hover deepens the tint.
