@@ -19,3 +19,22 @@ export const modelReplying = (text: string) =>
       }),
     }),
   });
+
+/**
+ * A model whose stream opens cleanly (headers OK, `doStream` resolves) and then errors
+ * mid-flight — the ADR 0038 live shape: the gateway logs 200, the provider then fails in-stream
+ * (0/0 tokens). No `finish` part is ever emitted; the turn must settle FAILED, never complete.
+ */
+export const modelErroringMidStream = (reason: string) =>
+  new MockLanguageModelV3({
+    doStream: async () => ({
+      stream: simulateReadableStream({
+        chunks: [
+          { type: "stream-start", warnings: [] },
+          { id: "text-1", type: "text-start" },
+          { delta: "partial…", id: "text-1", type: "text-delta" },
+          { error: reason, type: "error" },
+        ],
+      }),
+    }),
+  });

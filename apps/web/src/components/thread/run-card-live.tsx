@@ -11,12 +11,12 @@ import type { RunStatus } from "@thinkspace/ui/components/run-card";
 
 /**
  * A live run rendered with the run-card design primitives (DESIGN §5). Run state is DO-resident
- * and not read back over HTTP in the MVP (ADR 0028: no D1 run index), and the hub deltas carry
- * ids without state — so the card's status is what the client can *observe*: it opens "running"
- * from the dispatch receipt and settles when the run's output comment lands in the branch
- * (surfaced by `comment_added` → branch refetch, or the branch poll when the socket is down).
- * A never-settling run flips to "failed" on a client-side timeout — a card is never a spinner
- * in a void.
+ * (ADR 0028: no D1 run index) and the hub deltas carry ids without state — so the card opens
+ * "running" from the dispatch receipt and settles from the server-authoritative run-state read
+ * (`getRun`, run-card-live's owner fetches it on each `run_lifecycle_changed`): a completion
+ * retires the card as its output comment lands in the branch, and an errored run — which never
+ * lands an output comment — flips to "failed" the instant its lifecycle delta arrives, rather
+ * than waiting out the client-side timeout that now only backstops a delta that never arrives.
  */
 export interface ActiveRun {
   readonly runId: string;

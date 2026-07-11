@@ -6,6 +6,7 @@ import { channelVisibilityGate } from "@thinkspace/domain/flows/channel-gate";
 import {
   channelIdSchema,
   commentIdSchema,
+  runIdSchema,
   threadIdSchema,
 } from "@thinkspace/domain/ids";
 import type { TenantContext } from "@thinkspace/domain/seams/tenant-data-access";
@@ -25,6 +26,12 @@ const channelPathSchema = z.object({ channelId: channelIdSchema });
 const branchPathSchema = z.object({
   channelId: channelIdSchema,
   rootCommentId: commentIdSchema,
+  threadId: threadIdSchema,
+});
+
+const runPathSchema = z.object({
+  channelId: channelIdSchema,
+  runId: runIdSchema,
   threadId: threadIdSchema,
 });
 
@@ -271,5 +278,51 @@ export const readRoutes = new Hono<{ Variables: TenantVariables }>()
         return c.json({ error: branch.error }, domainErrorStatus(branch.error));
       }
       return c.json(branch.value, 200);
+    }
+  )
+  .get(
+    "/channels/:channelId/threads/:threadId/runs/:runId",
+    async (c) => {
+      /**
+       * ADR 0028: the server-authoritative run-state read. Run state is DO-resident and read
+       * through the ThreadAgent seam's `getRun(runId) → RunDetail | null` — there is no D1 run
+       * index — so the edge composes the same DO stub the branch read uses and translates null
+       * to 404. This is what lets the thread surface settle an errored run's card the instant its
+       * `run_lifecycle_changed` delta arrives (that event carries only an id, not state) rather
+       * than waiting out the client's stale timeout. Same fail-closed visibility guard as the
+       * branch read: an invisible channel's runs are 404, and an unknown run id is 404 too.
+       */
+      const context = c.get("tenantContext");
+
+      const path = runPathSchema.safeParse({
+        channelId: c.req.param("channelId"),
+        runId: c.req.param("runId"),
+        threadId: c.req.param("threadId"),
+      });
+      if (!path.success) {
+        return c.json({ error: { kind: "unknown_resource" } }, 404);
+      }
+
+      const guard = await guardVisibleChannel(context, path.data.channelId);
+      if (!guard.ok) {
+        return c.json(guard.body, guard.status);
+      }
+
+      const detail = await createProductionThreadAgentDirectory({
+        namespace: env.THREAD_AGENT,
+      })
+        .get({
+          channelId: path.data.channelId,
+          threadId: path.data.threadId,
+          workspaceId: context.workspaceId,
+        })
+        .getRun({ runId: path.data.runId });
+      if (!detail.ok) {
+        return c.json({ error: detail.error }, domainErrorStatus(detail.error));
+      }
+      if (detail.value === null) {
+        return c.json({ error: { kind: "unknown_resource" } }, 404);
+      }
+      return c.json(detail.value, 200);
     }
   );

@@ -331,4 +331,62 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/dispatc
       },
     });
   });
+
+  /**
+   * ADR 0028 run-state read wired to a real dispatched run: after the dispatch mints the run in the
+   * thread DO, GET .../runs/:runId returns the DO-resident RunDetail — the same run id and trigger,
+   * carrying whatever terminal/in-flight lifecycle the turn has reached against the mock gateway.
+   * This is the read the thread surface consults to settle an errored run's card server-side.
+   */
+  it("serves the DO-resident run state for a dispatched run via the run-state read", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "run-read-dispatched@example.com",
+      slug: "run-read-dispatched-space",
+    });
+    await keyWorkspaceForAnthropic(workspaceId);
+    await seedChannel({
+      channelId: "rd-ch-1",
+      memberId,
+      shapeId: "rd-shape-1",
+      workspaceId,
+    });
+    await SELF.fetch(
+      `https://test.local/api/w/${workspaceId}/channels/rd-ch-1/threads/rd-th-1`,
+      {
+        body: JSON.stringify({
+          openingBody: "Read my run",
+          openingCommentId: "rd-comment-1",
+        }),
+        headers: { "content-type": "application/json", cookie },
+        method: "PUT",
+      }
+    );
+
+    const dispatched = await SELF.fetch(
+      dispatchUrl({ channelId: "rd-ch-1", threadId: "rd-th-1", workspaceId }),
+      {
+        body: JSON.stringify({ gestureId, targetCommentId: "rd-comment-1" }),
+        headers: { "content-type": "application/json", cookie },
+        method: "POST",
+      }
+    );
+    expect(dispatched.status).toBe(200);
+    const { runId } = await dispatched.json<{ runId: string }>();
+
+    const read = await SELF.fetch(
+      `https://test.local/api/w/${workspaceId}/channels/rd-ch-1/threads/rd-th-1/runs/${runId}`,
+      { headers: { cookie } }
+    );
+    expect(read.status).toBe(200);
+    const detail = await read.json<{
+      run: { id: string; lifecycle: string; trigger: { kind: string } };
+      subAgentActivity: unknown[];
+    }>();
+    expect(detail.run.id).toBe(runId);
+    expect(detail.run.trigger.kind).toBe("dispatch");
+    expect(["complete", "failed", "queued", "running"]).toContain(
+      detail.run.lifecycle
+    );
+    expect(detail.subAgentActivity).toEqual([]);
+  });
 });

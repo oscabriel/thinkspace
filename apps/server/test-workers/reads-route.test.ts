@@ -322,6 +322,73 @@ describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
     });
   });
 
+  /**
+   * ADR 0028 run-state read: an unknown run id on a visible channel is 404 (getRun → null),
+   * indistinguishable from a run that never existed. The client treats 404 as "not resident yet",
+   * so a stale/typo id never masquerades as a settled run.
+   */
+  it("answers a run-state read for an unknown run id with 404", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "run-read-unknown@example.com",
+      slug: "run-read-unknown-space",
+    });
+    await seedChannel({
+      channelId: "rr-ch-1",
+      memberId,
+      shapeId: "rr-shape-1",
+      workspaceId,
+    });
+
+    const response = await get(
+      `${base(workspaceId)}/channels/rr-ch-1/threads/rr-th-1/runs/run-ghost`,
+      cookie
+    );
+    expect(response.status).toBe(404);
+  });
+
+  /**
+   * ADR 0035 §4 fail-closed pin, mirrored onto the run-state read: a private channel a member
+   * cannot see hides its runs behind the same 404 the channel and branch reads use — never 403.
+   */
+  it("answers a run-state read on a private channel a member cannot see with 404, not 403", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "run-read-private@example.com",
+      slug: "run-read-private-space",
+    });
+    await seedChannel({
+      channelId: "rp-ch-1",
+      memberId,
+      ownerMemberId: "rp-other-member",
+      shapeId: "rp-shape-1",
+      visibility: { kind: "private" },
+      workspaceId,
+    });
+
+    const response = await get(
+      `${base(workspaceId)}/channels/rp-ch-1/threads/rp-th-1/runs/run-anything`,
+      cookie
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it("rejects a run-state read without a session as 401", async () => {
+    const { memberId, workspaceId } = await signUpWithWorkspace({
+      email: "run-read-no-session@example.com",
+      slug: "run-read-no-session-space",
+    });
+    await seedChannel({
+      channelId: "rn-ch-1",
+      memberId,
+      shapeId: "rn-shape-1",
+      workspaceId,
+    });
+
+    const response = await get(
+      `${base(workspaceId)}/channels/rn-ch-1/threads/rn-th-1/runs/run-x`
+    );
+    expect(response.status).toBe(401);
+  });
+
   it("rejects a read without a session as 401", async () => {
     const { memberId, workspaceId } = await signUpWithWorkspace({
       email: "no-session-read@example.com",
