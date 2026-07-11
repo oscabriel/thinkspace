@@ -18,7 +18,7 @@ const Message = ({
     data-slot="message"
     data-align={align}
     className={cn(
-      "group/message relative flex w-full min-w-0 gap-1.5 text-xs data-[align=end]:flex-row-reverse",
+      "group/message relative flex w-full min-w-0 gap-1.5 text-label data-[align=end]:flex-row-reverse",
       className
     )}
     {...props}
@@ -60,7 +60,7 @@ const MessageHeader = ({
   <div
     data-slot="message-header"
     className={cn(
-      "flex max-w-full min-w-0 items-center px-2.5 text-xs font-medium text-muted-foreground group-has-data-[variant=ghost]/message:px-0",
+      "flex max-w-full min-w-0 items-center px-2.5 text-label font-medium text-muted-foreground group-has-data-[variant=ghost]/message:px-0",
       className
     )}
     {...props}
@@ -74,7 +74,7 @@ const MessageFooter = ({
   <div
     data-slot="message-footer"
     className={cn(
-      "flex max-w-full min-w-0 items-center px-2.5 text-xs font-medium text-muted-foreground group-has-data-[variant=ghost]/message:px-0 group-data-[align=end]/message:justify-end",
+      "flex max-w-full min-w-0 items-center px-2.5 text-label font-medium text-muted-foreground group-has-data-[variant=ghost]/message:px-0 group-data-[align=end]/message:justify-end",
       className
     )}
     {...props}

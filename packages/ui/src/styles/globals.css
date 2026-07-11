@@ -88,6 +88,20 @@
 @theme inline {
   --font-sans: "Inter Variable", sans-serif;
   --font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", monospace;
+  /* Semantic typography — the blessed compact component scale (DESIGN.md §3).
+     Values equal Tailwind's text-base/sm/xs so migrating primitives off raw
+     sizes is a pure refactor. Content/prose (run-card body, 0.9375rem/1.6) is a
+     deliberate exception and is not tokenized here. */
+  --text-headline: 1rem;
+  --text-headline--line-height: 1.4;
+  --text-title: 0.875rem;
+  --text-title--line-height: calc(1.25 / 0.875);
+  --text-body: 0.875rem;
+  --text-body--line-height: calc(1.25 / 0.875);
+  --text-label: 0.75rem;
+  --text-label--line-height: calc(1 / 0.75);
+  --text-meta: 0.75rem;
+  --text-meta--line-height: calc(1 / 0.75);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-working: var(--working);
