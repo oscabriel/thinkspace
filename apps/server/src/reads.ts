@@ -6,10 +6,14 @@ import { channelVisibilityGate } from "@thinkspace/domain/flows/channel-gate";
 import {
   channelIdSchema,
   commentIdSchema,
+  type MemberId,
   runIdSchema,
   threadIdSchema,
 } from "@thinkspace/domain/ids";
+import type { DisplayName } from "@thinkspace/domain/primitives";
+import type { BranchSnapshot } from "@thinkspace/domain/seams/thread-agent";
 import type { TenantContext } from "@thinkspace/domain/seams/tenant-data-access";
+import type { Comment } from "@thinkspace/domain/thread";
 import { env } from "@thinkspace/env/server";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -22,6 +26,51 @@ const buildTenantDataAccess = (context: TenantContext) =>
   createD1TenantDataAccess({ context, db: env.DB });
 
 const channelPathSchema = z.object({ channelId: channelIdSchema });
+
+/**
+ * E10.6: the thread surface labels member comments by display name, not the literal "Member".
+ * The comment tree is DO-resident and name-free, so the edge joins the workspace roster (ADR
+ * 0008 display names, the same read the directory/home surfaces label authors from) onto each
+ * member-authored comment as a read-through — nothing is mirrored into the DO. An author with no
+ * live roster row (a removed/deleted member) carries no name and degrades to the client's
+ * "Member" fallback, never an error. Agent-authored comments are untouched (authorKind labels).
+ */
+type NamedComment = Comment & {
+  readonly author: { readonly displayName?: DisplayName };
+};
+
+interface NamedBranchSnapshot {
+  readonly ancestors: readonly NamedComment[];
+  readonly branch: BranchSnapshot["branch"];
+  readonly subtree: readonly NamedComment[];
+}
+
+const nameComment = (
+  comment: Comment,
+  displayNames: ReadonlyMap<MemberId, DisplayName>
+): NamedComment =>
+  comment.author.kind === "member"
+    ? {
+        ...comment,
+        author: {
+          ...comment.author,
+          displayName: displayNames.get(comment.author.memberId),
+        },
+      }
+    : comment;
+
+const withAuthorNames = (
+  snapshot: BranchSnapshot,
+  displayNames: ReadonlyMap<MemberId, DisplayName>
+): NamedBranchSnapshot => ({
+  ancestors: snapshot.ancestors.map((comment) =>
+    nameComment(comment, displayNames)
+  ),
+  branch: snapshot.branch,
+  subtree: snapshot.subtree.map((comment) =>
+    nameComment(comment, displayNames)
+  ),
+});
 
 const branchPathSchema = z.object({
   channelId: channelIdSchema,
@@ -277,7 +326,20 @@ export const readRoutes = new Hono<{ Variables: TenantVariables }>()
       if (!branch.ok) {
         return c.json({ error: branch.error }, domainErrorStatus(branch.error));
       }
-      return c.json(branch.value, 200);
+
+      // Read-through the roster to label member authors; a roster read failure is the same
+      // domain error surface as any other read here.
+      const roster = await buildTenantDataAccess(context).listMembers();
+      if (!roster.ok) {
+        return c.json({ error: roster.error }, domainErrorStatus(roster.error));
+      }
+      const displayNames = new Map(
+        roster.value.members.map((profile) => [
+          profile.memberId,
+          profile.displayName,
+        ])
+      );
+      return c.json(withAuthorNames(branch.value, displayNames), 200);
     }
   )
   .get(

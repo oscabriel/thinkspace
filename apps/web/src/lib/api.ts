@@ -286,7 +286,16 @@ export const removeProviderKey = (workspaceId: string, provider: string) =>
  * strings on the wire. */
 
 export type CommentAuthor =
-  | { readonly kind: "member"; readonly memberId: string }
+  | {
+      /**
+       * The author's workspace display name (ADR 0008), joined onto the comment by the branch
+       * read (E10.6). Absent for a member with no live roster row (removed/deleted) and for
+       * optimistic self-writes before the refetch — both degrade to the "Member" fallback.
+       */
+      readonly displayName?: string;
+      readonly kind: "member";
+      readonly memberId: string;
+    }
   | {
       readonly channelId: string;
       readonly facet:
