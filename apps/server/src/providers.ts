@@ -1,10 +1,7 @@
-import {
-  type ByokRegistrationError,
-  createCloudflareByokClient,
-  createD1ProviderKeyRegistry,
-} from "@thinkspace/domain/adapters/production";
+import { createKeyStore } from "@thinkspace/domain/adapters/production";
 import type { ModelProvider } from "@thinkspace/domain/model";
 import { providerAllowlist } from "@thinkspace/domain/provider-allowlist";
+import type { KeyStoreWriteError } from "@thinkspace/domain/seams/key-store";
 import type { TenantContext } from "@thinkspace/domain/seams/tenant-data-access";
 import { env } from "@thinkspace/env/server";
 import { Hono } from "hono";
@@ -15,23 +12,17 @@ import type { TenantVariables } from "./tenant-context";
 import { WORKSPACE_MANAGER_ROLES } from "./tenant-context";
 
 /**
- * E3.2 (baked decision 3): the write half of the BYOK read path. Owner/admin register or revoke
- * a workspace's raw provider key; the key lands ONLY in Cloudflare Secrets Store (via the E3.1
- * client) and the `workspace_provider_key` registry row records merely that a provider is keyed.
+ * E3.2 / ADR 0040: the write half of the BYOK path. Owner/admin register or revoke a workspace's
+ * raw provider key through the `KeyStore` port. The production default (`EnvelopeD1KeyStore`) seals
+ * the key into D1's `key_ciphertext` column; the retained legacy adapter writes Cloudflare Secrets
+ * Store. Either way the `workspace_provider_key` registry row records merely that a provider is
+ * keyed, and the write ordering (a row never outliving stored key material) is the adapter's
+ * concern — this route just calls `writeKey`/`deleteKey`.
  *
- * Redaction discipline (baked decision 3): the raw key transits this route exactly once, in the
- * POST body. It is never logged, never written to D1, and never echoed — no 4xx/5xx here carries
- * a request body; even the CF client's own error is surfaced as `{ kind, operation }` only, and
- * its `message` (already redaction-safe by construction) is deliberately dropped at this layer.
- *
- * Write vs. delete ordering (the registry row must never outlive a successfully deleted secret):
- *  - POST: write the Secrets Store secret FIRST, then upsert the registry row. The row therefore
- *    only ever exists once the secret write succeeded; a failed CF write leaves no row.
- *  - DELETE: delete the registry row FIRST, then delete the secret. This is the reverse of POST
- *    on purpose — it guarantees the row can never outlive a deleted secret. Should the secret
- *    delete then fail, the route answers an error; a retry re-runs the (idempotent) row delete
- *    and the (idempotent) secret delete and converges, at worst leaving a harmless orphan secret
- *    in the transient window — never a live registry row over a dead secret.
+ * Redaction discipline: the raw key transits this route exactly once, in the POST body. It is never
+ * logged, never echoed, and never written to D1 as plaintext (the envelope adapter seals it before
+ * it touches storage) — no 4xx/5xx here carries a request body; the KeyStore's own error is
+ * surfaced as `{ kind, operation }` only, its already-redaction-safe `message` dropped at this layer.
  */
 
 /** The raw key is opaque here: a non-empty string, validated only for presence, never inspected. */
@@ -42,26 +33,23 @@ const allowlistedProvider = (provider: string): ModelProvider | null =>
   providerAllowlist.find((entry) => entry.provider === provider)?.provider ??
   null;
 
-/** Per-config CF BYOK client, built from the worker's Secrets Store / AI Gateway env bindings. */
-const buildByokClient = () =>
-  createCloudflareByokClient({
-    accountId: env.BYOK_CF_ACCOUNT_ID,
-    apiToken: env.BYOK_CF_API_TOKEN,
-    gatewayId: env.BYOK_CF_GATEWAY_ID,
-    storeId: env.BYOK_CF_STORE_ID,
-  });
-
-const buildRegistry = (context: TenantContext) =>
-  createD1ProviderKeyRegistry({ context, db: env.DB });
+/**
+ * ADR 0040: the BYOK KeyStore port. `createKeyStore` selects `EnvelopeD1KeyStore` when
+ * `BYOK_MASTER_KEY` is bound (the production default — AES-256-GCM ciphertext in D1) and the legacy
+ * `SecretsStoreKeyStore` otherwise. The adapter owns the write ordering the route used to sequence
+ * by hand (registry row vs. stored secret) so neither can outlive the other.
+ */
+const buildKeyStore = (context: TenantContext) =>
+  createKeyStore({ context, env });
 
 /**
- * A Secrets Store write/delete failure is an upstream-dependency fault, not a client error and
- * not a fault in this worker: 502. The operation is echoed (`write`/`delete`) but the CF message
- * is dropped — the route never widens the redaction surface the E3.1 client already sealed.
+ * A key-store write/delete failure is an upstream-dependency fault, not a client error and not a
+ * fault in this worker: 502. The operation is echoed (`write`/`delete`) but the underlying message
+ * is dropped — the route never widens the redaction surface the adapter already sealed.
  */
 const REGISTRATION_FAILURE_STATUS: ContentfulStatusCode = 502;
 
-const registrationFailure = (error: ByokRegistrationError) => ({
+const registrationFailure = (error: KeyStoreWriteError) => ({
   error: { kind: error.kind, operation: error.operation },
 });
 
@@ -116,9 +104,9 @@ export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
       return c.json({ error: { kind: "malformed_request" } }, 400);
     }
 
-    // Secret first: the registry row exists only if the Secrets Store write succeeded.
-    const written = await buildByokClient().writeProviderKey(
-      context.workspaceId,
+    // The KeyStore owns the storage write AND the registry-row upsert (envelope: one D1 upsert;
+    // legacy: Secrets Store secret first, then the row) — the row never exists without stored key.
+    const written = await buildKeyStore(context).writeKey(
       provider,
       body.data.key
     );
@@ -129,7 +117,6 @@ export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
       );
     }
 
-    await buildRegistry(context).put(provider);
     return c.json({ provider }, 200);
   })
   .delete("/providers/:provider/key", async (c) => {
@@ -143,13 +130,10 @@ export const providerKeyRoutes = new Hono<{ Variables: TenantVariables }>()
       return c.json({ error: { kind: "unknown_resource" } }, 404);
     }
 
-    // Registry row first (reverse of POST): the row can never outlive a deleted secret. Both
-    // steps are idempotent, so a retry after a failed secret delete converges.
-    await buildRegistry(context).remove(provider);
-    const deleted = await buildByokClient().deleteProviderKey(
-      context.workspaceId,
-      provider
-    );
+    // The KeyStore owns the delete ordering (envelope: drop the row; legacy: registry row first,
+    // then the Secrets Store secret) so a row can never outlive a deleted secret. Idempotent — a
+    // retry after a failed delete converges.
+    const deleted = await buildKeyStore(context).deleteKey(provider);
     if (!deleted.ok) {
       return c.json(
         registrationFailure(deleted.error),

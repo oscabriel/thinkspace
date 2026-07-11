@@ -209,6 +209,17 @@ export const server = await Worker("server", {
       alchemy.env.BYOK_CF_STORE_ID,
       "BYOK_CF_STORE_ID"
     ),
+    /**
+     * ADR 0040: the AES-256-GCM master key for `EnvelopeD1KeyStore` (the production default BYOK
+     * store). Its presence selects the envelope adapter over the legacy Secrets Store one, so the
+     * account-wide 100-secret cap no longer bounds workspace count. A base64 32-byte secret kept in
+     * `.env` (shared across stages per ADR 0039); rotation re-encrypts every `key_ciphertext` row
+     * (ADR 0040 §Rotation). The value must never be logged — only the binding name ever appears.
+     */
+    BYOK_MASTER_KEY: required(
+      alchemy.secret.env.BYOK_MASTER_KEY,
+      "BYOK_MASTER_KEY"
+    ),
     CHANNEL_HUB: channelHub,
     CORS_ORIGIN: corsOrigin,
     CURATOR_AGENT: curatorAgent,

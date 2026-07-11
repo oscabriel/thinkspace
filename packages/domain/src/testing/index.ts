@@ -11,6 +11,14 @@ export {
   defineCuratorAgentContract,
 } from "./contracts/curator-agent";
 export {
+  contractForeignMasterKey,
+  contractMasterKey,
+  defineKeyStoreContract,
+  type KeyStoreFactory,
+  type KeyStorePair,
+  type KeyStoreSeed,
+} from "./contracts/key-store";
+export {
   defineModelRoutingContract,
   type ModelRouterFactory,
   type ModelRouterSeed,

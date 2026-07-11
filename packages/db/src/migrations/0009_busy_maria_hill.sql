@@ -1,0 +1,1 @@
+ALTER TABLE `workspace_provider_key` ADD `key_ciphertext` text;

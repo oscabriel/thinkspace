@@ -5,7 +5,9 @@ import type { LanguageModel } from "ai";
 import { byokSecretAlias } from "../../byok";
 import { parseModelId } from "../../ids";
 import type { ModelId, WorkspaceId } from "../../ids";
+import type { ModelProvider } from "../../model";
 import { providerAllowlist } from "../../provider-allowlist";
+import type { ResolvedProviderAuth } from "../../seams/key-store";
 
 export interface GatewayModelEnv {
   readonly AI_GATEWAY_TOKEN: string;
@@ -14,6 +16,13 @@ export interface GatewayModelEnv {
 
 export interface GatewayModelFactoryOptions {
   readonly env: GatewayModelEnv;
+  /**
+   * ADR 0040: the KeyStore-resolved provider auth for this turn. Absent → today's behavior (derive
+   * the `cf-aig-byok-alias` and blank the real header, so the gateway substitutes the Secrets Store
+   * secret). `kind: "header"` → the decrypted raw key is sent as the real provider-auth header the
+   * gateway forwards verbatim (ADR 0038 addendum §2). The raw key lives only in this transient opt.
+   */
+  readonly providerAuth?: ResolvedProviderAuth;
   readonly workspaceId: WorkspaceId;
 }
 
@@ -22,9 +31,42 @@ export type GatewayModelFactory = (
   opts: GatewayModelFactoryOptions
 ) => LanguageModel;
 
+/**
+ * ADR 0040: the provider-auth header fragment. `header` sends the raw key on the provider's real
+ * auth header (anthropic `x-api-key: <k>`, openai `Authorization: Bearer <k>`) — a present header
+ * the gateway forwards verbatim. `alias` blanks the real header (an empty header reads as absent,
+ * so the gateway substitutes) and sets `cf-aig-byok-alias`. Pure and exported for direct testing.
+ */
+export const gatewayAuthHeaders = (input: {
+  readonly bearer: boolean;
+  readonly headerName: "Authorization" | "x-api-key";
+  readonly providerAuth: ResolvedProviderAuth;
+}): Record<string, string> => {
+  const { bearer, headerName, providerAuth } = input;
+  if (providerAuth.kind === "header") {
+    return {
+      [headerName]: bearer
+        ? `Bearer ${providerAuth.value}`
+        : providerAuth.value,
+    };
+  }
+  return { "cf-aig-byok-alias": providerAuth.alias, [headerName]: "" };
+};
+
+/** Effective auth for a factory: the injected KeyStore resolution, or the legacy derived alias. */
+const effectiveProviderAuth = (
+  workspaceId: WorkspaceId,
+  provider: ModelProvider,
+  providerAuth: ResolvedProviderAuth | undefined
+): ResolvedProviderAuth =>
+  providerAuth ?? {
+    alias: byokSecretAlias(workspaceId, provider),
+    kind: "alias",
+  };
+
 /** ADR 0035 / E1.7 spike finding 3: self-construct AI SDK models through AI Gateway BYOK. */
 export const gatewayModelFactories = {
-  anthropic: (modelSlug, { env, workspaceId }) => {
+  anthropic: (modelSlug, { env, providerAuth, workspaceId }) => {
     const provider = providerAllowlist.find(
       (entry) => entry.provider === "anthropic"
     )?.provider;
@@ -39,18 +81,24 @@ export const gatewayModelFactories = {
       baseURL: `${env.AI_GATEWAY_URL}/anthropic/v1`,
       headers: {
         "cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
-        "cf-aig-byok-alias": byokSecretAlias(workspaceId, provider),
         "cf-aig-metadata": JSON.stringify({ workspace: workspaceId }),
-        // ADR 0036 §9's recorded contingency, proven live 2026-07-10 on the openai path: the
-        // gateway forwards a present provider-auth header VERBATIM instead of substituting the
-        // BYOK secret, so the SDK's dummy key reaches the provider as the credential. The SDK
-        // spreads these headers after its own, and the gateway treats an empty value as absent —
-        // substitution then kicks in.
-        "x-api-key": "",
+        // ADR 0036 §9 / ADR 0038 addendum §2 / ADR 0040: the gateway forwards a present
+        // provider-auth header VERBATIM (envelope adapter → the decrypted `x-api-key`) and treats
+        // an empty one as absent, substituting the Secrets Store secret named by the alias (legacy
+        // adapter). The SDK spreads these headers after its own, so the injected value wins.
+        ...gatewayAuthHeaders({
+          bearer: false,
+          headerName: "x-api-key",
+          providerAuth: effectiveProviderAuth(
+            workspaceId,
+            provider,
+            providerAuth
+          ),
+        }),
       },
     })(modelSlug);
   },
-  openai: (modelSlug, { env, workspaceId }) => {
+  openai: (modelSlug, { env, providerAuth, workspaceId }) => {
     const provider = providerAllowlist.find(
       (entry) => entry.provider === "openai"
     )?.provider;
@@ -69,14 +117,21 @@ export const gatewayModelFactories = {
       apiKey: "gateway-managed",
       baseURL: `${env.AI_GATEWAY_URL}/openai`,
       headers: {
-        // Verified live 2026-07-10 (ADR 0036 §9 contingency): with `Authorization: Bearer
-        // gateway-managed` present the gateway forwarded the dummy to OpenAI (401
-        // invalid_api_key); blanked, the gateway treats it as absent and substitutes the BYOK
-        // secret (200). The SDK spreads these headers after its own, so the blank wins.
-        Authorization: "",
+        // Verified live 2026-07-10 (ADR 0036 §9 / ADR 0038 addendum §2 / ADR 0040): the gateway
+        // forwards a present `Authorization` VERBATIM (envelope adapter → `Bearer <decrypted key>`)
+        // and treats an empty one as absent, substituting the BYOK secret (legacy adapter). The
+        // SDK spreads these headers after its own, so the injected value wins.
         "cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
-        "cf-aig-byok-alias": byokSecretAlias(workspaceId, provider),
         "cf-aig-metadata": JSON.stringify({ workspace: workspaceId }),
+        ...gatewayAuthHeaders({
+          bearer: true,
+          headerName: "Authorization",
+          providerAuth: effectiveProviderAuth(
+            workspaceId,
+            provider,
+            providerAuth
+          ),
+        }),
       },
     })(modelSlug);
   },

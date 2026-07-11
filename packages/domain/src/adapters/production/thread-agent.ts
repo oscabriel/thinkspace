@@ -31,6 +31,7 @@ import type {
   Schedule,
   SubAgentActivity,
 } from "../../run";
+import type { ResolvedProviderAuth } from "../../seams/key-store";
 import type { SkillContent } from "../../seams/skill-store";
 import type { SystemContext } from "../../seams/tenant-data-access";
 import type {
@@ -59,6 +60,7 @@ import {
   decodeThreadAgentAddress,
   encodeThreadAgentAddress,
 } from "../thread-agent-address";
+import { createKeyStore, type KeyStoreEnv } from "./key-store";
 import { createGatewayModel } from "./model-gateway";
 import {
   createProductionChannelHub,
@@ -271,6 +273,12 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     Record<string, readonly SubAgentActivity[]>
   > = {};
   private testModel: LanguageModel | null = null;
+  /**
+   * ADR 0040: the KeyStore-resolved provider auth for the turn in flight, resolved async in `run`
+   * (decrypt + narrow seam read) and read synchronously by `getModel`. A plain instance field —
+   * it never touches ctx.storage, so no plaintext survives hibernation (the redaction invariant).
+   */
+  private pendingProviderAuth: ResolvedProviderAuth | null = null;
 
   constructor(ctx: AgentContext, env: Cloudflare.Env) {
     super(ctx, env);
@@ -356,6 +364,10 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
 
     return createGatewayModel(snapshot.structure.modelId, {
       env: this.env as CompletionFlowEnv,
+      // ADR 0040: the turn's resolved provider auth (envelope → decrypted header; legacy →
+      // alias). Null on a path that skipped `run`'s pre-resolution — the factory then derives the
+      // legacy alias, preserving today's behavior.
+      providerAuth: this.pendingProviderAuth ?? undefined,
       workspaceId: address.workspaceId,
     });
   }
@@ -658,6 +670,14 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       return reconciled;
     }
 
+    // ADR 0040: resolve the provider auth (envelope decrypt or legacy alias) BEFORE the turn's
+    // synchronous getModel fires, and fail the run closed on a decrypt/registry fault — the same
+    // fail-fast posture as the edge byok gate, now provider-key-material-aware at the DO.
+    const resolvedAuth = await this.resolvePendingProviderAuth(queuedRun);
+    if (!resolvedAuth.ok) {
+      return resolvedAuth;
+    }
+
     const submitted = await this.submitRunTurn(queuedRun);
     if (!submitted.ok) {
       return submitted;
@@ -771,6 +791,45 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       }
     }
 
+    return ok();
+  }
+
+  /**
+   * ADR 0040: resolve the turn's provider auth through the KeyStore and stash it transiently for
+   * `getModel`. `env.BYOK_MASTER_KEY` bound → the envelope adapter reads ciphertext via the
+   * tenant-data-access seam (never a raw SELECT) and decrypts; unbound → the legacy adapter yields
+   * the `cf-aig-byok-alias` with no I/O. A resolve fault (revoked key, undecryptable ciphertext)
+   * terminalizes the queued run as failed rather than running it toward a gateway rejection.
+   */
+  private async resolvePendingProviderAuth(
+    run: QueuedRun
+  ): AsyncResult<undefined, ThreadAgentError> {
+    const snapshot = this.readSnapshot();
+    if (snapshot === null) {
+      this.pendingProviderAuth = null;
+      return ok();
+    }
+    const context: SystemContext = {
+      kind: "system",
+      workspaceId: run.workspaceId,
+    };
+    const keyStore = createKeyStore({
+      context,
+      env: this.env as unknown as KeyStoreEnv,
+    });
+    const resolved = await keyStore.resolveProviderAuth({
+      modelId: snapshot.structure.modelId,
+    });
+    if (!resolved.ok) {
+      this.pendingProviderAuth = null;
+      return err(
+        this.failClosed(
+          run,
+          failureReasonSchema.parse(`provider key ${resolved.error.kind}`)
+        )
+      );
+    }
+    this.pendingProviderAuth = resolved.value;
     return ok();
   }
 

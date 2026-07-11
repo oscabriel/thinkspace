@@ -4,11 +4,13 @@ import type { ChannelDirectoryEntry } from "../../directory";
 import type { ShapeOwnershipViolationError } from "../../errors";
 import type { ChannelId } from "../../ids";
 import type { McpHostApproval, McpServer } from "../../mcp";
+import type { ModelProvider } from "../../model";
 import { err, ok } from "../../result";
 import type { Schedule } from "../../run";
 import type {
   ChannelListingRequest,
   DataAccessContext,
+  ProviderKeyCiphertext,
   TenantContext,
   TenantDataAccess,
   TenantDataAccessError,
@@ -41,6 +43,11 @@ export interface MemoryTenantDataAccessConfig<
   readonly mcpHostApprovals?: readonly McpHostApproval[];
   readonly mcpServers?: readonly McpServer[];
   readonly members?: readonly WorkspaceMember[];
+  /** ADR 0040: sealed BYOK keys keyed by provider; `sealedKey: null` models a legacy (pre-envelope) row. */
+  readonly providerKeys?: readonly {
+    readonly provider: ModelProvider;
+    readonly sealedKey: string | null;
+  }[];
   readonly schedules?: readonly Schedule[];
   readonly shapes?: readonly Shape[];
   readonly skills?: readonly Skill[];
@@ -57,6 +64,7 @@ interface MemoryTenantDataAccessState {
   readonly mcpHostApprovals: Map<string, McpHostApproval>;
   readonly mcpServers: Map<string, McpServer>;
   readonly members: Map<string, WorkspaceMember>;
+  readonly providerKeys: Map<string, string | null>;
   readonly schedules: Map<string, Schedule>;
   readonly shapes: Map<string, Shape>;
   readonly skills: Map<string, Skill>;
@@ -357,6 +365,12 @@ export const createMemoryTenantDataAccess = <
     members: new Map(
       (config.members ?? []).map((member) => [idKey(member.memberId), member])
     ),
+    providerKeys: new Map(
+      (config.providerKeys ?? []).map((entry) => [
+        idKey(entry.provider),
+        entry.sealedKey,
+      ])
+    ),
     schedules: mapById(config.schedules ?? []),
     shapes: mapById(config.shapes ?? []),
     skills: mapById(config.skills ?? []),
@@ -431,6 +445,17 @@ export const createMemoryTenantDataAccess = <
         config.context,
         state.mcpServers.get(idKey(input.mcpServerId))
       ),
+    getProviderKeyCiphertext: async (input) => {
+      if (!state.providerKeys.has(idKey(input.provider))) {
+        return ok(null);
+      }
+      const ciphertext: ProviderKeyCiphertext = {
+        provider: input.provider,
+        sealedKey: state.providerKeys.get(idKey(input.provider)) ?? null,
+        workspaceId: config.context.workspaceId,
+      };
+      return ok(ciphertext);
+    },
     getSchedule: async (input) =>
       getTenantScoped(
         config.context,

@@ -15,6 +15,7 @@ import {
 import { providerAllowlist } from "../../provider-allowlist";
 import { err, ok } from "../../result";
 import type { AsyncResult } from "../../result";
+import type { ResolvedProviderAuth } from "../../seams/key-store";
 import type {
   CuratorAgent,
   CuratorAgentError,
@@ -23,7 +24,10 @@ import type {
   CuratorStartSessionRequest,
   CuratorTurn,
 } from "../../seams/curator-agent";
-import type { TenantContext } from "../../seams/tenant-data-access";
+import type {
+  SystemContext,
+  TenantContext,
+} from "../../seams/tenant-data-access";
 import { shapeStructureSchema } from "../../shape";
 import { idKey, parseJsonColumn } from "../helpers";
 import {
@@ -31,6 +35,7 @@ import {
   decodeCuratorAddress,
   encodeCuratorAddress,
 } from "../curator-address";
+import { createKeyStore, type KeyStoreEnv } from "./key-store";
 import { createGatewayModel, type GatewayModelEnv } from "./model-gateway";
 
 const defaultClock = (): Date => new Date();
@@ -128,6 +133,11 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
   private clock: () => Date = defaultClock;
   private mintSessionId: () => CuratorSessionId = defaultSessionId;
   private testModel: LanguageModel | null = null;
+  /**
+   * ADR 0040: provider auth resolved async in `send` (decrypt + narrow seam read) and read
+   * synchronously by `getModel`. A plain instance field — no plaintext survives hibernation.
+   */
+  private pendingProviderAuth: ResolvedProviderAuth | null = null;
 
   constructor(ctx: AgentContext, env: Cloudflare.Env) {
     super(ctx, env);
@@ -149,10 +159,16 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
     // ADR 0038 §2 / ADR 0036 §1: self-construct from the id the edge resolved and startSession
     // persisted — nothing injected survives a wake. A DO minted before the upgrade has no stored
     // id, so fall back to the allowlist-head default (dev-only data).
-    return createGatewayModel(this.readCuratorModel() ?? defaultCuratorModelId(), {
-      env: this.env as GatewayModelEnv,
-      workspaceId: address.workspaceId,
-    });
+    return createGatewayModel(
+      this.readCuratorModel() ?? defaultCuratorModelId(),
+      {
+        env: this.env as GatewayModelEnv,
+        // ADR 0040: the turn's resolved provider auth (envelope → decrypted header; legacy →
+        // alias); null on a path that skipped `send`'s pre-resolution → factory derives the alias.
+        providerAuth: this.pendingProviderAuth ?? undefined,
+        workspaceId: address.workspaceId,
+      }
+    );
   }
 
   // eslint-disable-next-line class-methods-use-this -- fixed first-party meta-prompt (ADR 0021)
@@ -254,6 +270,13 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
       });
     }
 
+    // ADR 0040: resolve the curator's provider auth before the synchronous getModel fires. A
+    // decrypt/registry fault fails the turn closed rather than running toward a gateway rejection.
+    const resolvedAuth = await this.resolvePendingProviderAuth(address);
+    if (!resolvedAuth.ok) {
+      return err(resolvedAuth.error);
+    }
+
     try {
       const result = await this.runTurn({ input: idKey(input.message) });
       const text = this.replyText(result.message ?? null);
@@ -282,6 +305,39 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
         )
       );
     }
+  }
+
+  /**
+   * ADR 0040: resolve the curator model's provider auth through the KeyStore and stash it for
+   * `getModel`. Envelope adapter (BYOK_MASTER_KEY bound) reads ciphertext via the
+   * tenant-data-access seam and decrypts; legacy adapter yields the alias with no I/O. A resolve
+   * fault becomes a `curator_execution_failed` — fail closed, no gateway round-trip.
+   */
+  private async resolvePendingProviderAuth(
+    address: CuratorAddress
+  ): AsyncResult<undefined, CuratorAgentError> {
+    const context: SystemContext = {
+      kind: "system",
+      workspaceId: address.workspaceId,
+    };
+    const keyStore = createKeyStore({
+      context,
+      env: this.env as unknown as KeyStoreEnv,
+    });
+    const resolved = await keyStore.resolveProviderAuth({
+      modelId: this.readCuratorModel() ?? defaultCuratorModelId(),
+    });
+    if (!resolved.ok) {
+      this.pendingProviderAuth = null;
+      return err(
+        this.executionFailed(
+          address,
+          `provider key ${resolved.error.kind}`
+        )
+      );
+    }
+    this.pendingProviderAuth = resolved.value;
+    return ok();
   }
 
   private executionFailed(
