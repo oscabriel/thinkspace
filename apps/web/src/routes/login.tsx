@@ -24,5 +24,12 @@ const RouteComponent = () => {
 
 export const Route = createFileRoute("/login")({
   component: RouteComponent,
-  validateSearch: z.object({ redirect: z.string().startsWith("/").optional() }),
+  // Same-origin paths only: "/…" but not "//" or "/\" (protocol-relative,
+  // which window.location.assign would treat as an external open redirect).
+  validateSearch: z.object({
+    redirect: z
+      .string()
+      .regex(/^\/(?![/\\])/)
+      .optional(),
+  }),
 });

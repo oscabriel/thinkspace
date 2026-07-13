@@ -13,21 +13,25 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
-import { Check, MailWarning } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Loader2, MailWarning } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
 import { authClient } from "@/lib/auth-client";
 
 type InvitationState =
   | { status: "accepting" }
-  | { status: "error"; message: string; workspaceId?: string }
-  | { status: "success"; workspaceId: string };
+  | { status: "error"; message: string }
+  | { status: "success" };
 
 const AcceptInvitation = () => {
   const { id } = Route.useSearch();
   const navigate = useNavigate();
   const [state, setState] = useState<InvitationState>({ status: "accepting" });
+  // Accepting an invitation is a non-idempotent POST; guard against a double
+  // run (StrictMode double-mount, fast-refresh, re-render) so the second call
+  // can't race the success navigation or flash a spurious failure.
+  const hasRun = useRef(false);
 
   useEffect(() => {
     if (!id) {
@@ -37,6 +41,10 @@ const AcceptInvitation = () => {
       });
       return;
     }
+    if (hasRun.current) {
+      return;
+    }
+    hasRun.current = true;
 
     const accept = async () => {
       const result = await authClient.organization.acceptInvitation({
@@ -45,25 +53,19 @@ const AcceptInvitation = () => {
       if (result.data) {
         const workspaceId = result.data.invitation.organizationId;
         await authClient.organization.setActive({ organizationId: workspaceId });
-        setState({ status: "success", workspaceId });
+        setState({ status: "success" });
         navigate({ params: { workspaceId }, to: "/w/$workspaceId" });
         return;
       }
 
-      const message = result.error?.message?.toLowerCase() ?? "";
-      if (message.includes("already") || message.includes("accepted")) {
-        const organizations = await authClient.organization.list();
-        const workspaceId = organizations.data?.[0]?.id;
-        setState({
-          message: "This invitation has already been accepted. You can continue to your workspace.",
-          status: "error",
-          workspaceId,
-        });
-        return;
-      }
-
+      // better-auth collapses expired / not-found / already-accepted /
+      // canceled / rejected invitations into a single INVITATION_NOT_FOUND
+      // (see the acceptInvitation handler) with no organizationId, so the
+      // client cannot tell "already accepted" apart from "invalid". Present one
+      // honest error; a signed-in user recovers via "/", which routes them into
+      // their workspace shell (already-a-member users land where they expect).
       setState({
-        message: "This invitation is invalid or has expired. Ask the workspace owner for a new invitation.",
+        message: "We couldn't accept this invitation. It may have expired, already been used, or been sent to a different email.",
         status: "error",
       });
     };
@@ -81,35 +83,27 @@ const AcceptInvitation = () => {
       <Empty>
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            {accepting ? <Check /> : <MailWarning />}
+            {accepting ? (
+              <Loader2
+                aria-label="Loading"
+                className="animate-spin motion-reduce:animate-none"
+              />
+            ) : (
+              <MailWarning />
+            )}
           </EmptyMedia>
           <EmptyTitle>
             {accepting ? "Joining workspace…" : "Invitation unavailable"}
           </EmptyTitle>
           <EmptyDescription>
             {accepting
-              ? "We are confirming your invitation and preparing the workspace."
+              ? "Confirming your invitation and preparing your workspace."
               : state.message}
           </EmptyDescription>
         </EmptyHeader>
         {!accepting && (
           <EmptyContent>
-            {state.workspaceId ? (
-              <Button
-                render={
-                  <Link
-                    params={{ workspaceId: state.workspaceId }}
-                    to="/w/$workspaceId"
-                  />
-                }
-              >
-                Open workspace
-              </Button>
-            ) : (
-              <Button render={<Link to="/" />} variant="secondary">
-                Go to Thinkspace
-              </Button>
-            )}
+            <Button render={<Link to="/" />}>Go to Thinkspace</Button>
           </EmptyContent>
         )}
       </Empty>
