@@ -1,6 +1,6 @@
 # ADR 0041 — Thread-index activity summary: DO truth projected on write receipts, never counted in D1
 
-**Status:** proposed (2026-07-12, for #64)
+**Status:** accepted (2026-07-12)
 **Refines:** ADR 0016/0017 (bump semantics — preserved), ADR 0027 (feed read path + atomic
 bump batch), ADR 0028 (run state DO-resident; amends its "no D1 run index" with a bounded
 summary), ADR 0034 (creation flow seeds the summary)
