@@ -51,9 +51,15 @@ export interface BranchSnapshot {
  * so it is the authority on both parent-in-thread validation and the participant set the
  * bump fans unread out to (collectThreadParticipants over its resident comments + runs).
  */
+export interface ThreadActivitySummary {
+  readonly commentCount: number;
+  readonly working: { readonly runId: RunId; readonly since: Date } | null;
+}
+
 export interface CommentAppend {
   readonly comment: Comment;
   readonly participants: readonly MemberId[];
+  readonly summary: ThreadActivitySummary;
 }
 
 /** Sub-agent activity is state OF the run (ADR 0028), rendered anchored at the dispatch target. */
@@ -85,6 +91,7 @@ export interface ThreadAgentResnapshotRequest {
 export interface ThreadAgentRunReceipt {
   readonly queuedRun: QueuedRun;
   readonly runId: RunId;
+  readonly summary: ThreadActivitySummary;
   readonly threadId: ThreadId;
 }
 

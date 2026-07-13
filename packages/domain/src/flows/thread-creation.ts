@@ -13,7 +13,7 @@ import type {
   ThreadAgentError,
 } from "../seams/thread-agent";
 import type { ShapeSnapshot } from "../shape";
-import { deriveThreadName } from "../thread";
+import { deriveOpeningExcerpt, deriveThreadName } from "../thread";
 import type { Comment, Thread } from "../thread";
 import { channelWriteGate } from "./channel-gate";
 
@@ -104,14 +104,17 @@ export const createThreadCreationFlow = (
 
     const thread: Thread = {
       channelId: channel.id,
+      commentCount: 1,
       createdAt,
       createdByMemberId: context.memberId,
       id: input.threadId,
       lastActivityAt: createdAt,
       lifecycle: { state: "active" },
       name: deriveThreadName(input.openingBody),
+      openingExcerpt: deriveOpeningExcerpt(input.openingBody),
       // E8.4: the opening comment is the branch anchor a threadId-only surface reads back.
       rootCommentId: input.openingCommentId,
+      working: null,
       workspaceId: context.workspaceId,
     };
 

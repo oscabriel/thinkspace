@@ -15,6 +15,7 @@ import type {
   TenantDataAccessError,
   TenantWriteCommand,
 } from "../seams/tenant-data-access";
+import type { ThreadActivitySummary } from "../seams/thread-agent";
 import type { Comment } from "../thread";
 
 export type RunCompletionFlowError =
@@ -33,10 +34,12 @@ export type RunSettlement =
       readonly outputComment: Comment;
       readonly participants: readonly MemberId[];
       readonly run: CompleteRun;
+      readonly summary: ThreadActivitySummary;
     }
   | {
       readonly kind: "failed";
       readonly run: FailedRun;
+      readonly summary: ThreadActivitySummary;
     };
 
 /**
@@ -45,6 +48,27 @@ export type RunSettlement =
  * creator is the opening comment's author, so the comment tree plus the run history is the
  * whole participant set.
  */
+export const summarizeThreadActivity = (input: {
+  readonly comments: readonly Comment[];
+  readonly runs: readonly Run[];
+}): ThreadActivitySummary => {
+  let latest: Run | null = null;
+  for (const run of input.runs) {
+    if (
+      (run.lifecycle === "queued" || run.lifecycle === "running") &&
+      (latest === null || run.queuedAt >= latest.queuedAt)
+    ) {
+      latest = run;
+    }
+  }
+
+  return {
+    commentCount: input.comments.length,
+    working:
+      latest === null ? null : { runId: latest.id, since: latest.queuedAt },
+  };
+};
+
 export const collectThreadParticipants = (input: {
   readonly comments: readonly Comment[];
   readonly runs: readonly Run[];
@@ -90,6 +114,20 @@ export const createRunCompletionFlow = (
 ): RunCompletionFlow => ({
   settle: async (input) => {
     if (input.kind === "failed") {
+      const written = await deps.tenantDataAccess.batch({
+        commands: [
+          {
+            kind: "update_thread_summary",
+            summary: input.summary,
+            threadId: input.run.threadId,
+          },
+        ],
+        workspaceId: input.run.workspaceId,
+      });
+      if (!written.ok) {
+        return written;
+      }
+
       return deps.channelHub.publishEvent({
         kind: "run_lifecycle_changed",
         runId: input.run.id,
@@ -137,6 +175,11 @@ export const createRunCompletionFlow = (
         {
           kind: "put_thread_index",
           thread: { ...thread, lastActivityAt: run.completedAt },
+        },
+        {
+          kind: "update_thread_summary",
+          summary: input.summary,
+          threadId: run.threadId,
         },
         ...unreadWrites,
       ],

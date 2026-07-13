@@ -147,6 +147,7 @@ export const defineThreadAgentContract = (input: {
       const agent = await makeThreadAgent({
         address: threadAgentAddress,
         clock: () => new Date("2026-07-01T10:00:00Z"),
+        comments: [makeComment({ id: "comment-top" })],
         nextRunId: () => runId("run-1"),
         shapeSnapshot: makeShapeSnapshot(),
       });
@@ -157,6 +158,13 @@ export const defineThreadAgentContract = (input: {
       expect(receipt.runId).toBe(runId("run-1"));
       expect(receipt.queuedRun.lifecycle).toBe("queued");
       expect(receipt.queuedRun.trigger).toEqual(trigger);
+      expect(receipt.summary).toEqual({
+        commentCount: 1,
+        working: {
+          runId: runId("run-1"),
+          since: new Date("2026-07-01T10:00:00Z"),
+        },
+      });
 
       // Lifecycle progression past "queued" is adapter-specific (a self-constructing
       // production adapter may already be executing the turn by the time this reads
@@ -359,6 +367,7 @@ export const defineThreadAgentContract = (input: {
       const appended = unwrapOk(await agent.appendComment({ comment: reply }));
 
       expect(appended.comment).toEqual(reply);
+      expect(appended.summary).toEqual({ commentCount: 3, working: null });
       // Participants = every member who has commented in the thread, the new author included.
       expect(new Set(appended.participants)).toEqual(
         new Set([
@@ -417,7 +426,8 @@ export const defineThreadAgentContract = (input: {
         parentCommentId: "comment-top",
       });
       unwrapOk(await agent.appendComment({ comment: reply }));
-      unwrapOk(await agent.appendComment({ comment: reply }));
+      const replay = unwrapOk(await agent.appendComment({ comment: reply }));
+      expect(replay.summary.commentCount).toBe(2);
 
       const branch = unwrapOk(
         await agent.loadBranch({ rootCommentId: topLevel.id })

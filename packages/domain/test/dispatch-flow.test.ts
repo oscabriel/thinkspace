@@ -22,7 +22,9 @@ import {
   commentId,
   gestureId,
   makeChannel,
+  makeComment,
   makeMcpServer,
+  makeThread,
   makeShape,
   makeShapeSnapshot,
   makeShapeStructure,
@@ -75,6 +77,7 @@ const makeDispatchHarness = (input?: {
   const threadAgent = createMemoryThreadAgent({
     address: threadAgentAddress,
     clock: () => new Date("2026-07-03T10:00:00Z"),
+    comments: [makeComment({ id: "comment-top" })],
     nextRunId: () => runId("run-1"),
     shapeSnapshot: makeShapeSnapshot({
       shapeId: `shape-of-${channel.id}`,
@@ -83,6 +86,19 @@ const makeDispatchHarness = (input?: {
   });
 
   const publishedChannelEvents: ChannelHubEvent[] = [];
+  const tenantDataAccess = createMemoryTenantDataAccess({
+    channels: [channel],
+    context: testTenantContext,
+    shapes: [shape],
+    threads: [
+      makeThread({
+        channelId: "channel-1",
+        commentCount: 1,
+        id: "thread-1",
+      }),
+    ],
+    workspace: testWorkspace,
+  });
 
   const flow = createDispatchFlow({
     channelHub: createMemoryChannelHub({
@@ -107,12 +123,7 @@ const makeDispatchHarness = (input?: {
               },
             ],
     }),
-    tenantDataAccess: createMemoryTenantDataAccess({
-      channels: [channel],
-      context: testTenantContext,
-      shapes: [shape],
-      workspace: testWorkspace,
-    }),
+    tenantDataAccess,
     threadAgents: createMemoryThreadAgentDirectory({
       agents: [threadAgent],
     }),
@@ -123,7 +134,12 @@ const makeDispatchHarness = (input?: {
     }),
   });
 
-  return { flow, publishedChannelEvents, threadAgent };
+  return {
+    flow,
+    publishedChannelEvents,
+    tenantDataAccess,
+    threadAgent,
+  };
 };
 
 describe("Dispatch flow — the dispatch spine (ADR 0017)", () => {
@@ -152,6 +168,32 @@ describe("Dispatch flow — the dispatch spine (ADR 0017)", () => {
 
     const residentRuns = unwrapOk(await harness.threadAgent.listRuns());
     expect(residentRuns).toEqual([receipt.queuedRun]);
+  });
+
+  test("dispatch marks the thread Working without bumping it", async () => {
+    const harness = makeDispatchHarness();
+    const before = unwrapOk(
+      await harness.tenantDataAccess.getThread({ threadId: testThreadId })
+    );
+
+    unwrapOk(
+      await harness.flow.dispatch({
+        channelId: testChannelId,
+        gestureId: gestureId("gesture-working"),
+        targetCommentId: commentId("comment-top"),
+        threadId: testThreadId,
+      })
+    );
+
+    const after = unwrapOk(
+      await harness.tenantDataAccess.getThread({ threadId: testThreadId })
+    );
+    expect(after?.lastActivityAt).toEqual(before?.lastActivityAt);
+    expect(after?.working).toEqual({
+      runId: runId("run-1"),
+      since: new Date("2026-07-03T10:00:00Z"),
+    });
+    expect(after?.commentCount).toBe(1);
   });
 
   test("queuing a run publishes run_lifecycle_changed to the channel hub", async () => {

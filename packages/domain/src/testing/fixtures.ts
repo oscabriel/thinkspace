@@ -202,20 +202,26 @@ export const makeChannel = (input: {
 
 export const makeThread = (input: {
   readonly channelId: string;
+  readonly commentCount?: number;
   readonly id: string;
   readonly lastActivityAt?: Date;
+  readonly openingExcerpt?: string;
   readonly rootCommentId?: string;
+  readonly working?: Thread["working"];
   readonly workspaceId?: Thread["workspaceId"];
 }): Thread => ({
   channelId: channelId(input.channelId),
+  commentCount: input.commentCount ?? 0,
   createdAt: new Date("2026-06-30T00:00:00Z"),
   createdByMemberId: testMemberId,
   id: threadId(input.id),
   lastActivityAt: input.lastActivityAt ?? new Date("2026-06-30T12:00:00Z"),
   lifecycle: { state: "active" },
   name: threadNameSchema.parse(`thread ${input.id}`),
+  openingExcerpt: input.openingExcerpt ?? "",
   rootCommentId:
     input.rootCommentId === undefined ? null : commentId(input.rootCommentId),
+  working: input.working ?? null,
   workspaceId: input.workspaceId ?? testWorkspaceId,
 });
 

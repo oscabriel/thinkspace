@@ -149,6 +149,20 @@ export const createDispatchFlow = (
       return receipt;
     }
 
+    const written = await deps.tenantDataAccess.batch({
+      commands: [
+        {
+          kind: "update_thread_summary",
+          summary: receipt.value.summary,
+          threadId: input.threadId,
+        },
+      ],
+      workspaceId: context.workspaceId,
+    });
+    if (!written.ok) {
+      return written;
+    }
+
     const published = await deps.channelHub.publishEvent({
       kind: "run_lifecycle_changed",
       runId: receipt.value.runId,

@@ -8,6 +8,7 @@ import type { RunFailureError } from "../../errors";
 import {
   collectThreadParticipants,
   createRunCompletionFlow,
+  summarizeThreadActivity,
 } from "../../flows/run-completion";
 import type {
   RunCompletionFlow,
@@ -330,7 +331,14 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
   /** Reconstruct a settlement from resident state (ADR 0035 §2: no member acts at wake). */
   private settlementFor(run: Run): RunSettlement | null {
     if (run.lifecycle === "failed") {
-      return { kind: "failed", run };
+      return {
+        kind: "failed",
+        run,
+        summary: summarizeThreadActivity({
+          comments: [...this.loadComments().values()],
+          runs: this.readRuns(),
+        }),
+      };
     }
     if (run.lifecycle !== "complete") {
       return null;
@@ -347,6 +355,10 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
         runs: this.readRuns(),
       }),
       run,
+      summary: summarizeThreadActivity({
+        comments: [...this.loadComments().values()],
+        runs: this.readRuns(),
+      }),
     };
   }
 
@@ -520,6 +532,10 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
         comments: [...this.loadComments().values()],
         runs: this.readRuns(),
       }),
+      summary: summarizeThreadActivity({
+        comments: [...this.loadComments().values()],
+        runs: this.readRuns(),
+      }),
     });
   }
 
@@ -642,6 +658,10 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
         return ok({
           queuedRun: queuedReceiptRun(existing),
           runId: existing.id,
+          summary: summarizeThreadActivity({
+            comments: [...this.loadComments().values()],
+            runs: this.readRuns(),
+          }),
           threadId: address.threadId,
         });
       }
@@ -684,7 +704,15 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       return submitted;
     }
 
-    return ok({ queuedRun, runId, threadId: address.threadId });
+    return ok({
+      queuedRun,
+      runId,
+      summary: summarizeThreadActivity({
+        comments: [...this.loadComments().values()],
+        runs: this.readRuns(),
+      }),
+      threadId: address.threadId,
+    });
   }
 
   /**
@@ -1030,6 +1058,10 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
         runs: this.readRuns(),
       }),
       run: completeRun,
+      summary: summarizeThreadActivity({
+        comments: [...this.loadComments().values()],
+        runs: this.readRuns(),
+      }),
     });
   }
 
@@ -1043,7 +1075,14 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
       lifecycle: "failed",
     };
     this.putRun(failedRun);
-    await this.settle({ kind: "failed", run: failedRun });
+    await this.settle({
+      kind: "failed",
+      run: failedRun,
+      summary: summarizeThreadActivity({
+        comments: [...this.loadComments().values()],
+        runs: this.readRuns(),
+      }),
+    });
   }
 
   /** Settlement fan-out is best-effort from inside the hook; the ts_run row already turned. */

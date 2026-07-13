@@ -24,6 +24,7 @@ import {
   mcpServerId,
   memberId,
   otherWorkspaceId,
+  runId,
   shapeId,
   testMemberId,
   testSystemContext,
@@ -813,6 +814,46 @@ export const defineTenantDataAccessContract = (input: {
         await data.listChannelThreads({ channelId: channelId("channel-1") })
       );
       expect(index.threads).toEqual([original]);
+    });
+  });
+
+  describe("TenantDataAccess.batch — non-bumping thread summary projection (ADR 0041)", () => {
+    test("copies the DO summary without changing thread recency", async () => {
+      const original = makeThread({
+        channelId: "channel-1",
+        commentCount: 1,
+        id: "thread-1",
+      });
+      const data = await makeTenantDataAccess({
+        channels: [makeChannel({ id: "channel-1" })],
+        context: testTenantContext,
+        threads: [original],
+        workspace: testWorkspace,
+      });
+      const since = new Date("2026-07-03T10:00:00Z");
+
+      unwrapOk(
+        await data.batch({
+          commands: [
+            {
+              kind: "update_thread_summary",
+              summary: {
+                commentCount: 4,
+                working: { runId: runId("run-latest"), since },
+              },
+              threadId: original.id,
+            },
+          ],
+          workspaceId: testWorkspaceId,
+        })
+      );
+
+      const updated = unwrapOk(await data.getThread({ threadId: original.id }));
+      expect(updated).toEqual({
+        ...original,
+        commentCount: 4,
+        working: { runId: runId("run-latest"), since },
+      });
     });
   });
 

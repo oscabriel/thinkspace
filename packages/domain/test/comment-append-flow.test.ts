@@ -229,6 +229,10 @@ describe("Comment append flow — member reply appends + bumps (E8.4)", () => {
         (comment) => comment.id === commentId("comment-reply")
       )
     ).toHaveLength(1);
+    const indexed = unwrapOk(
+      await harness.tenantDataAccess.getThread({ threadId: testThreadId })
+    );
+    expect(indexed?.commentCount).toBe(2);
   });
 
   test("rejects a reply to a parent not in the thread with comment_parent_not_in_thread", async () => {

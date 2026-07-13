@@ -60,13 +60,16 @@ interface ProviderKeyCiphertextRow {
 
 interface ThreadRow {
   readonly channel_id: string;
+  readonly comment_count: number;
   readonly created_at: number;
   readonly created_by_member_id: string;
   readonly id: string;
   readonly last_activity_at: number;
   readonly lifecycle: string;
   readonly name: string;
+  readonly opening_excerpt: string;
   readonly root_comment_id: string | null;
+  readonly working: string | null;
   readonly workspace_id: string;
 }
 
@@ -139,13 +142,24 @@ const rowToChannel = (row: ChannelRow): Channel =>
 const rowToThread = (row: ThreadRow): Thread =>
   ({
     channelId: row.channel_id,
+    commentCount: row.comment_count,
     createdAt: new Date(row.created_at),
     createdByMemberId: row.created_by_member_id,
     id: row.id,
     lastActivityAt: new Date(row.last_activity_at),
     lifecycle: parseJsonColumn(row.lifecycle),
     name: row.name,
+    openingExcerpt: row.opening_excerpt,
     rootCommentId: row.root_comment_id,
+    working:
+      row.working === null
+        ? null
+        : (() => {
+            const working = parseJsonColumn<{ runId: string; since: string }>(
+              row.working
+            );
+            return { ...working, since: new Date(working.since) };
+          })(),
     workspaceId: row.workspace_id,
   }) as Thread;
 
@@ -262,19 +276,24 @@ const commandToStatement = (
     case "create_thread_index": {
       return db
         .prepare(
-          `INSERT INTO thread (id, channel_id, created_at, created_by_member_id, last_activity_at, lifecycle, name, root_comment_id, workspace_id)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+          `INSERT INTO thread (id, channel_id, comment_count, created_at, created_by_member_id, last_activity_at, lifecycle, name, opening_excerpt, root_comment_id, working, workspace_id)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
            ON CONFLICT (id) DO NOTHING`
         )
         .bind(
           command.thread.id,
           command.thread.channelId,
+          command.thread.commentCount,
           command.thread.createdAt.getTime(),
           command.thread.createdByMemberId,
           command.thread.lastActivityAt.getTime(),
           JSON.stringify(command.thread.lifecycle),
           command.thread.name,
+          command.thread.openingExcerpt,
           command.thread.rootCommentId,
+          command.thread.working === null
+            ? null
+            : JSON.stringify(command.thread.working),
           command.thread.workspaceId
         );
     }
@@ -378,23 +397,44 @@ const commandToStatement = (
     case "put_thread_index": {
       return db
         .prepare(
-          `INSERT INTO thread (id, channel_id, created_at, created_by_member_id, last_activity_at, lifecycle, name, root_comment_id, workspace_id)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-           ON CONFLICT (id) DO UPDATE SET channel_id = excluded.channel_id, created_at = excluded.created_at,
-             created_by_member_id = excluded.created_by_member_id, last_activity_at = excluded.last_activity_at,
-             lifecycle = excluded.lifecycle, name = excluded.name, root_comment_id = excluded.root_comment_id,
-             workspace_id = excluded.workspace_id`
+          `INSERT INTO thread (id, channel_id, comment_count, created_at, created_by_member_id, last_activity_at, lifecycle, name, opening_excerpt, root_comment_id, working, workspace_id)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+           ON CONFLICT (id) DO UPDATE SET channel_id = excluded.channel_id, comment_count = excluded.comment_count,
+             created_at = excluded.created_at, created_by_member_id = excluded.created_by_member_id,
+             last_activity_at = excluded.last_activity_at, lifecycle = excluded.lifecycle, name = excluded.name,
+             opening_excerpt = excluded.opening_excerpt, root_comment_id = excluded.root_comment_id,
+             working = excluded.working, workspace_id = excluded.workspace_id`
         )
         .bind(
           command.thread.id,
           command.thread.channelId,
+          command.thread.commentCount,
           command.thread.createdAt.getTime(),
           command.thread.createdByMemberId,
           command.thread.lastActivityAt.getTime(),
           JSON.stringify(command.thread.lifecycle),
           command.thread.name,
+          command.thread.openingExcerpt,
           command.thread.rootCommentId,
+          command.thread.working === null
+            ? null
+            : JSON.stringify(command.thread.working),
           command.thread.workspaceId
+        );
+    }
+    case "update_thread_summary": {
+      return db
+        .prepare(
+          `UPDATE thread SET comment_count = ?1, working = ?2
+           WHERE workspace_id = ?3 AND id = ?4`
+        )
+        .bind(
+          command.summary.commentCount,
+          command.summary.working === null
+            ? null
+            : JSON.stringify(command.summary.working),
+          context.workspaceId,
+          command.threadId
         );
     }
     case "put_unread": {
