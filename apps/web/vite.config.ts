@@ -28,7 +28,9 @@ export default defineConfig(({ mode }) => {
     loadEnv(mode, webAppRoot, "").CADDY_DEV_HOST ||
     undefined;
 
-  if (caddyDevHost) {
+  // An explicitly-provided VITE_SERVER_URL always wins: the prod deploy passes the stage origin
+  // (ADR 0039), and a lingering dev CADDY_DEV_HOST in .env must not bake a dev origin into it.
+  if (caddyDevHost && !process.env.VITE_SERVER_URL) {
     process.env.VITE_SERVER_URL = `https://${caddyDevHost}`;
   }
 
