@@ -28,8 +28,8 @@ const slugify = (name: string): string => {
   const base = name
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
     .slice(0, 40);
   // A slug must be unique per better-auth org; a short random suffix avoids a collision with an
   // existing workspace of the same name without forcing the user to pick a slug.
@@ -76,8 +76,8 @@ const CreateWorkspace = () => {
           </EmptyMedia>
           <EmptyTitle>Create your workspace</EmptyTitle>
           <EmptyDescription>
-            A workspace is where your channels, agents, and threads live. Name it
-            to get started — you will register a provider key and author your
+            A workspace is where your channels, agents, and threads live. Name
+            it to get started — you will register a provider key and author your
             first channel inside.
           </EmptyDescription>
         </EmptyHeader>

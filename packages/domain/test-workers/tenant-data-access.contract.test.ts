@@ -46,21 +46,19 @@ const seedTenantState = async (
    */
   for (const member of seed.members ?? []) {
     await env.DB.batch([
-      env.DB
-        .prepare(
-          "INSERT INTO organization (id, name, slug) VALUES (?1, ?2, ?3) ON CONFLICT (id) DO NOTHING"
-        )
-        .bind(member.workspaceId, member.workspaceId, member.workspaceId),
-      env.DB
-        .prepare(
-          "INSERT INTO user (id, email, name) VALUES (?1, ?2, ?3) ON CONFLICT (id) DO NOTHING"
-        )
-        .bind(member.userId, `${member.userId}@example.test`, member.displayName),
-      env.DB
-        .prepare(
-          "INSERT INTO member (id, organization_id, user_id) VALUES (?1, ?2, ?3) ON CONFLICT (id) DO NOTHING"
-        )
-        .bind(member.memberId, member.workspaceId, member.userId),
+      env.DB.prepare(
+        "INSERT INTO organization (id, name, slug) VALUES (?1, ?2, ?3) ON CONFLICT (id) DO NOTHING"
+      ).bind(member.workspaceId, member.workspaceId, member.workspaceId),
+      env.DB.prepare(
+        "INSERT INTO user (id, email, name) VALUES (?1, ?2, ?3) ON CONFLICT (id) DO NOTHING"
+      ).bind(
+        member.userId,
+        `${member.userId}@example.test`,
+        member.displayName
+      ),
+      env.DB.prepare(
+        "INSERT INTO member (id, organization_id, user_id) VALUES (?1, ?2, ?3) ON CONFLICT (id) DO NOTHING"
+      ).bind(member.memberId, member.workspaceId, member.userId),
     ]);
   }
 

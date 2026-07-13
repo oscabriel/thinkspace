@@ -1,10 +1,10 @@
-import { env } from "cloudflare:test";
 import { generateText } from "ai";
+import { env } from "cloudflare:test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { createGatewayModel } from "../src/adapters/production/model-gateway";
-import { formatModelId } from "../src/ids";
 import { byokSecretAlias } from "../src/byok";
+import { formatModelId } from "../src/ids";
 import { modelProviderSchema } from "../src/model";
 import { workspaceId } from "../src/testing";
 
@@ -41,7 +41,7 @@ describe("openai AI Gateway recipe (ADR 0038 §1)", () => {
     );
 
     await generateText({ maxRetries: 0, model, prompt: "ping" }).catch(
-      () => undefined
+      () => {}
     );
 
     expect(captured).toBeDefined();
@@ -51,9 +51,7 @@ describe("openai AI Gateway recipe (ADR 0038 §1)", () => {
 
     const url = new URL(captured.url);
     // The `/openai` gateway segment, and NO stray `/openai/v1` (the anthropic-only quirk).
-    expect(url.pathname).toBe(
-      "/v1/test-account/test-gateway/openai/responses"
-    );
+    expect(url.pathname).toBe("/v1/test-account/test-gateway/openai/responses");
     expect(url.pathname).not.toContain("/openai/v1");
 
     // Verified live 2026-07-10: the gateway forwards a present provider-auth header VERBATIM

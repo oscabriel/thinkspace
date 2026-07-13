@@ -13,7 +13,8 @@ import { ArrowLeft, Hash, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 
 import { ArtifactContentView } from "@/components/library/artifact-content-view";
-import { ApiRequestError, type ArtifactVersion } from "@/lib/api";
+import { ApiRequestError } from '@/lib/api';
+import type { ArtifactVersion } from '@/lib/api';
 import { absoluteTime, formatBytes } from "@/lib/format";
 import { artifactQuery } from "@/lib/workspace-queries";
 
@@ -121,9 +122,7 @@ const ArtifactDetailScreen = () => {
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-medium text-foreground text-sm">
-          Version history
-        </h2>
+        <h2 className="font-medium text-foreground text-sm">Version history</h2>
         <div className="flex flex-col gap-1.5">
           {versions.map((version) => (
             <VersionRow

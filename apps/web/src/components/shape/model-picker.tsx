@@ -19,7 +19,8 @@ import {
   Wrench,
 } from "lucide-react";
 
-import { ApiRequestError, type Model } from "@/lib/api";
+import { ApiRequestError } from '@/lib/api';
+import type { Model } from '@/lib/api';
 import { modelsQuery } from "@/lib/workspace-queries";
 
 /**
@@ -68,7 +69,9 @@ export const ModelPicker = ({
             <TriangleAlert />
           </EmptyMedia>
           <EmptyTitle>
-            {unavailable ? "Model catalog unavailable" : "Could not load models"}
+            {unavailable
+              ? "Model catalog unavailable"
+              : "Could not load models"}
           </EmptyTitle>
           <EmptyDescription>
             {unavailable
@@ -106,11 +109,7 @@ export const ModelPicker = ({
   }
 
   return (
-    <div
-      className="flex flex-col gap-2"
-      role="radiogroup"
-      aria-label="Model"
-    >
+    <div className="flex flex-col gap-2" role="radiogroup" aria-label="Model">
       {models.data.map((model) => (
         <ModelRow
           disabled={disabled}
@@ -183,7 +182,8 @@ const ModelRow = ({
     ) : (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
         <span>
-          {formatPrice(model.cost.input)} in · {formatPrice(model.cost.output)} out
+          {formatPrice(model.cost.input)} in · {formatPrice(model.cost.output)}{" "}
+          out
           <span className="text-muted-foreground/70"> /Mtok</span>
         </span>
         <span aria-hidden="true">·</span>

@@ -69,11 +69,11 @@ const MARKDOWN_CONTENT_TYPES: ReadonlySet<string> = new Set([
 
 const IMPORT_USER_AGENT = "thinkspace-skill-import";
 
-type SkillSource = {
+interface SkillSource {
   readonly owner: string;
   readonly repo: string;
   readonly subpath: readonly string[];
-};
+}
 
 const isSlugSegment = (segment: string): boolean =>
   SLUG_SEGMENT.test(segment) && segment !== "." && segment !== "..";
@@ -127,11 +127,11 @@ const parseSkillSource = (raw: string): SkillSource | null => {
 const sourceSlug = ({ owner, repo, subpath }: SkillSource): string =>
   [owner, repo, ...subpath].join("/");
 
-type SkillFrontmatter = {
+interface SkillFrontmatter {
   readonly name: string | null;
   readonly description: string | null;
   readonly license: string | null;
-};
+}
 
 const FRONTMATTER_BLOCK = /^---\r?\n(?<body>[\s\S]*?)\r?\n---\r?\n?/u;
 
@@ -170,13 +170,13 @@ const stripFrontmatter = (
   };
 };
 
-type SkillImportPreview = {
+interface SkillImportPreview {
   readonly name: string;
   readonly description: string | null;
   readonly markdown: string;
   readonly license: string | null;
   readonly sourceSlug: string;
-};
+}
 
 type ImportErrorKind =
   | "invalid_source"

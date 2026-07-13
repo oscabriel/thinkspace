@@ -38,7 +38,7 @@ ones.
 
 ### 2. The edge mints the gesture's ids — `threadId` and `openingCommentId`; `threadId` is the idempotency key
 
-The edge mints both ids per creation *gesture* (UUIDv7, per ADR 0033's minting rule) and
+The edge mints both ids per creation _gesture_ (UUIDv7, per ADR 0033's minting rule) and
 passes them in. The flow is then a replayable function of its inputs, and both stores are
 first-write-wins, so replay converges without any read-before-write:
 
@@ -50,10 +50,10 @@ first-write-wins, so replay converges without any read-before-write:
 - the announce re-publishes an event, not state.
 
 Replaying the same creation request converges to the same state — including a replay
-after *full success*, which must not regress `lastActivityAt` below later bumps, clobber
+after _full success_, which must not regress `lastActivityAt` below later bumps, clobber
 a member rename (ADR 0020), or re-mint the snapshot from a since-edited live shape (an
 implicit `resnapshot`, forbidden by ADR 0007). Recovery from any crash is therefore
-*replay*, not repair: the client re-issues the gesture with the same ids. (This mirrors
+_replay_, not repair: the client re-issues the gesture with the same ids. (This mirrors
 ADR 0033's idempotence boundary: duplicate-gesture suppression and id minting live at the
 edge; the flow itself is honest about being re-runnable.)
 
@@ -68,17 +68,17 @@ Ids the flow invents are state the client cannot replay.
 
 ### 3. Ordering: D1 thread-index row first, `initialize` second, announce last
 
-The D1 row is the source of truth for the thread's *existence* (ADR 0009 index tier; the
+The D1 row is the source of truth for the thread's _existence_ (ADR 0009 index tier; the
 "domain store first, mechanism second" pattern of ADR 0033 §3). Writing it first means
 every crash leaves a state where everything durable is reachable from the index:
 
-| Crash point                  | Observable state                                        | Detection                                                        | Heal                       |
-| ---------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------- |
-| before D1 write              | nothing happened                                        | creation call failed                                              | plain retry                |
-| after D1, before initialize  | thread listed; agent empty                              | dispatch/open fails closed with `thread_agent_uninitialized`      | replay the creation gesture |
-| after initialize, before announce | thread fully created; surfaces stale until next bump | none needed — state is complete                                   | replay (re-announces) or next bump |
+| Crash point                       | Observable state                                     | Detection                                                    | Heal                               |
+| --------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------- |
+| before D1 write                   | nothing happened                                     | creation call failed                                         | plain retry                        |
+| after D1, before initialize       | thread listed; agent empty                           | dispatch/open fails closed with `thread_agent_uninitialized` | replay the creation gesture        |
+| after initialize, before announce | thread fully created; surfaces stale until next bump | none needed — state is complete                              | replay (re-announces) or next bump |
 
-`thread_agent_uninitialized` is the *designed* half-crash state: fail-closed, names the
+`thread_agent_uninitialized` is the _designed_ half-crash state: fail-closed, names the
 exact thread, and cannot mint runs at an empty agent (ADR 0016/0028). The reverse order
 (initialize first) leaves durable opening-comment state in a DO that no index row reaches —
 invisible orphan state that a replay with a fresh id would strand forever.
@@ -96,7 +96,7 @@ also propagate publish failures; swallowing would make a hub outage invisible.
 "structure frozen at creation" is realized here: this is the only moment a thread's
 snapshot is minted from the live shape; later shape edits reach existing threads only via
 explicit `resnapshot`. When a replay heals the designed half-crash, the snapshot is minted
-from the live shape *at heal time* — safe, because a fail-closed uninitialized agent can
+from the live shape _at heal time_ — safe, because a fail-closed uninitialized agent can
 never have executed a run against an earlier snapshot. A replay against an
 already-initialized agent never re-mints: `initialize` is first-write-wins (§2).
 
@@ -125,7 +125,7 @@ keeps presence/events/roster; creation is a flow over TenantDataAccess +
 ThreadAgentDirectory. The announce is `WorkspaceHub.publishActivity({ kind:
 "thread_bumped" })` — bump-driven surfaces pick the new thread up like any other activity.
 
-The bump is the *only* announce, deliberately: a `comment_added` on the ChannelHub would
+The bump is the _only_ announce, deliberately: a `comment_added` on the ChannelHub would
 be a thread-scoped delta with a structurally empty audience — nobody can have a thread
 open before it exists. Discovery is the bump's job (ADR 0020/0027). Consistently,
 `channelHub` is absent from the flow's dependencies.

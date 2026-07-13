@@ -148,7 +148,10 @@ describe("channel lifecycle — archive then delete (ADR 0018)", () => {
       channel: { lifecycle: { state: "archived" } },
     });
 
-    const deleted = await postJson(`${base(workspaceId)}/cc-lc-1/delete`, cookie);
+    const deleted = await postJson(
+      `${base(workspaceId)}/cc-lc-1/delete`,
+      cookie
+    );
     expect(deleted.status).toBe(200);
     expect(await deleted.json()).toMatchObject({
       channel: { lifecycle: { state: "deleted" } },
@@ -168,7 +171,10 @@ describe("channel lifecycle — archive then delete (ADR 0018)", () => {
       workspaceId,
     });
 
-    const response = await postJson(`${base(workspaceId)}/cc-da-1/delete`, cookie);
+    const response = await postJson(
+      `${base(workspaceId)}/cc-da-1/delete`,
+      cookie
+    );
 
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({
@@ -322,7 +328,9 @@ describe("shape edit — model validation + resnapshot propagation (ADR 0007)", 
       })
     );
 
-    expect(resident.shapeSnapshot.structure.systemPrompt).toBe("Edited prompt.");
+    expect(resident.shapeSnapshot.structure.systemPrompt).toBe(
+      "Edited prompt."
+    );
     expect(resident.shapeSnapshot.shapeId).toBe("cc-rs-shape-1");
   });
 });

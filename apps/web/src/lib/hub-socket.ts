@@ -44,7 +44,7 @@ const isHubEvent = (data: unknown): data is ChannelHubEvent => {
   if (typeof data !== "object" || data === null) {
     return false;
   }
-  const kind = (data as { kind?: unknown }).kind;
+  const {kind} = (data as { kind?: unknown });
   return kind === "comment_added" || kind === "run_lifecycle_changed";
 };
 

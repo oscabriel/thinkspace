@@ -16,7 +16,7 @@ vocabulary, the gesture routes, and what happens to the starter scaffold.
 Two code facts shaped everything. First: in the D1 adapter, `workspaceId` guards every
 read and write, `memberId` matters only to member-visibility listings (sidebar/directory
 channel listings, home feed), and `role` is not yet read anywhere — so "system context"
-is a *type* problem, not a behavior problem. Second: the production DO's `completionFlow`
+is a _type_ problem, not a behavior problem. Second: the production DO's `completionFlow`
 field cannot be "injected by the worker host": a field does not survive hibernation, and
 a Think submission can settle via `onSubmissionStatus` in a fresh wake. Any
 injection-based wiring loses the flow exactly when it matters.
@@ -94,7 +94,7 @@ boundary. The error vocabulary and its HTTP mapping:
 `not_a_member` is 404, not 403: the domain already models invisibility-as-nonexistence
 (an invisible channel reads as `null`), and 403 would confirm workspace existence to a
 non-member. `malformed_identity` (e.g. a dynamic role outside `owner/admin/member`) is
-*our* configuration drift, not the caller's fault — it must page us, not deny users
+_our_ configuration drift, not the caller's fault — it must page us, not deny users
 quietly.
 
 ### 5. Session via better-auth, member row by rule
@@ -201,7 +201,7 @@ deferred deliberately, not dropped.
   the orpc surface (`packages/api`) bypass the domain layer entirely; a parallel fake
   edge invites drift while the real one is built.
 - **`packages/auth` folds into `apps/server`** (`src/auth.ts`): with `packages/api` gone
-  it has one consumer and one 43-line file — pure indirection. The auth *schema* stays in
+  it has one consumer and one 43-line file — pure indirection. The auth _schema_ stays in
   `@thinkspace/db` (shared-schema territory). If `apps/web` ever wants a typed better-auth
   client, the type exports from `apps/server`; a package gets re-extracted only when real
   content justifies it.
@@ -226,17 +226,17 @@ schema rework triggered. File references below are within that clone.
 1. **Session response shape** — `auth.api.getSession({headers})` returns
    `{session, user} | null` (`packages/better-auth/src/api/routes/session.ts:32`).
    Base session fields: `id, createdAt, updatedAt, userId, expiresAt, token,
-   ipAddress?, userAgent?` (`packages/core/src/db/schema/session.ts:9`). The org
+ipAddress?, userAgent?` (`packages/core/src/db/schema/session.ts:9`). The org
    plugin adds optional `activeOrganizationId` to the session model. `null` maps to
    `unauthenticated`.
 2. **`member` table columns** — `id, organizationId (FK organization.id), userId
-   (FK user.id), role (text, default "member"), createdAt`
+(FK user.id), role (text, default "member"), createdAt`
    (`plugins/organization/schema.ts`, `MemberDefaultFields` + `memberSchema`). No
    `updatedAt`.
 3. **Role strings** — defaults are exactly `owner/admin/member`
    (`plugins/organization/access/statement.ts:37`); `creatorRole` defaults to
    `"owner"` (`routes/crud-org.ts:193`). Maps 1:1 onto `roleSchema`. Caveat, accepted:
-   the plugin treats `member.role` as a comma-separated *list* in permission checks
+   the plugin treats `member.role` as a comma-separated _list_ in permission checks
    (`permission.ts:12`), and `updateMemberRole` called with an array writes
    `"a,b"` (`organization.ts:117`). Under our minimal scope nothing writes
    multi-role; if one ever appears, the branded parse fails →

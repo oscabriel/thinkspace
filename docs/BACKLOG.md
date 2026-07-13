@@ -138,7 +138,7 @@ spot-checked by hand. Feed all of this into ADR 0036 at E1.10.
    `@ai-sdk/anthropic@^3.0.93` (npm dist-tag `ai-v6`, matches ai@6.0.202) — NOT `latest`
    (4.x targets ai v7, incompatible).**
 4. **alchemy (E1.9):** 0.91.2 DOES ship `AiGateway` (`import { AiGateway } from
-   "alchemy/cloudflare"`, verified at the `v0.91.2` tag, not clone HEAD which is 0.93.12). Use it
+"alchemy/cloudflare"`, verified at the `v0.91.2` tag, not clone HEAD which is 0.93.12). Use it
    with `authentication: true`; the prop is **`gatewayName`, not `name`** (the published docs
    example passes `name:`, which is silently ignored); pin an explicit stable `gatewayName` —
    the default is `${app}-${stage}-${id}`, which would fragment the one-shared-gateway design

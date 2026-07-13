@@ -7,9 +7,9 @@ import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
-import type { ShapeStructure } from "@/lib/api";
 import { ModelPicker } from "@/components/shape/model-picker";
 import { ShapeSelectionSection } from "@/components/shape/shape-selection";
+import type { ShapeStructure } from "@/lib/api";
 import {
   artifactsQuery,
   mcpServersQuery,
@@ -63,9 +63,7 @@ export const ShapeForm = ({
   readonly onSubmit: (structure: ShapeStructure) => void;
   readonly onCancel?: () => void;
 }) => {
-  const [modelId, setModelId] = useState<string | null>(
-    initialModelId ?? null
-  );
+  const [modelId, setModelId] = useState<string | null>(initialModelId ?? null);
   const [systemPrompt, setSystemPrompt] = useState(initialSystemPrompt ?? "");
   const [skillSelection, setSkillSelection] = useState<readonly string[]>(
     initialSkillSelection ?? []
@@ -169,7 +167,8 @@ export const ShapeForm = ({
         disabled={pending}
         emptyState={
           <>
-            No MCP servers registered in this workspace yet — register them under{" "}
+            No MCP servers registered in this workspace yet — register them
+            under{" "}
             <Link
               className="font-medium text-primary underline-offset-4 hover:underline"
               params={{ workspaceId }}

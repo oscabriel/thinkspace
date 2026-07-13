@@ -5,11 +5,8 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { jwt, organization } from "better-auth/plugins";
 
-import {
-  buildInvitationEmail,
-  createResendEmailSender,
-  type EmailSender,
-} from "./invitation-email";
+import { buildInvitationEmail, createResendEmailSender } from './invitation-email';
+import type { EmailSender } from './invitation-email';
 
 /**
  * E5.5: the invitation email delivery is injectable so tests substitute a recorder

@@ -4,6 +4,7 @@ import { getAgentByName, normalizeServerId } from "agents";
 import type { AgentContext } from "agents";
 import type { LanguageModel, ToolSet, UIMessage } from "ai";
 
+import type { RunFailureError } from "../../errors";
 import {
   collectThreadParticipants,
   createRunCompletionFlow,
@@ -12,7 +13,6 @@ import type {
   RunCompletionFlow,
   RunSettlement,
 } from "../../flows/run-completion";
-import type { RunFailureError } from "../../errors";
 import type { GestureId, McpServerId } from "../../ids";
 import { commentIdSchema, runIdSchema } from "../../ids";
 import type { McpServer } from "../../mcp";
@@ -35,10 +35,6 @@ import type { ResolvedProviderAuth } from "../../seams/key-store";
 import type { SkillContent } from "../../seams/skill-store";
 import type { SystemContext } from "../../seams/tenant-data-access";
 import type {
-  ToolResolutionError,
-  ToolResolutionRequest,
-} from "../../seams/tool-resolution";
-import type {
   BranchSnapshot,
   CommentAppend,
   RunDetail,
@@ -51,6 +47,10 @@ import type {
   ThreadAgentRunReceipt,
   ThreadAgentSnapshot,
 } from "../../seams/thread-agent";
+import type {
+  ToolResolutionError,
+  ToolResolutionRequest,
+} from "../../seams/tool-resolution";
 import type { ShapeSnapshot, ShapeStructure } from "../../shape";
 import type { ThreadAgentSeed } from "../../testing/contracts/thread-agent";
 import type { Comment } from "../../thread";
@@ -60,7 +60,8 @@ import {
   decodeThreadAgentAddress,
   encodeThreadAgentAddress,
 } from "../thread-agent-address";
-import { createKeyStore, type KeyStoreEnv } from "./key-store";
+import { createKeyStore } from './key-store';
+import type { KeyStoreEnv } from './key-store';
 import { createGatewayModel } from "./model-gateway";
 import {
   createProductionChannelHub,

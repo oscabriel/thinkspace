@@ -79,7 +79,10 @@ const customProviderProvisioner = createCloudflareCustomProviderProvisioner({
 const provisionCustomProvider = async (
   entry: ProviderAllowEntry
 ): Promise<void> => {
-  if (entry.routing !== "custom-provider" || entry.upstreamBaseUrl === undefined) {
+  if (
+    entry.routing !== "custom-provider" ||
+    entry.upstreamBaseUrl === undefined
+  ) {
     return;
   }
   const provisioned = await customProviderProvisioner.ensureProvider({

@@ -1,8 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Empty,
@@ -11,10 +7,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
-import {
-  MessagesSquare,
-  TriangleAlert,
-} from "lucide-react";
+import { MessagesSquare, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { ThreadRow, ThreadRowSkeleton } from "@/components/shell/thread-row";
@@ -49,20 +42,90 @@ const ChannelView = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const startThread = useMutation({
-    mutationFn: (openingBody: string) => createThread(workspaceId, { askGestureId: uuidv7(), channelId, openingBody, openingCommentId: uuidv7(), threadId: uuidv7() }),
-    onError: (error) => toast.error(`Could not start thread: ${error instanceof ApiRequestError ? error.kind : "unknown_error"}`),
+    mutationFn: (openingBody: string) =>
+      createThread(workspaceId, {
+        askGestureId: uuidv7(),
+        channelId,
+        openingBody,
+        openingCommentId: uuidv7(),
+        threadId: uuidv7(),
+      }),
+    onError: (error) =>
+      toast.error(
+        `Could not start thread: ${error instanceof ApiRequestError ? error.kind : "unknown_error"}`
+      ),
     onSuccess: (receipt) => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.channelThreads(workspaceId, channelId) });
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) });
-      navigate({ params: { channelId, threadId: receipt.thread.id, workspaceId }, search: { root: receipt.openingComment.id, run: receipt.run?.runId }, to: "/w/$workspaceId/channels/$channelId/threads/$threadId" });
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.channelThreads(workspaceId, channelId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.home(workspaceId),
+      });
+      navigate({
+        params: { channelId, threadId: receipt.thread.id, workspaceId },
+        search: { root: receipt.openingComment.id, run: receipt.run?.runId },
+        to: "/w/$workspaceId/channels/$channelId/threads/$threadId",
+      });
     },
   });
-  if (!channel.data) return null;
+  if (!channel.data) {return null;}
   const archived = channel.data.lifecycle.state !== "active";
-  return <div className="flex flex-col gap-6">
-    {!archived && <ThreadComposer onSubmit={(body) => startThread.mutate(body)} pending={startThread.isPending} placeholder="Start a thread — describe the work and ask the channel agent…" submitLabel="Start thread" />}
-    {threads.isPending ? <FeedSkeleton /> : threads.isError ? <Empty className="border"><EmptyHeader><EmptyMedia variant="icon"><TriangleAlert /></EmptyMedia><EmptyTitle>Threads unavailable</EmptyTitle><EmptyDescription>Try again in a moment.</EmptyDescription></EmptyHeader></Empty> : threads.data && threads.data.threads.length > 0 ? <div className="flex flex-col">{threads.data.threads.map((thread) => <Link className="rounded-md transition-colors hover:bg-muted/50" key={thread.id} params={{ channelId, threadId: thread.id, workspaceId }} search={{ root: thread.rootCommentId ?? undefined }} to="/w/$workspaceId/channels/$channelId/threads/$threadId"><ThreadRow authorName={memberLabel(members.data, thread.createdByMemberId)} thread={thread} unread={false} /></Link>)}</div> : <Empty className="border"><EmptyHeader><EmptyMedia variant="icon"><MessagesSquare /></EmptyMedia><EmptyTitle>No threads yet</EmptyTitle><EmptyDescription>Threads are where the work happens. Start one above — your message opens the thread and dispatches the channel&apos;s agent.</EmptyDescription></EmptyHeader></Empty>}
-  </div>;
+  return (
+    <div className="flex flex-col gap-6">
+      {!archived && (
+        <ThreadComposer
+          onSubmit={(body) => startThread.mutate(body)}
+          pending={startThread.isPending}
+          placeholder="Start a thread — describe the work and ask the channel agent…"
+          submitLabel="Start thread"
+        />
+      )}
+      {threads.isPending ? (
+        <FeedSkeleton />
+      ) : threads.isError ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <TriangleAlert />
+            </EmptyMedia>
+            <EmptyTitle>Threads unavailable</EmptyTitle>
+            <EmptyDescription>Try again in a moment.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : threads.data && threads.data.threads.length > 0 ? (
+        <div className="flex flex-col">
+          {threads.data.threads.map((thread) => (
+            <Link
+              className="rounded-md transition-colors hover:bg-muted/50"
+              key={thread.id}
+              params={{ channelId, threadId: thread.id, workspaceId }}
+              search={{ root: thread.rootCommentId ?? undefined }}
+              to="/w/$workspaceId/channels/$channelId/threads/$threadId"
+            >
+              <ThreadRow
+                authorName={memberLabel(members.data, thread.createdByMemberId)}
+                thread={thread}
+                unread={false}
+              />
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <MessagesSquare />
+            </EmptyMedia>
+            <EmptyTitle>No threads yet</EmptyTitle>
+            <EmptyDescription>
+              Threads are where the work happens. Start one above — your message
+              opens the thread and dispatches the channel&apos;s agent.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )}
+    </div>
+  );
 };
 
 const FeedSkeleton = () => (
@@ -73,8 +136,6 @@ const FeedSkeleton = () => (
   </div>
 );
 
-export const Route = createFileRoute(
-  "/w/$workspaceId/channels/$channelId/"
-)({
+export const Route = createFileRoute("/w/$workspaceId/channels/$channelId/")({
   component: ChannelView,
 });

@@ -94,7 +94,7 @@ the right thing:
   Circular topologies need `WorkerStub`/`WorkerRef` — avoid; our topology is acyclic.
 - **TanStackStart** is `Vite`→`Website`→`Worker`; every binding except the reserved `ASSETS`
   passes through unchanged (`website.ts:282-299`, `tanstack-start.ts:14-17`). The web app
-  *could* take `server.bindings.THREAD_AGENT` as a cross-script DO binding, but our web→server
+  _could_ take `server.bindings.THREAD_AGENT` as a cross-script DO binding, but our web→server
   path is HTTP (`VITE_SERVER_URL`), so we don't.
 
 ## 4. Env typing

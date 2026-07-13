@@ -26,13 +26,13 @@ const postImport = (
     method: "POST",
   });
 
-type Preview = {
+interface Preview {
   description: string | null;
   license: string | null;
   markdown: string;
   name: string;
   sourceSlug: string;
-};
+}
 
 describe("skill import (owner-gated, SSRF-guarded SKILL.md fetch)", () => {
   it("previews a valid slug: name/description/license from frontmatter, body without it", async () => {

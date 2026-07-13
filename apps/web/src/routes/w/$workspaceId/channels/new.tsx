@@ -11,13 +11,9 @@ import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  ApiRequestError,
-  createChannel,
-  type ShapeStructure,
-  type Visibility,
-} from "@/lib/api";
 import { ShapeForm } from "@/components/shape/shape-form";
+import { ApiRequestError, createChannel } from '@/lib/api';
+import type { ShapeStructure, Visibility } from '@/lib/api';
 import { workspaceKeys } from "@/lib/workspace-queries";
 
 /** Maps a create-failure kind to teaching copy; falls through to the raw kind for anything else. */

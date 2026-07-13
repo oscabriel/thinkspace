@@ -121,7 +121,9 @@ describe("thread creation over production adapters (ADR 0034 binder)", () => {
 
     // Insert-if-absent: the crashed row is exactly what the index still holds.
     const index = unwrapOk(
-      await tenantDataAccess.listChannelThreads({ channelId: address.channelId })
+      await tenantDataAccess.listChannelThreads({
+        channelId: address.channelId,
+      })
     );
     expect(index.threads).toEqual([crashedRow]);
 

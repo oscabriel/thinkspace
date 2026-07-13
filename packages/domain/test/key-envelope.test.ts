@@ -3,8 +3,10 @@ import { describe, expect, test } from "bun:test";
 import { openProviderKey, sealProviderKey } from "../src/key-envelope";
 
 /** A deterministic, valid 32-byte base64 master key (and a distinct foreign one) for the suite. */
-const masterKey = btoa(String.fromCharCode(...new Uint8Array(32).fill(7)));
-const foreignMasterKey = btoa(String.fromCharCode(...new Uint8Array(32).fill(9)));
+const masterKey = btoa(String.fromCodePoint(...new Uint8Array(32).fill(7)));
+const foreignMasterKey = btoa(
+  String.fromCodePoint(...new Uint8Array(32).fill(9))
+);
 
 const RAW_KEY = "sk-live-super-secret-value-123";
 
@@ -42,9 +44,9 @@ describe("key-envelope — AES-256-GCM seal/open (ADR 0040)", () => {
   });
 
   test("a malformed sealed value throws without leaking anything", async () => {
-    await expect(openProviderKey(masterKey, "not-a-sealed-key")).rejects.toThrow(
-      "sealed provider key is malformed"
-    );
+    await expect(
+      openProviderKey(masterKey, "not-a-sealed-key")
+    ).rejects.toThrow("sealed provider key is malformed");
   });
 
   test("a wrong-length master key is rejected", async () => {

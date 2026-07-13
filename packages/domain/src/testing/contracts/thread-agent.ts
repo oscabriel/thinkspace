@@ -371,9 +371,9 @@ export const defineThreadAgentContract = (input: {
       const branch = unwrapOk(
         await agent.loadBranch({ rootCommentId: topLevel.id })
       );
-      expect(
-        branch.subtree.some((comment) => comment.id === reply.id)
-      ).toBe(true);
+      expect(branch.subtree.some((comment) => comment.id === reply.id)).toBe(
+        true
+      );
     });
 
     test("rejects a reply whose parent is not resident in the thread with comment_parent_not_in_thread", async () => {

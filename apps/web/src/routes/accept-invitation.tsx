@@ -36,7 +36,8 @@ const AcceptInvitation = () => {
   useEffect(() => {
     if (!id) {
       setState({
-        message: "This invitation link is incomplete. Ask the workspace owner for a new invitation.",
+        message:
+          "This invitation link is incomplete. Ask the workspace owner for a new invitation.",
         status: "error",
       });
       return;
@@ -52,7 +53,9 @@ const AcceptInvitation = () => {
       });
       if (result.data) {
         const workspaceId = result.data.invitation.organizationId;
-        await authClient.organization.setActive({ organizationId: workspaceId });
+        await authClient.organization.setActive({
+          organizationId: workspaceId,
+        });
         setState({ status: "success" });
         navigate({ params: { workspaceId }, to: "/w/$workspaceId" });
         return;
@@ -65,7 +68,8 @@ const AcceptInvitation = () => {
       // honest error; a signed-in user recovers via "/", which routes them into
       // their workspace shell (already-a-member users land where they expect).
       setState({
-        message: "We couldn't accept this invitation. It may have expired, already been used, or been sent to a different email.",
+        message:
+          "We couldn't accept this invitation. It may have expired, already been used, or been sent to a different email.",
         status: "error",
       });
     };

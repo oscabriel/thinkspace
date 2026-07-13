@@ -16,7 +16,7 @@ production DO returns `not_implemented` until seeded. Three open decisions block
 dispatch→completion round-trip slice:
 
 1. How the production directory maps an address to a DO (address ⇄ DO name).
-2. Where the address *resides* inside the DO (its tenant guard and every error payload
+2. Where the address _resides_ inside the DO (its tenant guard and every error payload
    need it).
 3. How a domain `Run` relates to a Think **submission** (the SDK has no "run" primitive;
    `submitMessages` accepts a caller-supplied `submissionId` — `think.ts:9302`).
@@ -66,13 +66,13 @@ Deleting it and substituting the pure function loses nothing: it fails the delet
 
 **Rejected — name = `threadId` alone:** ids carry no global-uniqueness guarantee, and the
 tenant boundary would vanish from the identity — a colliding or forged threadId in another
-workspace would route to the *same* DO, leaving isolation to resident state. With the full
-triple, cross-tenant traffic routes to a *different* DO by construction; the in-DO tenant
+workspace would route to the _same_ DO, leaving isolation to resident state. With the full
+triple, cross-tenant traffic routes to a _different_ DO by construction; the in-DO tenant
 guard becomes defense in depth rather than the only wall.
 
 **Rejected — encoding-version prefix (`v1/…`):** a re-encoded name is a different DO, so
 any v2 encoding implies dual-lookup-with-fallback for all pre-cutover threads forever — a
-cost the prefix does not reduce; it only identifies the decoder *after* the fallback
+cost the prefix does not reduce; it only identifies the decoder _after_ the fallback
 lookup has already found the object. The address triple's containment is the most stable
 fact in the domain (ADR 0016/0018, made physical here), so the realistic "encoding change"
 is an escaping bug, and the insurance for that is the codec's injectivity contract tests
@@ -83,7 +83,7 @@ its own directory logic regardless.
 ### 2. Address residency: derived from `this.name`, lazily, memoized
 
 The name is routing-derived and tamper-proof — the caller cannot lie about it — so the
-identity *is* the address. The DO decodes `this.name` on first seam-method use and
+identity _is_ the address. The DO decodes `this.name` on first seam-method use and
 memoizes it. Decoding is lazy **not** because the name is unavailable earlier (on this
 partyserver pin it is available from construction), but because the constructor must
 never throw on a non-address name — the contract binders address DOs by random UUID
@@ -99,14 +99,14 @@ addressing) returns a dedicated error from every seam method:
 
 It executes nothing. The variant is honest where `not_implemented` was a placeholder
 lie — an undecodable name is a bad route, a forged name, or a directory-bypassing caller,
-not unfinished code — and `doName` carries no tenant data *by construction* (it failed to
+not unfinished code — and `doName` carries no tenant data _by construction_ (it failed to
 decode into ids). `not_implemented` reverts to meaning only "unfinished." The variant is
 pinned by a workers-binder contract test (garbage-named DO, call `run`, expect the
 variant); the memory adapter cannot construct an unaddressable agent and that asymmetry
 is accepted — this error is a production-substrate fact, not seam behavior.
 
 Consequences for the seam: `ThreadAgentInitializeRequest` stays as-is (no address
-widening); pre-initialize calls on a *well-named* DO can now return a proper
+widening); pre-initialize calls on a _well-named_ DO can now return a proper
 `thread_agent_uninitialized` error naming the right thread.
 
 **Rejected — persist address at `initialize`:** a second source of truth that can drift
@@ -130,9 +130,9 @@ This instantiates the pattern `sdk-signature-verification.md` §2 pinned for sch
 from the domain row — never the reverse.** The run↔submission layer is therefore additive
 to the committed adapter, not a rewrite.
 
-**Idempotence boundary — decided:** `idempotencyKey = runId` covers *internal* retries
+**Idempotence boundary — decided:** `idempotencyKey = runId` covers _internal_ retries
 only (a re-submit for an already-written run row replays idempotently). It cannot and
-does not address duplicate *dispatches* — a double-click or network retry reaching the
+does not address duplicate _dispatches_ — a double-click or network retry reaching the
 dispatch flow twice mints two runs and two agent replies, and v1 accepts that at the
 domain layer. Deliberately re-dispatching the same comment is legitimate (ADR 0017's
 explicit trigger), so a domain-level dedupe key would encode wrong UX policy.

@@ -58,7 +58,7 @@ video, pdf-as-download) flows through the same viewer origin and headers for uni
   `byteLength`; precedent: Claude Code artifacts cap at 16 MiB).
 - Artifacts remain workspace-private: viewer URLs are useless without a fresh token; there is no
   public-link surface in v1 (revisit with model c).
-- ADR 0003's "no sandboxing budget" deferral is unchanged — this ADR buys *rendering* isolation
+- ADR 0003's "no sandboxing budget" deferral is unchanged — this ADR buys _rendering_ isolation
   only, not code execution for tools.
 
 ## Open sub-questions

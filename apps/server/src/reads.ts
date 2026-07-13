@@ -3,20 +3,15 @@ import {
   createProductionThreadAgentDirectory,
 } from "@thinkspace/domain/adapters/production";
 import { channelVisibilityGate } from "@thinkspace/domain/flows/channel-gate";
-import {
-  channelIdSchema,
-  commentIdSchema,
-  type MemberId,
-  runIdSchema,
-  threadIdSchema,
-} from "@thinkspace/domain/ids";
+import { channelIdSchema, commentIdSchema, runIdSchema, threadIdSchema } from '@thinkspace/domain/ids';
+import type { MemberId } from '@thinkspace/domain/ids';
 import type { DisplayName } from "@thinkspace/domain/primitives";
-import type { BranchSnapshot } from "@thinkspace/domain/seams/thread-agent";
 import type {
   HomeFeed,
   TenantContext,
   ThreadIndex,
 } from "@thinkspace/domain/seams/tenant-data-access";
+import type { BranchSnapshot } from "@thinkspace/domain/seams/thread-agent";
 import type { Comment } from "@thinkspace/domain/thread";
 import { env } from "@thinkspace/env/server";
 import { Hono } from "hono";
@@ -105,9 +100,10 @@ export const openingExcerpt = (body: string): string => {
 
   const candidate = body.slice(0, MAX_OPENING_EXCERPT_LENGTH - 1);
   const wordBoundary = candidate.lastIndexOf(" ");
-  const cutAt = wordBoundary >= MAX_OPENING_EXCERPT_LENGTH * 0.8
-    ? wordBoundary
-    : candidate.length;
+  const cutAt =
+    wordBoundary >= MAX_OPENING_EXCERPT_LENGTH * 0.8
+      ? wordBoundary
+      : candidate.length;
   return `${candidate.slice(0, cutAt).trimEnd()}…`;
 };
 
@@ -402,49 +398,46 @@ export const readRoutes = new Hono<{ Variables: TenantVariables }>()
       return c.json(withAuthorNames(branch.value, displayNames), 200);
     }
   )
-  .get(
-    "/channels/:channelId/threads/:threadId/runs/:runId",
-    async (c) => {
-      /**
-       * ADR 0028: the server-authoritative run-state read. Run state is DO-resident and read
-       * through the ThreadAgent seam's `getRun(runId) → RunDetail | null` — there is no D1 run
-       * index — so the edge composes the same DO stub the branch read uses and translates null
-       * to 404. This is what lets the thread surface settle an errored run's card the instant its
-       * `run_lifecycle_changed` delta arrives (that event carries only an id, not state) rather
-       * than waiting out the client's stale timeout. Same fail-closed visibility guard as the
-       * branch read: an invisible channel's runs are 404, and an unknown run id is 404 too.
-       */
-      const context = c.get("tenantContext");
+  .get("/channels/:channelId/threads/:threadId/runs/:runId", async (c) => {
+    /**
+     * ADR 0028: the server-authoritative run-state read. Run state is DO-resident and read
+     * through the ThreadAgent seam's `getRun(runId) → RunDetail | null` — there is no D1 run
+     * index — so the edge composes the same DO stub the branch read uses and translates null
+     * to 404. This is what lets the thread surface settle an errored run's card the instant its
+     * `run_lifecycle_changed` delta arrives (that event carries only an id, not state) rather
+     * than waiting out the client's stale timeout. Same fail-closed visibility guard as the
+     * branch read: an invisible channel's runs are 404, and an unknown run id is 404 too.
+     */
+    const context = c.get("tenantContext");
 
-      const path = runPathSchema.safeParse({
-        channelId: c.req.param("channelId"),
-        runId: c.req.param("runId"),
-        threadId: c.req.param("threadId"),
-      });
-      if (!path.success) {
-        return c.json({ error: { kind: "unknown_resource" } }, 404);
-      }
-
-      const guard = await guardVisibleChannel(context, path.data.channelId);
-      if (!guard.ok) {
-        return c.json(guard.body, guard.status);
-      }
-
-      const detail = await createProductionThreadAgentDirectory({
-        namespace: env.THREAD_AGENT,
-      })
-        .get({
-          channelId: path.data.channelId,
-          threadId: path.data.threadId,
-          workspaceId: context.workspaceId,
-        })
-        .getRun({ runId: path.data.runId });
-      if (!detail.ok) {
-        return c.json({ error: detail.error }, domainErrorStatus(detail.error));
-      }
-      if (detail.value === null) {
-        return c.json({ error: { kind: "unknown_resource" } }, 404);
-      }
-      return c.json(detail.value, 200);
+    const path = runPathSchema.safeParse({
+      channelId: c.req.param("channelId"),
+      runId: c.req.param("runId"),
+      threadId: c.req.param("threadId"),
+    });
+    if (!path.success) {
+      return c.json({ error: { kind: "unknown_resource" } }, 404);
     }
-  );
+
+    const guard = await guardVisibleChannel(context, path.data.channelId);
+    if (!guard.ok) {
+      return c.json(guard.body, guard.status);
+    }
+
+    const detail = await createProductionThreadAgentDirectory({
+      namespace: env.THREAD_AGENT,
+    })
+      .get({
+        channelId: path.data.channelId,
+        threadId: path.data.threadId,
+        workspaceId: context.workspaceId,
+      })
+      .getRun({ runId: path.data.runId });
+    if (!detail.ok) {
+      return c.json({ error: detail.error }, domainErrorStatus(detail.error));
+    }
+    if (detail.value === null) {
+      return c.json({ error: { kind: "unknown_resource" } }, 404);
+    }
+    return c.json(detail.value, 200);
+  });

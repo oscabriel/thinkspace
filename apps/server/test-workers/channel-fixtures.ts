@@ -32,7 +32,9 @@ export const seedChannel = async (input: {
   readonly systemPrompt?: string;
   readonly threads?: readonly SeedThread[];
   readonly unreadThreadIds?: readonly string[];
-  readonly visibility?: { readonly kind: "private" } | { readonly kind: "shared" };
+  readonly visibility?:
+    | { readonly kind: "private" }
+    | { readonly kind: "shared" };
   readonly workspaceId: string;
 }) => {
   const workspaceId = brandWorkspaceId(input.workspaceId);

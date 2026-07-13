@@ -139,14 +139,19 @@ const cfAccountId = required(
  * exactly as the resource left it.
  */
 {
-  const byokStoreId = required(alchemy.env.BYOK_CF_STORE_ID, "BYOK_CF_STORE_ID");
+  const byokStoreId = required(
+    alchemy.env.BYOK_CF_STORE_ID,
+    "BYOK_CF_STORE_ID"
+  );
   const cfToken = required(
     alchemy.env.CLOUDFLARE_API_TOKEN,
     "CLOUDFLARE_API_TOKEN"
   );
   const gatewayUrl = `https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/ai-gateway/gateways/${aiGateway.gatewayName}`;
   const authHeaders = { authorization: `Bearer ${cfToken}` };
-  const current = (await (await fetch(gatewayUrl, { headers: authHeaders })).json()) as {
+  const current = (await (
+    await fetch(gatewayUrl, { headers: authHeaders })
+  ).json()) as {
     result?: Record<string, unknown> & { store_id?: string };
   };
   if (current.result === undefined) {
@@ -204,7 +209,10 @@ export const server = await Worker("server", {
       alchemy.secret.env.BYOK_CF_API_TOKEN,
       "BYOK_CF_API_TOKEN"
     ),
-    BYOK_CF_GATEWAY_ID: required(aiGateway.gatewayName, "aiGateway.gatewayName"),
+    BYOK_CF_GATEWAY_ID: required(
+      aiGateway.gatewayName,
+      "aiGateway.gatewayName"
+    ),
     BYOK_CF_STORE_ID: required(
       alchemy.env.BYOK_CF_STORE_ID,
       "BYOK_CF_STORE_ID"

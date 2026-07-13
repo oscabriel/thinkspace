@@ -8,10 +8,10 @@ import { testTenantContext, unwrapErr, unwrapOk } from "../fixtures";
 
 /** A valid 32-byte base64 master key and a distinct foreign one, shared by every binder. */
 export const contractMasterKey = btoa(
-  String.fromCharCode(...new Uint8Array(32).fill(7))
+  String.fromCodePoint(...new Uint8Array(32).fill(7))
 );
 export const contractForeignMasterKey = btoa(
-  String.fromCharCode(...new Uint8Array(32).fill(9))
+  String.fromCodePoint(...new Uint8Array(32).fill(9))
 );
 
 /**
@@ -84,8 +84,9 @@ export const defineKeyStoreContract = (input: {
       unwrapOk(await store.deleteKey(anthropic));
 
       expect(
-        unwrapErr(await store.resolveProviderAuth({ modelId: anthropicModelId }))
-          .kind
+        unwrapErr(
+          await store.resolveProviderAuth({ modelId: anthropicModelId })
+        ).kind
       ).toBe("byok_key_missing");
     });
 
@@ -106,7 +107,9 @@ export const defineKeyStoreContract = (input: {
     test("resolve never leaks the raw key into an error even after a real write", async () => {
       const { foreignMasterKeyStore, store } = await build();
       unwrapOk(await store.writeKey(anthropic, RAW_KEY));
-      const good = await store.resolveProviderAuth({ modelId: anthropicModelId });
+      const good = await store.resolveProviderAuth({
+        modelId: anthropicModelId,
+      });
       const bad = await foreignMasterKeyStore.resolveProviderAuth({
         modelId: anthropicModelId,
       });

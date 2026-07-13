@@ -129,6 +129,41 @@ export const createChannelCrudFlow = (
   };
 
   return {
+    archiveChannel: async (input) => {
+      const channelLoaded = await loadVisibleChannel(input.channelId);
+      if (!channelLoaded.ok) {
+        return channelLoaded;
+      }
+      const channel = channelLoaded.value;
+
+      const adminGate = channelAdminGate(context, channel);
+      if (adminGate !== null) {
+        return err(adminGate);
+      }
+
+      if (channel.lifecycle.state === "deleted") {
+        return err({ channelId: channel.id, kind: "channel_deleted" });
+      }
+      // Idempotent: re-archiving an archived channel returns it unchanged (ADR 0018).
+      if (channel.lifecycle.state === "archived") {
+        return ok({ channel });
+      }
+
+      const archived: Channel = {
+        ...channel,
+        lifecycle: { archivedAt: deps.clock(), state: "archived" },
+      };
+      const written = await deps.tenantDataAccess.batch({
+        commands: [{ channel: archived, kind: "put_channel" }],
+        workspaceId: context.workspaceId,
+      });
+      if (!written.ok) {
+        return written;
+      }
+
+      return ok({ channel: archived });
+    },
+
     createChannel: async (input) => {
       const validated = await validateModel(input.structure);
       if (!validated.ok) {
@@ -171,6 +206,46 @@ export const createChannelCrudFlow = (
       return ok({ channel, shape });
     },
 
+    deleteChannel: async (input) => {
+      const channelLoaded = await loadVisibleChannel(input.channelId);
+      if (!channelLoaded.ok) {
+        return channelLoaded;
+      }
+      const channel = channelLoaded.value;
+
+      const adminGate = channelAdminGate(context, channel);
+      if (adminGate !== null) {
+        return err(adminGate);
+      }
+
+      // Idempotent: a replayed delete of an already-deleted channel converges (ADR 0018).
+      if (channel.lifecycle.state === "deleted") {
+        return ok({ channel });
+      }
+      // Archive-first (ADR 0018): hard-delete is only reachable from the archived state.
+      if (channel.lifecycle.state === "active") {
+        return err({ channelId: channel.id, kind: "channel_not_archived" });
+      }
+
+      const deleted: Channel = {
+        ...channel,
+        lifecycle: {
+          archivedAt: channel.lifecycle.archivedAt,
+          deletedAt: deps.clock(),
+          state: "deleted",
+        },
+      };
+      const written = await deps.tenantDataAccess.batch({
+        commands: [{ channel: deleted, kind: "put_channel" }],
+        workspaceId: context.workspaceId,
+      });
+      if (!written.ok) {
+        return written;
+      }
+
+      return ok({ channel: deleted });
+    },
+
     editShape: async (input) => {
       const channelLoaded = await loadVisibleChannel(input.channelId);
       if (!channelLoaded.ok) {
@@ -200,7 +275,9 @@ export const createChannelCrudFlow = (
         return shapeLoaded;
       }
       if (shapeLoaded.value === null) {
-        return err(createNotImplementedError("ChannelCrudFlow.missingShapeRow"));
+        return err(
+          createNotImplementedError("ChannelCrudFlow.missingShapeRow")
+        );
       }
 
       const updatedAt = deps.clock();
@@ -245,7 +322,9 @@ export const createChannelCrudFlow = (
           threadId: thread.id,
           workspaceId: context.workspaceId,
         });
-        const resnapshotted = await agent.resnapshot({ shapeSnapshot: snapshot });
+        const resnapshotted = await agent.resnapshot({
+          shapeSnapshot: snapshot,
+        });
         if (!resnapshotted.ok) {
           return resnapshotted;
         }
@@ -253,81 +332,6 @@ export const createChannelCrudFlow = (
       }
 
       return ok({ resnapshots, shape });
-    },
-
-    archiveChannel: async (input) => {
-      const channelLoaded = await loadVisibleChannel(input.channelId);
-      if (!channelLoaded.ok) {
-        return channelLoaded;
-      }
-      const channel = channelLoaded.value;
-
-      const adminGate = channelAdminGate(context, channel);
-      if (adminGate !== null) {
-        return err(adminGate);
-      }
-
-      if (channel.lifecycle.state === "deleted") {
-        return err({ channelId: channel.id, kind: "channel_deleted" });
-      }
-      // Idempotent: re-archiving an archived channel returns it unchanged (ADR 0018).
-      if (channel.lifecycle.state === "archived") {
-        return ok({ channel });
-      }
-
-      const archived: Channel = {
-        ...channel,
-        lifecycle: { archivedAt: deps.clock(), state: "archived" },
-      };
-      const written = await deps.tenantDataAccess.batch({
-        commands: [{ channel: archived, kind: "put_channel" }],
-        workspaceId: context.workspaceId,
-      });
-      if (!written.ok) {
-        return written;
-      }
-
-      return ok({ channel: archived });
-    },
-
-    deleteChannel: async (input) => {
-      const channelLoaded = await loadVisibleChannel(input.channelId);
-      if (!channelLoaded.ok) {
-        return channelLoaded;
-      }
-      const channel = channelLoaded.value;
-
-      const adminGate = channelAdminGate(context, channel);
-      if (adminGate !== null) {
-        return err(adminGate);
-      }
-
-      // Idempotent: a replayed delete of an already-deleted channel converges (ADR 0018).
-      if (channel.lifecycle.state === "deleted") {
-        return ok({ channel });
-      }
-      // Archive-first (ADR 0018): hard-delete is only reachable from the archived state.
-      if (channel.lifecycle.state === "active") {
-        return err({ channelId: channel.id, kind: "channel_not_archived" });
-      }
-
-      const deleted: Channel = {
-        ...channel,
-        lifecycle: {
-          archivedAt: channel.lifecycle.archivedAt,
-          deletedAt: deps.clock(),
-          state: "deleted",
-        },
-      };
-      const written = await deps.tenantDataAccess.batch({
-        commands: [{ channel: deleted, kind: "put_channel" }],
-        workspaceId: context.workspaceId,
-      });
-      if (!written.ok) {
-        return written;
-      }
-
-      return ok({ channel: deleted });
     },
   };
 };

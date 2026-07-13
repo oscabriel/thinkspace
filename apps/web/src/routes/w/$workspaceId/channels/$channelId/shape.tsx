@@ -1,8 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  createFileRoute,
-  useParams,
-} from "@tanstack/react-router";
+import { createFileRoute, useParams } from "@tanstack/react-router";
 import {
   Empty,
   EmptyDescription,
@@ -14,12 +11,9 @@ import { Skeleton } from "@thinkspace/ui/components/skeleton";
 import { Archive, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  ApiRequestError,
-  editChannelShape,
-  type ShapeStructure,
-} from "@/lib/api";
 import { ShapeForm } from "@/components/shape/shape-form";
+import { ApiRequestError, editChannelShape } from '@/lib/api';
+import type { ShapeStructure } from '@/lib/api';
 import {
   channelQuery,
   channelShapeQuery,
@@ -87,7 +81,6 @@ const ShapeEditView = () => {
         queryKey: workspaceKeys.graph(workspaceId),
       });
       toast.success("Shape saved — existing threads pick up the new shape");
-
     },
   });
 
@@ -162,7 +155,7 @@ const ShapeEditView = () => {
           initialSkillSelection={shape.data.structure.skillSelection}
           initialSystemPrompt={shape.data.structure.systemPrompt}
           initialToolSelection={shape.data.structure.toolSelection}
-          onCancel={() => undefined}
+          onCancel={() => {}}
           onSubmit={(structure) => mutation.mutate(structure)}
           pending={mutation.isPending}
           pendingLabel="Saving…"

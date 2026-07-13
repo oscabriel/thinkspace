@@ -187,7 +187,10 @@ const anthropicSseStream = (text) => {
 };
 
 const isCuratorRequest = async (request) => {
-  const body = await request.clone().text().catch(() => "");
+  const body = await request
+    .clone()
+    .text()
+    .catch(() => "");
   return body.includes(CURATOR_SYSTEM_MARKER);
 };
 
@@ -305,13 +308,18 @@ const githubRepoFixtures = {
 
 const handleGithubApi = (url) => {
   const match = url.pathname.match(/^\/repos\/([^/]+)\/([^/]+)$/u);
-  const repo = match ? githubRepoFixtures[`${match[1]}/${match[2]}`] : undefined;
+  const repo = match
+    ? githubRepoFixtures[`${match[1]}/${match[2]}`]
+    : undefined;
   if (!repo) {
     return Response.json({ message: "Not Found" }, { status: 404 });
   }
   if (repo.status !== undefined) {
     const headers = repo.rateLimited ? { "x-ratelimit-remaining": "0" } : {};
-    return Response.json({ message: "Forbidden" }, { headers, status: repo.status });
+    return Response.json(
+      { message: "Forbidden" },
+      { headers, status: repo.status }
+    );
   }
   return Response.json({ default_branch: repo.default_branch });
 };

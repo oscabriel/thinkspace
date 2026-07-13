@@ -7,8 +7,8 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 
-import UserMenu from "@/components/user-menu";
 import { WorkspaceSidebar } from "@/components/shell/workspace-sidebar";
+import UserMenu from "@/components/user-menu";
 import { authClient } from "@/lib/auth-client";
 
 /**

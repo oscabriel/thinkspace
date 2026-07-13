@@ -11,7 +11,9 @@ import { env } from "@thinkspace/env/web";
  * seams/tenant-data-access.ts) by hand to stay decoupled from the zod/Date layer.
  */
 
-export type Visibility = { readonly kind: "shared" } | { readonly kind: "private" };
+export type Visibility =
+  | { readonly kind: "shared" }
+  | { readonly kind: "private" };
 
 export type ChannelLifecycle =
   | { readonly state: "active" }
@@ -80,7 +82,11 @@ export interface ThreadIndex {
 }
 
 export type UnreadReason =
-  | { readonly kind: "agent_output"; readonly commentId: string; readonly runId: string }
+  | {
+      readonly kind: "agent_output";
+      readonly commentId: string;
+      readonly runId: string;
+    }
   | { readonly kind: "co_participant_activity"; readonly commentId: string };
 
 export interface Unread {
@@ -120,7 +126,7 @@ const apiFetch = async <T>(
 ): Promise<T> => {
   const response = await fetch(`${apiBase(workspaceId)}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: { "Content-Type": "application/json", ...init?.headers },
     ...init,
   });
   if (!response.ok) {
@@ -417,7 +423,10 @@ export interface Comment {
 /** ADR 0025: the dispatch context slice — ancestor path (oldest first) + the branch subtree. */
 export interface BranchSnapshot {
   readonly ancestors: readonly Comment[];
-  readonly branch: { readonly rootCommentId: string; readonly threadId: string };
+  readonly branch: {
+    readonly rootCommentId: string;
+    readonly threadId: string;
+  };
   readonly subtree: readonly Comment[];
 }
 
@@ -565,7 +574,6 @@ export const clearThreadUnread = (workspaceId: string, threadId: string) =>
 export const fetchHubToken = (workspaceId: string) =>
   apiFetch<{ token: string }>(workspaceId, "/token");
 
-
 /**
  * A channel's live shape (GET /channels/:channelId/shape) — the edit form's prefill source so an
  * owner re-authors from real values rather than blanking the config. Only `structure` is used by
@@ -602,7 +610,6 @@ export const editChannelShape = (
     { body: JSON.stringify({ shape }), method: "PUT" }
   );
 
-
 /**
  * The Library read surface (E7.6, apps/server/src/artifacts.ts) mirroring
  * packages/domain/src/artifact.ts over the wire. Artifacts are agent-authored (or member
@@ -616,7 +623,11 @@ export type ArtifactMediaKind =
   | { readonly kind: "binary" };
 
 export type ArtifactOrigin =
-  | { readonly kind: "agent"; readonly runId: string; readonly threadId: string }
+  | {
+      readonly kind: "agent";
+      readonly runId: string;
+      readonly threadId: string;
+    }
   | {
       readonly kind: "member_upload";
       readonly threadId: string | null;

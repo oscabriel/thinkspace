@@ -190,7 +190,10 @@ describe("POST /api/w/:workspaceId/channels/:channelId/threads/:threadId/comment
           gestureId: replyGestureId,
           parentCommentId: "pv-comment-open",
         }),
-        headers: { "content-type": "application/json", cookie: outsider.cookie },
+        headers: {
+          "content-type": "application/json",
+          cookie: outsider.cookie,
+        },
         method: "POST",
       }
     );

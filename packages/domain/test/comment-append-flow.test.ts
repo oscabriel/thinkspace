@@ -117,7 +117,9 @@ describe("Comment append flow — member reply appends + bumps (E8.4)", () => {
     });
 
     const branch = unwrapOk(
-      await harness.agent.loadBranch({ rootCommentId: commentId("comment-top") })
+      await harness.agent.loadBranch({
+        rootCommentId: commentId("comment-top"),
+      })
     );
     expect(branch.subtree.map((comment) => comment.id)).toContain(
       commentId("comment-reply")
@@ -218,7 +220,9 @@ describe("Comment append flow — member reply appends + bumps (E8.4)", () => {
     unwrapOk(await harness.flow.append(gesture));
 
     const branch = unwrapOk(
-      await harness.agent.loadBranch({ rootCommentId: commentId("comment-top") })
+      await harness.agent.loadBranch({
+        rootCommentId: commentId("comment-top"),
+      })
     );
     expect(
       branch.subtree.filter(
@@ -269,7 +273,10 @@ describe("Comment append flow — member reply appends + bumps (E8.4)", () => {
       })
     );
 
-    expect(error).toEqual({ channelId: testChannelId, kind: "channel_read_only" });
+    expect(error).toEqual({
+      channelId: testChannelId,
+      kind: "channel_read_only",
+    });
     expect(harness.publishedChannelEvents).toEqual([]);
     expect(harness.publishedActivity).toEqual([]);
   });

@@ -15,7 +15,6 @@ import {
 import { providerAllowlist } from "../../provider-allowlist";
 import { err, ok } from "../../result";
 import type { AsyncResult } from "../../result";
-import type { ResolvedProviderAuth } from "../../seams/key-store";
 import type {
   CuratorAgent,
   CuratorAgentError,
@@ -24,19 +23,19 @@ import type {
   CuratorStartSessionRequest,
   CuratorTurn,
 } from "../../seams/curator-agent";
+import type { ResolvedProviderAuth } from "../../seams/key-store";
 import type {
   SystemContext,
   TenantContext,
 } from "../../seams/tenant-data-access";
 import { shapeStructureSchema } from "../../shape";
+import { decodeCuratorAddress, encodeCuratorAddress } from '../curator-address';
+import type { CuratorAddress } from '../curator-address';
 import { idKey, parseJsonColumn } from "../helpers";
-import {
-  type CuratorAddress,
-  decodeCuratorAddress,
-  encodeCuratorAddress,
-} from "../curator-address";
-import { createKeyStore, type KeyStoreEnv } from "./key-store";
-import { createGatewayModel, type GatewayModelEnv } from "./model-gateway";
+import { createKeyStore } from './key-store';
+import type { KeyStoreEnv } from './key-store';
+import { createGatewayModel } from './model-gateway';
+import type { GatewayModelEnv } from './model-gateway';
 
 const defaultClock = (): Date => new Date();
 
@@ -66,9 +65,7 @@ export const defaultCuratorModelId = () => {
  * meta-agent "responsibly populates the shape" (ADR 0021) against the manual form's schema.
  */
 export const curatorTurnEnvelopeSchema = z.object({
-  draft: z
-    .object({ goal: goalSchema, shape: shapeStructureSchema })
-    .nullable(),
+  draft: z.object({ goal: goalSchema, shape: shapeStructureSchema }).nullable(),
   reply: curatorReplySchema,
 });
 export type CuratorTurnEnvelope = z.infer<typeof curatorTurnEnvelopeSchema>;
@@ -330,10 +327,7 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
     if (!resolved.ok) {
       this.pendingProviderAuth = null;
       return err(
-        this.executionFailed(
-          address,
-          `provider key ${resolved.error.kind}`
-        )
+        this.executionFailed(address, `provider key ${resolved.error.kind}`)
       );
     }
     this.pendingProviderAuth = resolved.value;
@@ -352,7 +346,9 @@ export class CuratorAgentDurableObject extends Think<Cloudflare.Env> {
   }
 
   /** The assistant reply text: the returned turn message, else the last assistant on the transcript. */
-  private replyText(message: { parts: readonly unknown[] } | null): string | null {
+  private replyText(
+    message: { parts: readonly unknown[] } | null
+  ): string | null {
     const fromResult = message === null ? null : partsText(message.parts);
     if (fromResult !== null) {
       return fromResult;

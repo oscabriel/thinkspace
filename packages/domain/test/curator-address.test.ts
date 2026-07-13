@@ -1,10 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  type CuratorAddress,
-  decodeCuratorAddress,
-  encodeCuratorAddress,
-} from "../src/adapters/curator-address";
+import { decodeCuratorAddress, encodeCuratorAddress } from '../src/adapters/curator-address';
+import type { CuratorAddress } from '../src/adapters/curator-address';
 import { memberId, workspaceId } from "../src/testing";
 
 const address = (ws: string, mb: string): CuratorAddress => ({

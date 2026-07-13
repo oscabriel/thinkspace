@@ -62,7 +62,10 @@ const useObjectUrl = (blob: Blob | undefined): string | null => {
 };
 
 /** Reads a text blob into a string for plain-text rendering. */
-const useBlobText = (blob: Blob | undefined, enabled: boolean): string | null => {
+const useBlobText = (
+  blob: Blob | undefined,
+  enabled: boolean
+): string | null => {
   const [text, setText] = useState<string | null>(null);
   useEffect(() => {
     if (!(blob && enabled)) {

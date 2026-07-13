@@ -69,7 +69,10 @@ interface ModelsDevProvider {
   readonly npm?: string;
   readonly api?: string;
   readonly env?: readonly string[];
-  readonly models?: Record<string, { readonly id?: string; readonly release_date?: string }>;
+  readonly models?: Record<
+    string,
+    { readonly id?: string; readonly release_date?: string }
+  >;
 }
 
 type Tier = "verified" | "best-effort" | "unsupported";
@@ -100,7 +103,7 @@ const usableBaseUrl = (url: string | undefined): string | undefined =>
 
 /** Sanitize a models.dev id into a stable Custom Provider route slug. */
 const customProviderSlug = (id: string): string =>
-  id.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+  id.toLowerCase().replaceAll(/[^a-z0-9-]/g, "-");
 
 /** Pick the provider's default model: the newest by release_date, lexical-max id as tie-break. */
 const pickDefaultModelSlug = (provider: ModelsDevProvider): string | null => {
@@ -134,7 +137,10 @@ const classify = (
   } satisfies GeneratedAllowEntry;
 
   const npm = provider.npm ?? "";
-  const unsupported = (authKind: AuthKind, reason: string): GeneratedAllowEntry => ({
+  const unsupported = (
+    authKind: AuthKind,
+    reason: string
+  ): GeneratedAllowEntry => ({
     ...base,
     authKind,
     tier: "unsupported",
@@ -172,7 +178,8 @@ const classify = (
     );
   }
 
-  const authKind: AuthKind = npm === "@ai-sdk/anthropic" ? "x-api-key" : "bearer";
+  const authKind: AuthKind =
+    npm === "@ai-sdk/anthropic" ? "x-api-key" : "bearer";
 
   const nativeSlug = NATIVE_GATEWAY_SLUGS[provider.id];
   if (nativeSlug !== undefined) {

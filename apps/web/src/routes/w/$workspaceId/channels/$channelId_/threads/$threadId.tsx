@@ -23,15 +23,8 @@ import { CommentItem } from "@/components/thread/comment-item";
 import { RunCardLive } from "@/components/thread/run-card-live";
 import type { ActiveRun } from "@/components/thread/run-card-live";
 import { ThreadComposer } from "@/components/thread/thread-composer";
-import {
-  ApiRequestError,
-  type BranchSnapshot,
-  type Comment,
-  appendComment,
-  clearThreadUnread,
-  dispatchThread,
-  fetchRun,
-} from "@/lib/api";
+import { ApiRequestError, appendComment, clearThreadUnread, dispatchThread, fetchRun } from '@/lib/api';
+import type { BranchSnapshot, Comment } from '@/lib/api';
 import { useChannelHub } from "@/lib/hub-socket";
 import type { ChannelHubEvent } from "@/lib/hub-socket";
 import { uuidv7 } from "@/lib/ids";
@@ -106,15 +99,7 @@ const ThreadView = () => {
         </h1>
       </header>
 
-      {rootCommentId !== null ? (
-        <ThreadConversation
-          channelId={channelId}
-          initialRunId={run}
-          rootCommentId={rootCommentId}
-          threadId={threadId}
-          workspaceId={workspaceId}
-        />
-      ) : threads.isPending ? (
+      {rootCommentId === null ? threads.isPending ? (
         <BranchSkeleton />
       ) : import.meta.env.DEV ? (
         <MissingRootNotice />
@@ -127,6 +112,14 @@ const ThreadView = () => {
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
+      ) : (
+        <ThreadConversation
+          channelId={channelId}
+          initialRunId={run}
+          rootCommentId={rootCommentId}
+          threadId={threadId}
+          workspaceId={workspaceId}
+        />
       )}
     </div>
   );
@@ -192,9 +185,7 @@ const ThreadConversation = ({
 
   const comments = useMemo<readonly Comment[]>(
     () =>
-      branch.data
-        ? [...branch.data.ancestors, ...branch.data.subtree]
-        : [],
+      branch.data ? [...branch.data.ancestors, ...branch.data.subtree] : [],
     [branch.data]
   );
   const latestCommentId = comments.at(-1)?.id ?? rootCommentId;
@@ -284,7 +275,13 @@ const ThreadConversation = ({
               ? { ...run, status: "failed" as const }
               : run
           )
-          .filter((run) => !(run.status === "failed" && now - run.startedAt > RUN_STALE_MS * 1.5))
+          .filter(
+            (run) =>
+              !(
+                run.status === "failed" &&
+                now - run.startedAt > RUN_STALE_MS * 1.5
+              )
+          )
       );
     }, 15_000);
     return () => clearInterval(timer);
@@ -345,15 +342,12 @@ const ThreadConversation = ({
       toast.error(`Could not post your reply: ${kind}`);
     },
     onMutate: (input) => {
-      const previous =
-        queryClient.getQueryData<BranchSnapshot>(branchKey);
+      const previous = queryClient.getQueryData<BranchSnapshot>(branchKey);
       const optimistic: Comment = {
         author: {
           // Label the optimistic reply with the author's own name so it reads correctly before
           // the branch refetch replaces it with the edge-joined comment (E10.6).
-          displayName: members.data?.labels.get(
-            members.data.selfMemberId
-          ),
+          displayName: members.data?.labels.get(members.data.selfMemberId),
           kind: "member",
           memberId: members.data?.selfMemberId ?? "",
         },
@@ -488,8 +482,8 @@ const MissingRootNotice = () => (
         </EmptyMedia>
         <EmptyTitle>History not available</EmptyTitle>
         <EmptyDescription>
-          This thread predates full-history support, so its opening comment cannot
-          be located. Newer threads open with their complete history.
+          This thread predates full-history support, so its opening comment
+          cannot be located. Newer threads open with their complete history.
         </EmptyDescription>
       </EmptyHeader>
     </Empty>

@@ -10,11 +10,11 @@ const config = {
 
 describe("createCloudflareCustomProviderProvisioner", () => {
   test("lists then creates a missing provider", async () => {
-    const calls: Array<{ input: string; init?: RequestInit }> = [];
+    const calls: { input: string; init?: RequestInit }[] = [];
     const provisioner = createCloudflareCustomProviderProvisioner({
       ...config,
       fetch: async (input, init) => {
-        calls.push({ input: String(input), init });
+        calls.push({ init, input: String(input) });
         return calls.length === 1
           ? Response.json({ result: [], success: true })
           : Response.json({ result: { id: "provider-id" }, success: true });
@@ -41,11 +41,11 @@ describe("createCloudflareCustomProviderProvisioner", () => {
   });
 
   test("re-asserts an existing provider route by id", async () => {
-    const calls: Array<{ input: string; init?: RequestInit }> = [];
+    const calls: { input: string; init?: RequestInit }[] = [];
     const provisioner = createCloudflareCustomProviderProvisioner({
       ...config,
       fetch: async (input, init) => {
-        calls.push({ input: String(input), init });
+        calls.push({ init, input: String(input) });
         return calls.length === 1
           ? Response.json({
               result: [{ id: "existing-id", slug: "example-provider" }],
@@ -68,7 +68,8 @@ describe("createCloudflareCustomProviderProvisioner", () => {
   test("returns a redaction-safe failure for HTTP and transport faults", async () => {
     const http = createCloudflareCustomProviderProvisioner({
       ...config,
-      fetch: async () => new Response("secret-bearing response", { status: 403 }),
+      fetch: async () =>
+        new Response("secret-bearing response", { status: 403 }),
     });
     expect(
       await http.ensureProvider({

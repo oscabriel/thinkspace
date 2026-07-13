@@ -1,10 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useParams } from "@tanstack/react-router";
-import {
-  providerAllowlist,
-  type ProviderAllowEntry,
-  type ProviderTier,
-} from "@thinkspace/domain/provider-allowlist";
+import { providerAllowlist } from '@thinkspace/domain/provider-allowlist';
+import type { ProviderAllowEntry, ProviderTier } from '@thinkspace/domain/provider-allowlist';
 import { Button } from "@thinkspace/ui/components/button";
 import {
   Empty,
@@ -26,12 +23,8 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  ApiRequestError,
-  type ProviderKeyStatus,
-  registerProviderKey,
-  removeProviderKey,
-} from "@/lib/api";
+import { ApiRequestError, registerProviderKey, removeProviderKey } from '@/lib/api';
+import type { ProviderKeyStatus } from '@/lib/api';
 import { providersQuery, workspaceKeys } from "@/lib/workspace-queries";
 
 /**
@@ -240,8 +233,10 @@ const ProvidersSettings = () => {
     });
 
   const register = useMutation({
-    mutationFn: (input: { readonly entry: ProviderAllowEntry; readonly key: string }) =>
-      registerProviderKey(workspaceId, input.entry.provider, input.key),
+    mutationFn: (input: {
+      readonly entry: ProviderAllowEntry;
+      readonly key: string;
+    }) => registerProviderKey(workspaceId, input.entry.provider, input.key),
     onError: (error) => {
       const kind =
         error instanceof ApiRequestError ? error.kind : "unknown_error";
@@ -296,10 +291,10 @@ const ProvidersSettings = () => {
       if (!matches(entry)) {
         continue;
       }
-      if (statusFor(entry.provider) !== undefined) {
-        keyedRows.push(entry);
-      } else {
+      if (statusFor(entry.provider) === undefined) {
         tiers[entry.tier].push(entry);
+      } else {
+        keyedRows.push(entry);
       }
     }
     return { byTier: tiers, keyed: keyedRows };

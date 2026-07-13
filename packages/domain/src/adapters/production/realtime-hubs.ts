@@ -18,14 +18,8 @@ import type {
   WorkspaceScope,
 } from "../../seams/realtime-hubs";
 import { parseJsonColumn } from "../helpers";
-import {
-  createHubJwks,
-  type HubAuthEnv,
-  type HubConnectClaims,
-  HUB_UPGRADE_REJECT_CODE,
-  readHubConnectToken,
-  verifyHubConnectToken,
-} from "./hub-auth";
+import { createHubJwks, HUB_UPGRADE_REJECT_CODE, readHubConnectToken, verifyHubConnectToken } from './hub-auth';
+import type { HubAuthEnv, HubConnectClaims } from './hub-auth';
 
 /**
  * ADR 0033's addressing pattern applied to hubs (ADR 0010): the DO name is the
@@ -66,7 +60,10 @@ export const decodeWorkspaceHubName = (name: string): WorkspaceId | null => {
 
 export const decodeChannelHubName = (
   name: string
-): { readonly channelId: ChannelId; readonly workspaceId: WorkspaceId } | null => {
+): {
+  readonly channelId: ChannelId;
+  readonly workspaceId: WorkspaceId;
+} | null => {
   const segments = name.split("/");
   if (segments.length !== 2) {
     return null;
@@ -299,9 +296,7 @@ export interface ProductionChannelHubConfig {
  */
 export const getChannelHubStub = (
   config: ProductionChannelHubConfig
-): ReturnType<
-  typeof getAgentByName<Cloudflare.Env, ChannelHubDurableObject>
-> =>
+): ReturnType<typeof getAgentByName<Cloudflare.Env, ChannelHubDurableObject>> =>
   getAgentByName(
     config.namespace,
     encodeChannelHubName(config.context, config.address)

@@ -58,7 +58,7 @@ Facts that shaped the answer:
 5. **The resolver's skills layer wires to `dataAccess.listSkills()`** (the read already on
    `TenantDataAccess`), settling "adapter-owned index vs TenantDataAccess read" in favor of
    the tenant-guarded read; the R2 `skill` index stays a storage detail. The DO continues to
-   load skill *bodies* itself via `loadSelectedSkillContents` — `EffectiveToolset.skills`
+   load skill _bodies_ itself via `loadSelectedSkillContents` — `EffectiveToolset.skills`
    carries index entries, not markdown.
 
 ## Considered options

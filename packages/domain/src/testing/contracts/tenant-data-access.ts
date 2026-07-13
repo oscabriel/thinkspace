@@ -187,9 +187,9 @@ export const defineTenantDataAccessContract = (input: {
       const graph = unwrapOk(await data.getWorkspaceGraph());
 
       expect(graph.workspaceId).toEqual(testWorkspaceId);
-      expect(
-        graph.channels.map((entry) => entry.channelId).toSorted()
-      ).toEqual([channelId("channel-own-private"), channelId("channel-shared")]);
+      expect(graph.channels.map((entry) => entry.channelId).toSorted()).toEqual(
+        [channelId("channel-own-private"), channelId("channel-shared")]
+      );
       const shared = graph.channels.find(
         (entry) => entry.channelId === channelId("channel-shared")
       );
@@ -520,7 +520,9 @@ export const defineTenantDataAccessContract = (input: {
             displayName: profile.displayName,
             memberId: profile.memberId,
           }))
-          .toSorted((left, right) => left.memberId.localeCompare(right.memberId))
+          .toSorted((left, right) =>
+            left.memberId.localeCompare(right.memberId)
+          )
       ).toEqual([
         { displayName: "Ada Lovelace", memberId: memberId("member-1") },
         { displayName: "Alan Turing", memberId: memberId("member-2") },
@@ -777,7 +779,9 @@ export const defineTenantDataAccessContract = (input: {
         await data.listChannelThreads({ channelId: channelId("channel-1") })
       );
       expect(index.threads).toEqual([thread]);
-      expect(index.threads[0]?.rootCommentId).toBe(commentId("comment-opening"));
+      expect(index.threads[0]?.rootCommentId).toBe(
+        commentId("comment-opening")
+      );
     });
 
     test("a replayed creation leaves the existing row untouched — lastActivityAt cannot regress", async () => {

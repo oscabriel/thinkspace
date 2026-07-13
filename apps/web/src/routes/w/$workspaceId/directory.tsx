@@ -148,9 +148,7 @@ const DirectoryCard = ({
         <span aria-hidden="true">·</span>
         <span>{archived ? "archived" : "active"}</span>
         <span aria-hidden="true">·</span>
-        <span className="truncate">
-          owner {ownerName}
-        </span>
+        <span className="truncate">owner {ownerName}</span>
       </div>
     </Link>
   );

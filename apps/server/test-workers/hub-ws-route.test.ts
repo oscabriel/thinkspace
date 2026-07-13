@@ -113,7 +113,9 @@ describe("GET /api/w/:workspaceId/channels/:channelId/ws (E7.4)", () => {
       workspaceId,
     });
 
-    const response = await openUpgrade(`${base(workspaceId)}/channels/hw-ch-4/ws`);
+    const response = await openUpgrade(
+      `${base(workspaceId)}/channels/hw-ch-4/ws`
+    );
     expect(response.status).toBe(401);
   });
 });

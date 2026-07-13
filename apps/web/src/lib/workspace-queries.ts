@@ -13,7 +13,6 @@ import {
   fetchMcpServers,
   fetchMembers,
   fetchProviders,
-
   fetchModels,
   fetchSkill,
   fetchSkills,
@@ -69,15 +68,14 @@ export const workspaceKeys = {
     ["workspace", workspaceId, "mcp-servers"] as const,
   members: (workspaceId: string) =>
     ["workspace", workspaceId, "members"] as const,
+  models: (workspaceId: string) =>
+    ["workspace", workspaceId, "models"] as const,
   providers: (workspaceId: string) =>
     ["workspace", workspaceId, "providers"] as const,
   skill: (workspaceId: string, skillId: string) =>
     ["workspace", workspaceId, "skill", skillId] as const,
   skills: (workspaceId: string) =>
     ["workspace", workspaceId, "skills"] as const,
-
-  models: (workspaceId: string) =>
-    ["workspace", workspaceId, "models"] as const,
   unread: (workspaceId: string) =>
     ["workspace", workspaceId, "unread"] as const,
 };

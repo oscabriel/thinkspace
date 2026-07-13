@@ -6,12 +6,12 @@ import { env } from "@thinkspace/env/server";
  * hook payload — auth.ts builds the accept-link-bearing message and hands it to an
  * injected `EmailSender`, so tests substitute a recorder and never reach Resend.
  */
-export type EmailMessage = {
+export interface EmailMessage {
   readonly to: string;
   readonly from: string;
   readonly subject: string;
   readonly text: string;
-};
+}
 
 export type EmailSender = (message: EmailMessage) => Promise<void>;
 
@@ -20,12 +20,14 @@ export type EmailSender = (message: EmailMessage) => Promise<void>;
  * structural (not imported from the plugin) so the seam stays narrow; the full
  * hook object satisfies it by structural subtyping.
  */
-export type InvitationEmailInput = {
+export interface InvitationEmailInput {
   readonly id: string;
   readonly email: string;
   readonly organization: { readonly name: string };
-  readonly inviter: { readonly user: { readonly name: string; readonly email: string } };
-};
+  readonly inviter: {
+    readonly user: { readonly name: string; readonly email: string };
+  };
+}
 
 /**
  * better-auth deliberately does not generate invitation URLs — we construct the

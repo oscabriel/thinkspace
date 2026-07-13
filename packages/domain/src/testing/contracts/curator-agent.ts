@@ -1,4 +1,8 @@
-import { curatorSessionIdSchema, formatModelId, memberIdSchema } from "../../ids";
+import {
+  curatorSessionIdSchema,
+  formatModelId,
+  memberIdSchema,
+} from "../../ids";
 import {
   curatorPromptSchema,
   curatorReplySchema,
@@ -76,7 +80,9 @@ export const defineCuratorAgentContract = (input: {
         ],
       });
 
-      const session = unwrapOk(await curator.startSession({ modelId: curatorModelId }));
+      const session = unwrapOk(
+        await curator.startSession({ modelId: curatorModelId })
+      );
       expect(session.memberId).toBe(testMemberId);
       expect(session.workspaceId).toBe(testWorkspaceId);
 
@@ -125,7 +131,9 @@ export const defineCuratorAgentContract = (input: {
       };
       const bob = await makeCuratorAgent({ context: bobContext });
 
-      const aliceSession = unwrapOk(await alice.startSession({ modelId: curatorModelId }));
+      const aliceSession = unwrapOk(
+        await alice.startSession({ modelId: curatorModelId })
+      );
 
       // Bob's curator holds its own transcript; Alice's session id is unknown to it, so the
       // send fails closed rather than joining a concurrent member's authoring session.

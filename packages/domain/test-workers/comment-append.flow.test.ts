@@ -129,7 +129,9 @@ describe("comment append over production adapters (E8.4 binder)", () => {
 
     // The D1 index row bumped to the append time.
     const index = unwrapOk(
-      await tenantDataAccess.listChannelThreads({ channelId: address.channelId })
+      await tenantDataAccess.listChannelThreads({
+        channelId: address.channelId,
+      })
     );
     expect(
       index.threads.find((thread) => thread.id === address.threadId)

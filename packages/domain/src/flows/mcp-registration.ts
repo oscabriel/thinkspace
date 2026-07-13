@@ -117,9 +117,7 @@ export const createMcpRegistrationFlow = (
     },
     revokeHost: (input) =>
       deps.tenantDataAccess.batch({
-        commands: [
-          { host: input.host, kind: "delete_mcp_host_approval" },
-        ],
+        commands: [{ host: input.host, kind: "delete_mcp_host_approval" }],
         workspaceId: context.workspaceId,
       }),
   };

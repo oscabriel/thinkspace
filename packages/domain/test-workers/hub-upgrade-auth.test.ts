@@ -11,7 +11,13 @@ import {
   HUB_UPGRADE_REJECT_CODE,
 } from "../src/adapters/production";
 import type { TenantContext } from "../src/seams/tenant-data-access";
-import { channelId, memberId, runId, threadId, workspaceId } from "../src/testing";
+import {
+  channelId,
+  memberId,
+  runId,
+  threadId,
+  workspaceId,
+} from "../src/testing";
 
 /**
  * E4.2 (baked decision 5): the hub verifies a better-auth-minted JWT at the WS upgrade

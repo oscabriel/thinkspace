@@ -26,11 +26,7 @@ const hostApproved = async (workspaceId: string, host: string) => {
   return (row?.n ?? 0) > 0;
 };
 
-const jsonPost = (
-  url: string,
-  cookie: string,
-  body: Record<string, unknown>
-) =>
+const jsonPost = (url: string, cookie: string, body: Record<string, unknown>) =>
   SELF.fetch(url, {
     body: JSON.stringify(body),
     headers: { "content-type": "application/json", cookie },
@@ -117,7 +113,9 @@ describe("MCP registry CRUD (owner-gated writes + egress gate + revoke fan-out)"
     expect(before.status).toBe(200);
     expect((await before.json<{ hosts: unknown[] }>()).hosts).toEqual([]);
 
-    await jsonPost(approveUrl(workspaceId), cookie, { host: "mcp.example.com" });
+    await jsonPost(approveUrl(workspaceId), cookie, {
+      host: "mcp.example.com",
+    });
 
     // A member (not only the owner) may read the allowlist — the read is a registry fact.
     await demoteToMember(memberId);
@@ -165,7 +163,9 @@ describe("MCP registry CRUD (owner-gated writes + egress gate + revoke fan-out)"
       workspaceId,
     });
 
-    await jsonPost(approveUrl(workspaceId), cookie, { host: "mcp.example.com" });
+    await jsonPost(approveUrl(workspaceId), cookie, {
+      host: "mcp.example.com",
+    });
     const registered = await jsonPost(serversUrl(workspaceId), cookie, {
       host: "mcp.example.com",
       name: "Docs",
@@ -212,7 +212,9 @@ describe("MCP registry CRUD (owner-gated writes + egress gate + revoke fan-out)"
       workspaceId,
     });
 
-    await jsonPost(approveUrl(workspaceId), cookie, { host: "mcp.example.com" });
+    await jsonPost(approveUrl(workspaceId), cookie, {
+      host: "mcp.example.com",
+    });
     await jsonPost(serversUrl(workspaceId), cookie, {
       host: "mcp.example.com",
       name: "Docs",
@@ -237,7 +239,9 @@ describe("MCP registry CRUD (owner-gated writes + egress gate + revoke fan-out)"
       slug: "mcp-member-space",
     });
     // Approve as owner first so the reject is on the role gate, not the egress gate.
-    await jsonPost(approveUrl(workspaceId), cookie, { host: "mcp.example.com" });
+    await jsonPost(approveUrl(workspaceId), cookie, {
+      host: "mcp.example.com",
+    });
     await demoteToMember(memberId);
 
     const registered = await jsonPost(serversUrl(workspaceId), cookie, {

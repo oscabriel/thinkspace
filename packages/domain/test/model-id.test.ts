@@ -21,9 +21,9 @@ describe("modelIdSchema — composite <providerId>/<modelSlug> (E1.2)", () => {
   test("accepts a model slug carrying slashes (E11.9 aggregator `org/model` ids)", () => {
     // openrouter/togetherai/… publish `org/model` ids; the provider is the FIRST segment and the
     // slug is everything after, so the composite has more than one slash by design.
-    expect(String(modelIdSchema.parse("openrouter/anthropic/claude-sonnet-5"))).toBe(
-      "openrouter/anthropic/claude-sonnet-5"
-    );
+    expect(
+      String(modelIdSchema.parse("openrouter/anthropic/claude-sonnet-5"))
+    ).toBe("openrouter/anthropic/claude-sonnet-5");
     expect(
       parseModelId(modelIdSchema.parse("openrouter/anthropic/claude-sonnet-5"))
     ).toEqual({

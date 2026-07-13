@@ -10,7 +10,7 @@ This resolves the two facts ADR 0040 §7 records as UNVERIFIED:
 2. the **runtime route segment** the code assumes is `compat/<slug>`.
 
 **Headline:** both assumptions in the code are wrong.
-The route segment is **`custom-<slug>`**, not `compat/<slug>`; `compat` is a *different*
+The route segment is **`custom-<slug>`**, not `compat/<slug>`; `compat` is a _different_
 endpoint (the OpenAI-compatible Unified API), and when you use it the custom provider is
 named in the **request body's `model` field** as `custom-<slug>/<model>`, not in the URL path.
 
@@ -21,13 +21,13 @@ named in the **request body's `model` field** as `custom-<slug>/<model>`, not in
 **Verified.** These live under `/accounts/{account_id}/ai-gateway/custom-providers`, on
 `api.cloudflare.com/client/v4`, Bearer-token authenticated.
 
-| Op | Method + path |
-| --- | --- |
-| Create | `POST /accounts/{account_id}/ai-gateway/custom-providers` |
-| List | `GET /accounts/{account_id}/ai-gateway/custom-providers` |
-| Read one | `GET /accounts/{account_id}/ai-gateway/custom-providers/{id}` |
-| Update | `PATCH /accounts/{account_id}/ai-gateway/custom-providers/{id}` |
-| Delete | `DELETE /accounts/{account_id}/ai-gateway/custom-providers/{id}` |
+| Op       | Method + path                                                    |
+| -------- | ---------------------------------------------------------------- |
+| Create   | `POST /accounts/{account_id}/ai-gateway/custom-providers`        |
+| List     | `GET /accounts/{account_id}/ai-gateway/custom-providers`         |
+| Read one | `GET /accounts/{account_id}/ai-gateway/custom-providers/{id}`    |
+| Update   | `PATCH /accounts/{account_id}/ai-gateway/custom-providers/{id}`  |
+| Delete   | `DELETE /accounts/{account_id}/ai-gateway/custom-providers/{id}` |
 
 Source: <https://developers.cloudflare.com/api/resources/ai_gateway/subresources/custom_providers/methods/create/>
 and the resource index <https://developers.cloudflare.com/api/resources/ai_gateway/>.
@@ -117,7 +117,7 @@ the API path (`/v1/chat/completions`) lives in the request URL, appended after `
 
 ### (b) Unified API (OpenAI-compat) — segment is `compat`, slug goes in the body
 
-This is where `compat` actually appears — but it is a *fixed* endpoint, and the custom
+This is where `compat` actually appears — but it is a _fixed_ endpoint, and the custom
 provider is selected by the **`model` field**, not a path segment:
 
 > "`https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/compat/chat/completions`"
@@ -126,6 +126,7 @@ provider is selected by the **`model` field**, not a path segment:
 > and <https://developers.cloudflare.com/ai-gateway/usage/chat-completion/>
 
 So the correct Unified-API shape is:
+
 - URL: `${GW}/compat/chat/completions` (no slug in the path)
 - body: `{ "model": "custom-<slug>/<model>", ... }`
 
@@ -150,14 +151,15 @@ slug as a path segment the `compat` endpoint does not expect, and drops the requ
   > `custom-<slug>`) is not documented.
 - Custom-provider caveat: the custom-providers docs example still passes the **provider's
   own key** in the request:
+
   > "`-H "Authorization: Bearer $PROVIDER_API_KEY"` … `-H "cf-aig-authorization: Bearer $CF_AIG_TOKEN"`"
   > — custom-providers page.
 
-  i.e. the docs do **not** show BYOK/Secrets-Store key *substitution* for custom providers
+  i.e. the docs do **not** show BYOK/Secrets-Store key _substitution_ for custom providers
   the way native providers get it. The safe, documented path for a custom provider is to
   **send the real provider key verbatim** on the upstream auth header — which is exactly
-  what this repo's ADR 0040 *envelope* (header) adapter already does. The legacy
-  *alias/blank-header* substitution path is **unverified for custom providers**.
+  what this repo's ADR 0040 _envelope_ (header) adapter already does. The legacy
+  _alias/blank-header_ substitution path is **unverified for custom providers**.
 
 ---
 
@@ -214,8 +216,9 @@ feature being newer/less-documented than native providers — matches ADR 0040 �
 Comparing verified facts to what the code assumes today:
 
 ### `custom-provider.ts` (`createUnverifiedCustomProviderProvisioner`)
+
 - The provisioning write is now **fully specified**: `POST
-  /accounts/{account_id}/ai-gateway/custom-providers` with body
+/accounts/{account_id}/ai-gateway/custom-providers` with body
   `{ name, slug, base_url }` (+ optional `enable`), Bearer `$CLOUDFLARE_API_TOKEN`,
   scope **AI Gateway - Edit**. Idempotency: the API rejects a duplicate `slug`
   ("unique within your account"), so `ensureProvider` should treat a create-conflict
@@ -230,6 +233,7 @@ Comparing verified facts to what the code assumes today:
   no longer "underdocumented" — it can be implemented and verified now.
 
 ### `model-gateway.ts` (`AI_GATEWAY_CUSTOM_PROVIDER_SEGMENT = "compat"` + `genericGatewayBaseUrl`)
+
 - **`AI_GATEWAY_CUSTOM_PROVIDER_SEGMENT = "compat"` is wrong** for the provider-specific
   route and misleading for the Unified route. Correct choices:
   - **Provider-specific route** (recommended, matches the SDK's `${baseURL}/chat/completions`

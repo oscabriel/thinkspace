@@ -1,9 +1,9 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+import { openingExcerpt } from "../src/reads";
 import { signUpWithWorkspace } from "./auth-fixtures";
 import { addWorkspaceMember, signUpUser } from "./auth-fixtures";
-import { openingExcerpt } from "../src/reads";
 import { seedChannel } from "./channel-fixtures";
 
 const base = (workspaceId: string) => `https://test.local/api/w/${workspaceId}`;
@@ -64,10 +64,7 @@ describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
       workspaceId,
     });
 
-    const response = await get(
-      `${base(workspaceId)}/channels/cr-ch-1`,
-      cookie
-    );
+    const response = await get(`${base(workspaceId)}/channels/cr-ch-1`, cookie);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       id: "cr-ch-1",
@@ -130,10 +127,7 @@ describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
       workspaceId,
     });
 
-    const response = await get(
-      `${base(workspaceId)}/home?limit=10`,
-      cookie
-    );
+    const response = await get(`${base(workspaceId)}/home?limit=10`, cookie);
     expect(response.status).toBe(200);
     const feed = await response.json<{ threads: { id: string }[] }>();
     expect(feed.threads.map((thread) => thread.id)).toEqual([
@@ -183,9 +177,9 @@ describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
       workspaceId: string;
     }>();
     expect(roster.workspaceId).toBe(workspaceId);
-    expect(roster.members.map((profile) => profile.memberId).toSorted()).toEqual(
-      [memberId, teammateMemberId].toSorted()
-    );
+    expect(
+      roster.members.map((profile) => profile.memberId).toSorted()
+    ).toEqual([memberId, teammateMemberId].toSorted());
     for (const profile of roster.members) {
       expect(profile.displayName).toBe("Test Member");
     }
@@ -211,10 +205,7 @@ describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
       slug: "roster-outsider-space",
     });
 
-    const response = await get(
-      `${base(foreignWorkspaceId)}/members`,
-      cookie
-    );
+    const response = await get(`${base(foreignWorkspaceId)}/members`, cookie);
     expect(response.status).toBe(404);
   });
 

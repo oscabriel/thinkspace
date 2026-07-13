@@ -92,7 +92,7 @@ keyed; the router/curator/catalog reads (`model-routing.ts`) are semantically un
 ## Migration
 
 - **Schema:** migration `0009_busy_maria_hill.sql` — `ALTER TABLE workspace_provider_key ADD
-  key_ciphertext text`. Additive and backward-compatible: existing rows have `NULL` ciphertext.
+key_ciphertext text`. Additive and backward-compatible: existing rows have `NULL` ciphertext.
   Alchemy auto-applies migrations on deploy.
 - **Existing keys (the dev smoke workspace's openai key):** a row with `NULL` ciphertext predates
   the envelope adapter. The envelope resolver **falls back to the legacy alias** for such a row, so

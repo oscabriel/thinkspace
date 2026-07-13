@@ -102,9 +102,7 @@ export const curatorRoutes = new Hono<{ Variables: TenantVariables }>()
       return c.json({ error: { kind: "unknown_resource" } }, 404);
     }
 
-    const body = sendBodySchema.safeParse(
-      await c.req.json().catch(() => null)
-    );
+    const body = sendBodySchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
       return c.json({ error: { kind: "malformed_gesture" } }, 400);
     }

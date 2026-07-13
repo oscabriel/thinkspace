@@ -262,7 +262,9 @@ describe("ThreadAgent turn layer — RunId is the submissionId (ADR 0033)", () =
         comments: [target],
         nextRunId: () => runId("turn-run-instream"),
         shapeSnapshot: makeShapeSnapshot(),
-        testModel: modelErroringMidStream("provider stream failed after headers"),
+        testModel: modelErroringMidStream(
+          "provider stream failed after headers"
+        ),
       });
       instance.completionFlow = {
         settle: async (settlement) => {
@@ -327,7 +329,9 @@ describe("ThreadAgent turn layer — RunId is the submissionId (ADR 0033)", () =
         comments: [target],
         nextRunId: () => runId("turn-run-hibernate"),
         shapeSnapshot: makeShapeSnapshot(),
-        testModel: modelErroringMidStream("provider stream failed after headers"),
+        testModel: modelErroringMidStream(
+          "provider stream failed after headers"
+        ),
       });
       instance.completionFlow = {
         settle: async (settlement) => {

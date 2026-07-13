@@ -79,8 +79,8 @@ const LibraryScreen = () => {
             </EmptyMedia>
             <EmptyTitle>No artifacts match</EmptyTitle>
             <EmptyDescription>
-              No artifact name contains “{query.trim()}”. Clear the filter to see
-              everything your agents have made.
+              No artifact name contains “{query.trim()}”. Clear the filter to
+              see everything your agents have made.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -92,9 +92,9 @@ const LibraryScreen = () => {
             </EmptyMedia>
             <EmptyTitle>Your agents&apos; artifacts land here</EmptyTitle>
             <EmptyDescription>
-              When an agent writes a document, dataset, or image during a run, it
-              is versioned and filed here. Create a channel and dispatch a thread
-              to give an agent something to build.
+              When an agent writes a document, dataset, or image during a run,
+              it is versioned and filed here. Create a channel and dispatch a
+              thread to give an agent something to build.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

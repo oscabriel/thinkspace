@@ -123,10 +123,10 @@ const importErrorToast = (error: unknown) => {
 };
 
 /** The name + markdown a skills.sh import hands the create form to pre-fill. */
-type SkillCreatePrefill = {
+interface SkillCreatePrefill {
   readonly name: string;
   readonly markdown: string;
-};
+}
 
 /**
  * Prepend an attribution/provenance header (source slug + license) to the imported body — the
@@ -618,7 +618,7 @@ const SkillsSettings = () => {
       {view.kind === "list" &&
         (skills.isPending ? (
           <Skeleton className="h-40 w-full rounded-xl" />
-        ) : (skills.isError ? (
+        ) : skills.isError ? (
           <Empty className="border">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -641,7 +641,7 @@ const SkillsSettings = () => {
             onImport={() => setView({ kind: "import" })}
             skills={skills.data}
           />
-        )))}
+        ))}
     </div>
   );
 };

@@ -40,8 +40,8 @@ export const RunCardLive = ({ run }: { readonly run: ActiveRun }) => (
     {run.status === "failed" ? (
       <RunCardBody>
         <p>
-          The agent did not return a result. Ask again, or check the channel&apos;s
-          provider key and shape.
+          The agent did not return a result. Ask again, or check the
+          channel&apos;s provider key and shape.
         </p>
       </RunCardBody>
     ) : (

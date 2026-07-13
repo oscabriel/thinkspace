@@ -1,5 +1,5 @@
-import { env } from "cloudflare:test";
 import { generateText } from "ai";
+import { env } from "cloudflare:test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { createGatewayModel } from "../src/adapters/production/model-gateway";
@@ -44,7 +44,7 @@ describe("generic openai-compatible gateway factory (E11.9)", () => {
       }
     );
     await generateText({ maxRetries: 0, model, prompt: "ping" }).catch(
-      () => undefined
+      () => {}
     );
     vi.unstubAllGlobals();
     expect(captured).toBeDefined();

@@ -1,8 +1,8 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, test } from "vitest";
 
-import type { ThreadAgentDurableObject } from "../src/adapters/production/thread-agent";
 import { createD1TenantDataAccess } from "../src/adapters/production/tenant-data-access";
+import type { ThreadAgentDurableObject } from "../src/adapters/production/thread-agent";
 import { encodeThreadAgentAddress } from "../src/adapters/thread-agent-address";
 import { ok } from "../src/result";
 import type { TenantWriteCommand } from "../src/seams/tenant-data-access";
@@ -142,9 +142,7 @@ const dispatch = (
   gesture: string
 ) =>
   runInDurableObject(stub, (instance: Instance) =>
-    instance.run(
-      makeDispatchTrigger({ gestureId: gesture, targetCommentId })
-    )
+    instance.run(makeDispatchTrigger({ gestureId: gesture, targetCommentId }))
   );
 
 describe("ThreadAgent MCP connection reconciliation (ADR 0037)", () => {
@@ -194,7 +192,9 @@ describe("ThreadAgent MCP connection reconciliation (ADR 0037)", () => {
     await seedRegistry(addr.workspaceId, { servers: [MCP_HOST] });
     const { stub, target } = await primeAgent(addr, { selection: [SERVER_ID] });
 
-    const failure = unwrapErr(await dispatch(stub, target.id, `${target.id}-a`));
+    const failure = unwrapErr(
+      await dispatch(stub, target.id, `${target.id}-a`)
+    );
     expect(failure.kind).toBe("run_failure");
     expect(Object.values((await liveServers(stub)).servers)).toHaveLength(0);
   });

@@ -86,7 +86,12 @@ export const WorkspaceSidebar = ({
   return (
     <nav className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-3">
       <div className="flex flex-col gap-0.5">
-        <NavLink icon={Home} label="Home" to="/w/$workspaceId" workspaceId={workspaceId} />
+        <NavLink
+          icon={Home}
+          label="Home"
+          to="/w/$workspaceId"
+          workspaceId={workspaceId}
+        />
         <NavLink
           icon={Compass}
           label="Directory"

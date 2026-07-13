@@ -16,7 +16,7 @@ not the shipping layer.
 
 ## Product Purpose
 
-Thinkspace is a multi-tenant, Slack-adjacent workspace where channels *are* agents:
+Thinkspace is a multi-tenant, Slack-adjacent workspace where channels _are_ agents:
 goal-scoped, ephemeral surfaces, each hosting exactly one bespoke agent. Threads are the
 post primitive — recency-ordered units of deep-thinking work with nested comments, where
 humans and the channel's agent co-participate. Dispatches and scheduled runs produce agent
@@ -28,11 +28,11 @@ knowledge (artifacts, library) compounds over time.
 
 **Calm, deliberate, collegial.**
 
-- *Calm*: the interface recedes; long sessions should feel like a quiet study, not a
+- _Calm_: the interface recedes; long sessions should feel like a quiet study, not a
   notification feed.
-- *Deliberate*: every affordance implies intent — goals, dispatches, approvals. Nothing
+- _Deliberate_: every affordance implies intent — goals, dispatches, approvals. Nothing
   fires accidentally; nothing decorates.
-- *Collegial*: agents and humans share the room as peers with distinct, legible roles.
+- _Collegial_: agents and humans share the room as peers with distinct, legible roles.
   Warm in tone, professional in form — collaboration without mascots or theatrics.
 
 ## Anti-references

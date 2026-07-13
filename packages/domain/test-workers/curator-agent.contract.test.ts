@@ -31,9 +31,13 @@ const streamingText = (text: string) => ({
   }),
 });
 
-const fallbackReply = curatorReplySchema.parse("Tell me more about the channel.");
+const fallbackReply = curatorReplySchema.parse(
+  "Tell me more about the channel."
+);
 
-const curatorModelFromScript = (scriptedTurns: readonly CuratorScriptedTurn[]) =>
+const curatorModelFromScript = (
+  scriptedTurns: readonly CuratorScriptedTurn[]
+) =>
   new MockLanguageModelV3({
     doStream: async (options) => {
       let userText = "";

@@ -174,7 +174,9 @@ export const makeWorkspaceMember = (input: {
   readonly userId?: string;
   readonly workspaceId?: WorkspaceMember["workspaceId"];
 }): WorkspaceMember => ({
-  displayName: displayNameSchema.parse(input.displayName ?? `Member ${input.memberId}`),
+  displayName: displayNameSchema.parse(
+    input.displayName ?? `Member ${input.memberId}`
+  ),
   memberId: memberId(input.memberId),
   userId: userIdSchema.parse(input.userId ?? `user-of-${input.memberId}`),
   workspaceId: input.workspaceId ?? testWorkspaceId,

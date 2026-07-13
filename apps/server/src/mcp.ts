@@ -95,7 +95,8 @@ const fanOutDisconnect = async (
     return;
   }
 
-  const addresses = await buildTenantDataAccess(context).listWorkspaceThreadAddresses();
+  const addresses =
+    await buildTenantDataAccess(context).listWorkspaceThreadAddresses();
   if (!addresses.ok) {
     console.warn("mcp revoke fan-out: thread enumeration failed", {
       error: addresses.error.kind,
@@ -125,9 +126,9 @@ const fanOutDisconnect = async (
             threadId: address.threadId,
           });
         }
-      } catch (cause) {
+      } catch (error) {
         console.warn("mcp revoke fan-out: DO call threw", {
-          cause,
+          error,
           mcpServerId,
           threadId: address.threadId,
         });

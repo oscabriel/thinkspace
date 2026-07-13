@@ -135,7 +135,9 @@ export const createCommentAppendFlow = (
           unread: {
             bumpedAt: landed.createdAt,
             memberId: participant,
-            reasons: [{ commentId: landed.id, kind: "co_participant_activity" }],
+            reasons: [
+              { commentId: landed.id, kind: "co_participant_activity" },
+            ],
             threadId: input.threadId,
             workspaceId: context.workspaceId,
           },
