@@ -111,6 +111,8 @@ const IMPORT_ERROR_MESSAGES: Record<string, string> = {
   invalid_source:
     "That doesn’t look like a skills.sh or GitHub skill. Paste owner/repo or a skills.sh URL.",
   skill_source_not_found: "No SKILL.md found at that source.",
+  skill_source_rate_limited:
+    "GitHub is rate-limiting imports right now — try again in a few minutes.",
   skill_source_too_large: "That SKILL.md is too large to import.",
   skill_source_unreadable: "That source didn’t return readable markdown.",
 };

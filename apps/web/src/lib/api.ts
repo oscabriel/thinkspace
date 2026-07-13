@@ -791,7 +791,8 @@ export const updateSkill = (
  * It does NOT persist: the member reviews this in the create form and saves via createSkill above.
  * `description`/`license` come from the source's YAML frontmatter (null when absent); `sourceSlug`
  * is the canonical `owner/repo[/subpath]` the paste resolved to. Typed error kinds: `invalid_source`
- * (parse/SSRF reject), `skill_source_not_found`, `skill_source_too_large`, `skill_source_unreadable`.
+ * (parse/SSRF reject), `skill_source_not_found`, `skill_source_rate_limited`,
+ * `skill_source_too_large`, `skill_source_unreadable`.
  */
 export interface SkillImportPreview {
   readonly name: string;
