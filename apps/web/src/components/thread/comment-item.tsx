@@ -1,6 +1,8 @@
 import type { Comment } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
 
+import { PostContent } from "./post-content";
+
 const authorLabel = (author: Comment["author"]): string => {
   if (author.kind === "member") {
     // `||` (not `??`) so an empty display name — better-auth does not forbid one — falls back
@@ -35,20 +37,22 @@ export const CommentItem = ({
             : undefined
       }
     >
-      <header className="mb-2 flex items-center gap-2 text-meta text-muted-foreground">
-        <span
-          aria-hidden="true"
-          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-foreground text-xs"
-        >
-          {label.trim().charAt(0).toLocaleUpperCase() || "?"}
-        </span>
-        <span className="font-medium text-foreground">{label}</span>
-        <span aria-hidden="true">·</span>
-        <span>{pending ? "sending…" : relativeTime(comment.createdAt)}</span>
-      </header>
-      <p className="max-w-[70ch] whitespace-pre-wrap text-[0.9375rem] text-foreground leading-[1.6]">
-        {comment.body}
-      </p>
+      <PostContent
+        avatarLabel={label}
+        header={
+          <>
+            <span className="font-medium text-foreground">{label}</span>
+            <span aria-hidden="true">·</span>
+            <span>
+              {pending ? "sending…" : relativeTime(comment.createdAt)}
+            </span>
+          </>
+        }
+      >
+        <p className="max-w-[70ch] whitespace-pre-wrap text-[0.9375rem] text-foreground leading-[1.6]">
+          {comment.body}
+        </p>
+      </PostContent>
     </article>
   );
 };
