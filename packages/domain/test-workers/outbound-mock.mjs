@@ -291,9 +291,15 @@ No frontmatter here — the importer falls back to the repo name.
 // Keyed by "owner/repo": the repos api.github.com knows (each on default branch "main"). A repo
 // absent from this map 404s, exercising the not-found path.
 const githubRepoFixtures = {
+  "acme/api-forbidden": { status: 403 },
+  "acme/api-rate-limited-403": { rateLimited: true, status: 403 },
+  "acme/api-rate-limited-429": { status: 429 },
   "acme/html-page": { default_branch: "main" },
   "acme/huge": { default_branch: "main" },
   "acme/no-frontmatter": { default_branch: "main" },
+  "acme/raw-forbidden": { default_branch: "main" },
+  "acme/raw-rate-limited-403": { default_branch: "main" },
+  "acme/raw-rate-limited-429": { default_branch: "main" },
   "acme/reviewer": { default_branch: "main" },
 };
 
@@ -302,6 +308,10 @@ const handleGithubApi = (url) => {
   const repo = match ? githubRepoFixtures[`${match[1]}/${match[2]}`] : undefined;
   if (!repo) {
     return Response.json({ message: "Not Found" }, { status: 404 });
+  }
+  if (repo.status !== undefined) {
+    const headers = repo.rateLimited ? { "x-ratelimit-remaining": "0" } : {};
+    return Response.json({ message: "Forbidden" }, { headers, status: repo.status });
   }
   return Response.json({ default_branch: repo.default_branch });
 };
@@ -333,6 +343,18 @@ const handleGithubRaw = (url) => {
     return new Response("x".repeat(300 * 1024), {
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
+  }
+  if (path === "/acme/raw-rate-limited-429/main/SKILL.md") {
+    return new Response("Too Many Requests", { status: 429 });
+  }
+  if (path === "/acme/raw-rate-limited-403/main/SKILL.md") {
+    return new Response("Forbidden", {
+      headers: { "x-ratelimit-remaining": "0" },
+      status: 403,
+    });
+  }
+  if (path === "/acme/raw-forbidden/main/SKILL.md") {
+    return new Response("Forbidden", { status: 403 });
   }
   return new Response("Not Found", { status: 404 });
 };

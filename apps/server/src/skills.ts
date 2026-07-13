@@ -181,12 +181,14 @@ type SkillImportPreview = {
 type ImportErrorKind =
   | "invalid_source"
   | "skill_source_not_found"
+  | "skill_source_rate_limited"
   | "skill_source_too_large"
   | "skill_source_unreadable";
 
 const IMPORT_ERROR_STATUS: Record<ImportErrorKind, ContentfulStatusCode> = {
   invalid_source: 400,
   skill_source_not_found: 404,
+  skill_source_rate_limited: 429,
   skill_source_too_large: 422,
   skill_source_unreadable: 422,
 };
@@ -195,10 +197,19 @@ type ImportOutcome =
   | { readonly ok: true; readonly preview: SkillImportPreview }
   | { readonly ok: false; readonly kind: ImportErrorKind };
 
-/** The repo's default branch via a single api.github.com lookup, or null when the repo is absent. */
+const isRateLimited = (response: Response): boolean =>
+  response.status === 429 ||
+  (response.status === 403 &&
+    response.headers.get("x-ratelimit-remaining") === "0");
+
+type DefaultBranchOutcome =
+  | { readonly ok: true; readonly branch: string }
+  | { readonly ok: false; readonly rateLimited: boolean };
+
+/** The repo's default branch via a single api.github.com lookup. */
 const resolveDefaultBranch = async (
   source: SkillSource
-): Promise<string | null> => {
+): Promise<DefaultBranchOutcome> => {
   let response: Response;
   try {
     response = await fetch(
@@ -211,18 +222,18 @@ const resolveDefaultBranch = async (
       }
     );
   } catch {
-    return null;
+    return { ok: false, rateLimited: false };
   }
   if (!response.ok) {
-    return null;
+    return { ok: false, rateLimited: isRateLimited(response) };
   }
   const body = (await response.json().catch(() => null)) as {
     default_branch?: unknown;
   } | null;
   return typeof body?.default_branch === "string" &&
     body.default_branch.length > 0
-    ? body.default_branch
-    : null;
+    ? { branch: body.default_branch, ok: true }
+    : { ok: false, rateLimited: false };
 };
 
 /**
@@ -235,12 +246,17 @@ const importSkillFromSource = async (raw: string): Promise<ImportOutcome> => {
     return { kind: "invalid_source", ok: false };
   }
 
-  const branch = await resolveDefaultBranch(source);
-  if (!branch) {
-    return { kind: "skill_source_not_found", ok: false };
+  const branchOutcome = await resolveDefaultBranch(source);
+  if (!branchOutcome.ok) {
+    return {
+      kind: branchOutcome.rateLimited
+        ? "skill_source_rate_limited"
+        : "skill_source_not_found",
+      ok: false,
+    };
   }
 
-  const rawUrl = `https://${GITHUB_RAW_HOST}/${[source.owner, source.repo, branch, ...source.subpath, "SKILL.md"].join("/")}`;
+  const rawUrl = `https://${GITHUB_RAW_HOST}/${[source.owner, source.repo, branchOutcome.branch, ...source.subpath, "SKILL.md"].join("/")}`;
 
   let response: Response;
   try {
@@ -253,6 +269,9 @@ const importSkillFromSource = async (raw: string): Promise<ImportOutcome> => {
 
   if (response.status === 404) {
     return { kind: "skill_source_not_found", ok: false };
+  }
+  if (isRateLimited(response)) {
+    return { kind: "skill_source_rate_limited", ok: false };
   }
   if (!response.ok) {
     return { kind: "skill_source_unreadable", ok: false };

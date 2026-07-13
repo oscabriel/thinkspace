@@ -147,6 +147,44 @@ describe("skill import (owner-gated, SSRF-guarded SKILL.md fetch)", () => {
     });
   });
 
+  it.each([
+    "api-rate-limited-429",
+    "api-rate-limited-403",
+    "raw-rate-limited-429",
+    "raw-rate-limited-403",
+  ])("429s GitHub rate limiting for %s", async (repo) => {
+    const { cookie, workspaceId } = await signUpWithWorkspace({
+      email: `import-${repo}@example.com`,
+      slug: `import-${repo}-space`,
+    });
+
+    const response = await postImport(workspaceId, cookie, {
+      source: `acme/${repo}`,
+    });
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: { kind: "skill_source_rate_limited" },
+    });
+  });
+
+  it.each(["api-forbidden", "raw-forbidden"])(
+    "does not treat a plain 403 as rate limiting for %s",
+    async (repo) => {
+      const { cookie, workspaceId } = await signUpWithWorkspace({
+        email: `import-${repo}@example.com`,
+        slug: `import-${repo}-space`,
+      });
+
+      const response = await postImport(workspaceId, cookie, {
+        source: `acme/${repo}`,
+      });
+      expect(response.status).not.toBe(429);
+      expect(await response.json()).not.toEqual({
+        error: { kind: "skill_source_rate_limited" },
+      });
+    }
+  );
+
   it("422s a non-markdown response as skill_source_unreadable", async () => {
     const { cookie, workspaceId } = await signUpWithWorkspace({
       email: "import-html@example.com",
