@@ -658,6 +658,12 @@ export interface ArtifactDetail {
 export const fetchArtifacts = (workspaceId: string) =>
   apiFetch<{ artifacts: readonly Artifact[] }>(workspaceId, "/artifacts");
 
+export const fetchChannelArtifacts = (workspaceId: string, channelId: string) =>
+  apiFetch<{ artifacts: readonly Artifact[] }>(
+    workspaceId,
+    `/channels/${encodeURIComponent(channelId)}/artifacts`
+  );
+
 export const fetchArtifact = (workspaceId: string, artifactId: string) =>
   apiFetch<ArtifactDetail>(
     workspaceId,

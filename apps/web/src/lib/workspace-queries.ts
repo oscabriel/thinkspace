@@ -6,6 +6,7 @@ import {
   fetchArtifacts,
   fetchArtifactVersionContent,
   fetchChannel,
+  fetchChannelArtifacts,
   fetchChannelShape,
   fetchChannelThreads,
   fetchHomeFeed,
@@ -54,6 +55,8 @@ export const workspaceKeys = {
     ["workspace", workspaceId, "artifacts"] as const,
   channel: (workspaceId: string, channelId: string) =>
     ["workspace", workspaceId, "channel", channelId] as const,
+  channelArtifacts: (workspaceId: string, channelId: string) =>
+    ["workspace", workspaceId, "channel", channelId, "artifacts"] as const,
   channelShape: (workspaceId: string, channelId: string) =>
     ["workspace", workspaceId, "channel", channelId, "shape"] as const,
   channelThreads: (workspaceId: string, channelId: string) =>
@@ -150,6 +153,13 @@ export const channelQuery = (workspaceId: string, channelId: string) =>
   queryOptions({
     queryFn: () => fetchChannel(workspaceId, channelId),
     queryKey: workspaceKeys.channel(workspaceId, channelId),
+  });
+
+export const channelArtifactsQuery = (workspaceId: string, channelId: string) =>
+  queryOptions({
+    queryFn: () => fetchChannelArtifacts(workspaceId, channelId),
+    queryKey: workspaceKeys.channelArtifacts(workspaceId, channelId),
+    select: (data) => data.artifacts,
   });
 
 export const channelThreadsQuery = (workspaceId: string, channelId: string) =>

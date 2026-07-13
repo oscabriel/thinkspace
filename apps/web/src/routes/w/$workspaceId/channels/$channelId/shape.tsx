@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Link,
   createFileRoute,
-  useNavigate,
   useParams,
 } from "@tanstack/react-router";
 import {
@@ -13,7 +11,7 @@ import {
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
-import { Archive, ArrowLeft, TriangleAlert } from "lucide-react";
+import { Archive, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -64,12 +62,11 @@ const editErrorMessage = (kind: string): string => {
  */
 const ShapeEditView = () => {
   const { channelId, workspaceId } = useParams({
-    from: "/w/$workspaceId/channels/$channelId_/shape",
+    from: "/w/$workspaceId/channels/$channelId/shape",
   });
   const channel = useQuery(channelQuery(workspaceId, channelId));
   const shape = useQuery(channelShapeQuery(workspaceId, channelId));
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   const mutation = useMutation({
     mutationFn: (structure: ShapeStructure) =>
@@ -90,23 +87,11 @@ const ShapeEditView = () => {
         queryKey: workspaceKeys.graph(workspaceId),
       });
       toast.success("Shape saved — existing threads pick up the new shape");
-      navigate({
-        params: { channelId, workspaceId },
-        to: "/w/$workspaceId/channels/$channelId",
-      });
+
     },
   });
 
-  const backLink = (
-    <Link
-      className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-sm hover:text-foreground"
-      params={{ channelId, workspaceId }}
-      to="/w/$workspaceId/channels/$channelId"
-    >
-      <ArrowLeft aria-hidden="true" className="size-4" />
-      Back to channel
-    </Link>
-  );
+  const backLink = null;
 
   if (channel.isPending || shape.isPending) {
     return (
@@ -152,7 +137,7 @@ const ShapeEditView = () => {
         : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-8">
+    <div className="flex flex-col gap-6">
       {backLink}
 
       <header className="flex flex-col gap-2 border-border border-b pb-5">
@@ -188,12 +173,7 @@ const ShapeEditView = () => {
           initialSkillSelection={shape.data.structure.skillSelection}
           initialSystemPrompt={shape.data.structure.systemPrompt}
           initialToolSelection={shape.data.structure.toolSelection}
-          onCancel={() =>
-            navigate({
-              params: { channelId, workspaceId },
-              to: "/w/$workspaceId/channels/$channelId",
-            })
-          }
+          onCancel={() => undefined}
           onSubmit={(structure) => mutation.mutate(structure)}
           pending={mutation.isPending}
           pendingLabel="Saving…"
@@ -206,7 +186,7 @@ const ShapeEditView = () => {
 };
 
 export const Route = createFileRoute(
-  "/w/$workspaceId/channels/$channelId_/shape"
+  "/w/$workspaceId/channels/$channelId/shape"
 )({
   component: ShapeEditView,
 });
