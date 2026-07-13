@@ -41,6 +41,13 @@ const listEnvelopeSchema = z.object({
   result: z
     .array(z.object({ id: z.string().min(1), slug: z.string() }))
     .optional(),
+  result_info: z
+    .object({
+      page: z.number().int().positive(),
+      per_page: z.number().int().positive(),
+      total_count: z.number().int().nonnegative(),
+    })
+    .optional(),
 });
 
 const failure = (status: number): CustomProviderProvisionError => ({
@@ -74,28 +81,53 @@ export const createCloudflareCustomProviderProvisioner = (
         slug: route.slug,
       };
       try {
-        const listed = await fetchImpl(providersUrl, {
-          headers: authHeaders,
-          method: "GET",
-        });
-        if (!listed.ok) {
+        const findProvider = async (
+          pageUrl: string
+        ): Promise<
+          | { existing: { id: string; slug: string }; status?: never }
+          | { existing?: never; status: number }
+          | { existing?: never; status?: never }
+        > => {
+          const listed = await fetchImpl(pageUrl, {
+            headers: authHeaders,
+            method: "GET",
+          });
+          if (!listed.ok) {
+            return { status: listed.status };
+          }
+          const parsed = listEnvelopeSchema.safeParse(await listed.json());
+          if (!parsed.success) {
+            return { status: listed.status };
+          }
+          const existing = (parsed.data.result ?? []).find(
+            (provider) => provider.slug === route.slug
+          );
+          const resultInfo = parsed.data.result_info;
+          if (
+            existing !== undefined ||
+            resultInfo === undefined ||
+            resultInfo.page * resultInfo.per_page >= resultInfo.total_count
+          ) {
+            return existing === undefined ? {} : { existing };
+          }
+          const nextPage = resultInfo.page + 1;
+          return findProvider(
+            `${providersUrl}?page=${nextPage}&per_page=${resultInfo.per_page}`
+          );
+        };
+
+        const listed = await findProvider(providersUrl);
+        if (listed.status !== undefined) {
           return err(failure(listed.status));
         }
-        const parsed = listEnvelopeSchema.safeParse(await listed.json());
-        if (!parsed.success) {
-          return err(failure(listed.status));
-        }
-        const existing = (parsed.data.result ?? []).find(
-          (provider) => provider.slug === route.slug
-        );
         const response = await fetchImpl(
-          existing === undefined
+          listed.existing === undefined
             ? providersUrl
-            : `${providersUrl}/${encodeURIComponent(existing.id)}`,
+            : `${providersUrl}/${encodeURIComponent(listed.existing.id)}`,
           {
             body: JSON.stringify(body),
             headers: { ...authHeaders, "content-type": "application/json" },
-            method: existing === undefined ? "POST" : "PATCH",
+            method: listed.existing === undefined ? "POST" : "PATCH",
           }
         );
         return response.ok ? ok() : err(failure(response.status));

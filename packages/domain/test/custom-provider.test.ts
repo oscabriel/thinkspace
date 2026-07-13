@@ -40,6 +40,44 @@ describe("createCloudflareCustomProviderProvisioner", () => {
     });
   });
 
+  test("finds an existing provider on a later page without creating a duplicate", async () => {
+    const calls: { input: string; init?: RequestInit }[] = [];
+    const responses = [
+      Response.json({
+        result: [{ id: "other-id", slug: "other-provider" }],
+        result_info: { page: 1, per_page: 1, total_count: 2 },
+        success: true,
+      }),
+      Response.json({
+        result: [{ id: "existing-id", slug: "example-provider" }],
+        result_info: { page: 2, per_page: 1, total_count: 2 },
+        success: true,
+      }),
+      Response.json({ result: { id: "existing-id" }, success: true }),
+    ];
+    const provisioner = createCloudflareCustomProviderProvisioner({
+      ...config,
+      fetch: async (input, init) => {
+        calls.push({ init, input: String(input) });
+        return responses[calls.length - 1] as Response;
+      },
+    });
+
+    const result = await provisioner.ensureProvider({
+      slug: "example-provider",
+      upstreamBaseUrl: "https://api.example.com",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(calls.map((call) => call.init?.method)).toEqual([
+      "GET",
+      "GET",
+      "PATCH",
+    ]);
+    expect(calls[1]?.input).toEndWith("/custom-providers?page=2&per_page=1");
+    expect(calls[2]?.input).toEndWith("/custom-providers/existing-id");
+  });
+
   test("re-asserts an existing provider route by id", async () => {
     const calls: { input: string; init?: RequestInit }[] = [];
     const provisioner = createCloudflareCustomProviderProvisioner({
