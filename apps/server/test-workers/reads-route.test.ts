@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { signUpWithWorkspace } from "./auth-fixtures";
 import { addWorkspaceMember, signUpUser } from "./auth-fixtures";
+import { openingExcerpt } from "../src/reads";
 import { seedChannel } from "./channel-fixtures";
 
 const base = (workspaceId: string) => `https://test.local/api/w/${workspaceId}`;
@@ -11,6 +12,14 @@ const get = (url: string, cookie?: string) =>
   SELF.fetch(url, { headers: cookie === undefined ? {} : { cookie } });
 
 describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
+  it("truncates opening excerpts at a word boundary", () => {
+    const body = `${"word ".repeat(70)}ending`;
+    const excerpt = openingExcerpt(body);
+
+    expect(excerpt.length).toBeLessThanOrEqual(280);
+    expect(excerpt.endsWith("…")).toBe(true);
+    expect(excerpt.endsWith("word…")).toBe(true);
+  });
   it("serves the workspace graph — the sidebar payload of visible channels", async () => {
     const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
       email: "graph-reader@example.com",
@@ -90,12 +99,19 @@ describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
       cookie
     );
     expect(response.status).toBe(200);
-    const index = await response.json<{ threads: { id: string }[] }>();
+    const index = await response.json<{
+      threads: { commentCount: number; id: string; openingExcerpt: string }[];
+    }>();
     expect(index.threads.map((thread) => thread.id)).toEqual([
       "tr-newest",
       "tr-middle",
       "tr-oldest",
     ]);
+    expect(index.threads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ commentCount: 0, openingExcerpt: "" }),
+      ])
+    );
   });
 
   it("serves the home feed of bumped threads across visible channels", async () => {

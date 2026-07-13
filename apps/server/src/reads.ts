@@ -12,7 +12,11 @@ import {
 } from "@thinkspace/domain/ids";
 import type { DisplayName } from "@thinkspace/domain/primitives";
 import type { BranchSnapshot } from "@thinkspace/domain/seams/thread-agent";
-import type { TenantContext } from "@thinkspace/domain/seams/tenant-data-access";
+import type {
+  HomeFeed,
+  TenantContext,
+  ThreadIndex,
+} from "@thinkspace/domain/seams/tenant-data-access";
 import type { Comment } from "@thinkspace/domain/thread";
 import { env } from "@thinkspace/env/server";
 import { Hono } from "hono";
@@ -92,17 +96,61 @@ const homeFeedQuerySchema = z.object({
 
 const DEFAULT_HOME_FEED_LIMIT = 50;
 
-const enrichThreads = async <T extends { readonly threads: readonly { readonly channelId: any; readonly id: any; readonly rootCommentId: any }[]; readonly workspaceId: any }>(index: T) => ({
-  ...index,
-  threads: await Promise.all(index.threads.map(async (thread) => {
-    if (!thread.rootCommentId) return { ...thread, commentCount: 0, openingExcerpt: "" };
-    const branch = await createProductionThreadAgentDirectory({ namespace: env.THREAD_AGENT }).get({ channelId: thread.channelId, threadId: thread.id, workspaceId: index.workspaceId }).loadBranch({ rootCommentId: thread.rootCommentId });
-    if (!branch.ok) return { ...thread, commentCount: 0, openingExcerpt: "" };
-    const comments = [...branch.value.ancestors, ...branch.value.subtree];
-    const opening = comments.find((comment) => comment.id === thread.rootCommentId);
-    return { ...thread, commentCount: comments.length, openingExcerpt: opening?.body ?? "" };
-  })),
-});
+const MAX_OPENING_EXCERPT_LENGTH = 280;
+
+export const openingExcerpt = (body: string): string => {
+  if (body.length <= MAX_OPENING_EXCERPT_LENGTH) {
+    return body;
+  }
+
+  const candidate = body.slice(0, MAX_OPENING_EXCERPT_LENGTH - 1);
+  const wordBoundary = candidate.lastIndexOf(" ");
+  const cutAt = wordBoundary >= MAX_OPENING_EXCERPT_LENGTH * 0.8
+    ? wordBoundary
+    : candidate.length;
+  return `${candidate.slice(0, cutAt).trimEnd()}…`;
+};
+
+type ThreadFeed = HomeFeed | ThreadIndex;
+
+/**
+ * This deliberately performs one DO branch read per visible thread per request until the
+ * thread index carries a run/comment summary of its own.
+ */
+const enrichThreads = async <T extends ThreadFeed>(index: T) => {
+  const directory = createProductionThreadAgentDirectory({
+    namespace: env.THREAD_AGENT,
+  });
+  const threads = await Promise.all(
+    index.threads.map(async (thread) => {
+      if (thread.rootCommentId === null) {
+        return { ...thread, commentCount: 0, openingExcerpt: "" };
+      }
+
+      const branch = await directory
+        .get({
+          channelId: thread.channelId,
+          threadId: thread.id,
+          workspaceId: index.workspaceId,
+        })
+        .loadBranch({ rootCommentId: thread.rootCommentId });
+      if (!branch.ok) {
+        return { ...thread, commentCount: 0, openingExcerpt: "" };
+      }
+
+      const comments = [...branch.value.ancestors, ...branch.value.subtree];
+      const opening = comments.find(
+        (comment) => comment.id === thread.rootCommentId
+      );
+      return {
+        ...thread,
+        commentCount: comments.length,
+        openingExcerpt: openingExcerpt(opening?.body ?? ""),
+      };
+    })
+  );
+  return { ...index, threads };
+};
 
 /**
  * ADR 0035 §4: read visibility fails closed at the domain layer, so the edge re-runs the
