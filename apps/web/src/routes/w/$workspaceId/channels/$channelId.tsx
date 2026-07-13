@@ -4,6 +4,7 @@ import { Button } from "@thinkspace/ui/components/button";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
 import { Archive, Hash, Lock, TriangleAlert } from "lucide-react";
 import { useState } from "react";
+import type { KeyboardEvent } from "react";
 import { toast } from "sonner";
 
 import { ApiRequestError, archiveChannel } from "@/lib/api";
@@ -13,6 +14,36 @@ import {
   membersQuery,
   workspaceKeys,
 } from "@/lib/workspace-queries";
+
+const handleTabKeyDown = (event: KeyboardEvent<HTMLAnchorElement>) => {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+    return;
+  }
+
+  const tabList =
+    event.currentTarget.parentElement?.querySelectorAll<HTMLAnchorElement>(
+      "a[data-channel-tab]"
+    );
+  const tabs = [...tabList ?? []];
+  const currentIndex = tabs.indexOf(event.currentTarget);
+  if (currentIndex === -1) {
+    return;
+  }
+
+  event.preventDefault();
+  const direction = event.key === "ArrowRight" ? 1 : -1;
+  const nextTab = tabs.at(
+    (currentIndex + direction + tabs.length) % tabs.length
+  );
+  if (!nextTab) {
+    return;
+  }
+
+  for (const tab of tabs) {
+    tab.tabIndex = tab === nextTab ? 0 : -1;
+  }
+  nextTab.focus();
+};
 
 const ChannelLayout = () => {
   const { channelId, workspaceId } = Route.useParams();
@@ -124,10 +155,14 @@ const ChannelLayout = () => {
             activeOptions={{ exact: true }}
             activeProps={{
               "aria-current": "page",
-              className: "text-primary bg-primary/10",
+              className: "text-primary",
+              tabIndex: 0,
             }}
-            className="rounded-md px-3 py-2 text-xs font-medium transition-colors duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-lg px-3 py-2 text-xs font-medium transition-colors duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-channel-tab
+            inactiveProps={{ tabIndex: -1 }}
             key={tab.label}
+            onKeyDown={handleTabKeyDown}
             params={{ channelId, workspaceId }}
             to={tab.to}
           >
