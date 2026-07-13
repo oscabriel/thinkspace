@@ -24,7 +24,7 @@ const handleTabKeyDown = (event: KeyboardEvent<HTMLAnchorElement>) => {
     event.currentTarget.parentElement?.querySelectorAll<HTMLAnchorElement>(
       "a[data-channel-tab]"
     );
-  const tabs = [...tabList ?? []];
+  const tabs = [...(tabList ?? [])];
   const currentIndex = tabs.indexOf(event.currentTarget);
   if (currentIndex === -1) {
     return;
