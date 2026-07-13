@@ -8,14 +8,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@thinkspace/ui/components/message-scroller";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
 import {
   ArrowLeft,
@@ -58,21 +50,6 @@ import {
  * completes into the branch) — it is no longer the primary way an errored run leaves "Running".
  */
 const RUN_STALE_MS = 120_000;
-
-/** Depth of each comment for indentation: walk parent links within the loaded slice. */
-const depthOf = (comment: Comment, byId: Map<string, Comment>): number => {
-  let depth = 0;
-  let current = comment;
-  while (current.parent.kind === "nested") {
-    const parent = byId.get(current.parent.parentCommentId);
-    if (parent === undefined || depth > 12) {
-      break;
-    }
-    depth += 1;
-    current = parent;
-  }
-  return depth;
-};
 
 const ThreadView = () => {
   const { channelId, threadId, workspaceId } = Route.useParams();
@@ -157,9 +134,25 @@ const ThreadView = () => {
 
 /** The thread-loading placeholder, shared by the root-resolution and branch-read phases. */
 const BranchSkeleton = () => (
-  <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-6 py-6">
-    <Skeleton className="h-16 w-3/4" />
-    <Skeleton className="h-24 w-full" />
+  <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-6">
+    <div className="border-border border-b pb-8">
+      <div className="mb-3 flex items-center gap-2">
+        <Skeleton className="size-7 rounded-full" />
+        <Skeleton className="h-3 w-32" />
+      </div>
+      <Skeleton className="mb-2 h-4 w-full" />
+      <Skeleton className="h-4 w-3/4" />
+    </div>
+    <div className="flex flex-col gap-7 pt-7">
+      <div>
+        <Skeleton className="mb-3 h-3 w-36" />
+        <Skeleton className="h-4 w-2/3" />
+      </div>
+      <div className="ms-8 border-border border-s ps-4">
+        <Skeleton className="mb-3 h-3 w-28" />
+        <Skeleton className="h-4 w-1/2" />
+      </div>
+    </div>
   </div>
 );
 
@@ -203,10 +196,6 @@ const ThreadConversation = ({
         ? [...branch.data.ancestors, ...branch.data.subtree]
         : [],
     [branch.data]
-  );
-  const byId = useMemo(
-    () => new Map(comments.map((comment) => [comment.id, comment])),
-    [comments]
   );
   const latestCommentId = comments.at(-1)?.id ?? rootCommentId;
 
@@ -402,25 +391,23 @@ const ThreadConversation = ({
 
   return (
     <>
-      <MessageScrollerProvider>
-        <MessageScroller className="flex-1">
-          <MessageScrollerViewport>
-            <MessageScrollerContent className="mx-auto w-full max-w-2xl gap-4 px-6 py-6">
-              {comments.map((comment) => (
-                <MessageScrollerItem key={comment.id}>
-                  <CommentItem comment={comment} depth={depthOf(comment, byId)} />
-                </MessageScrollerItem>
-              ))}
-              {activeRuns.map((run) => (
-                <MessageScrollerItem key={run.runId} scrollAnchor>
-                  <RunCardLive run={run} />
-                </MessageScrollerItem>
-              ))}
-            </MessageScrollerContent>
-          </MessageScrollerViewport>
-          <MessageScrollerButton direction="end" />
-        </MessageScroller>
-      </MessageScrollerProvider>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-7 px-6 py-6">
+          {comments.map((comment) => (
+            <CommentItem
+              comment={comment}
+              isRoot={comment.id === rootCommentId}
+              key={comment.id}
+              nested={
+                comment.id !== rootCommentId && comment.parent.kind === "nested"
+              }
+            />
+          ))}
+          {activeRuns.map((run) => (
+            <RunCardLive key={run.runId} run={run} />
+          ))}
+        </div>
+      </div>
 
       <footer className="shrink-0 border-border border-t px-6 py-4">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
