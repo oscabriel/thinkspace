@@ -10,5 +10,10 @@ export default defineConfig({
     "oxc/no-barrel-file": "off",
     // Async-port implementations legitimately have await-free async methods.
     "require-await": "off",
+    // JSX state rendering is clearer when its small alternatives stay local.
+    "eslint/no-nested-ternary": "off",
+    "unicorn/no-nested-ternary": "off",
+    // TanStack Router encodes dynamic parameter identifiers in route filenames.
+    "unicorn/filename-case": "off",
   },
 });

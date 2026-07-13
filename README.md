@@ -107,3 +107,12 @@ thinkspace/
 - `bun run dev:server`: Start only the server
 - `bun run check-types`: Check TypeScript types across all apps
 - `bun run db:generate`: Generate database client/types
+- `bun run fix`: Format and apply safe lint fixes (ultracite/oxfmt)
+- `bun run check`: Verify formatting and lint rules
+
+### Formatting
+
+`bun run fix` is the formatter of record for this repository. Run it before committing,
+then `bun run check` to verify. Do not hand-format files in conflict with its output.
+`DESIGN.md` is intentionally excluded: its embedded YAML metadata is not safely understood
+by the Markdown formatter (see `oxfmt.config.ts`).
