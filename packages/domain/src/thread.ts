@@ -49,10 +49,6 @@ export const threadSchema = z.object({
 });
 export type Thread = z.infer<typeof threadSchema>;
 
-/**
- * ADR 0034 §5's pinned derivation: first non-empty line, whitespace runs collapsed,
- * hard-truncated to 80 characters; whitespace-only bodies fall back to "New thread".
- */
 const MAX_OPENING_EXCERPT_LENGTH = 280;
 
 /**
@@ -73,6 +69,10 @@ export const deriveOpeningExcerpt = (openingBody: CommentBody): string => {
   return `${candidate.slice(0, cutAt).trimEnd()}…`;
 };
 
+/**
+ * ADR 0034 §5's pinned derivation: first non-empty line, whitespace runs collapsed,
+ * hard-truncated to 80 characters; whitespace-only bodies fall back to "New thread".
+ */
 export const deriveThreadName = (openingBody: CommentBody): ThreadName => {
   const firstLine = openingBody
     .split("\n")
