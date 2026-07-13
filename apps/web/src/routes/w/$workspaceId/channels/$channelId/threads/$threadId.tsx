@@ -16,7 +16,7 @@ import {
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CommentItem } from "@/components/thread/comment-item";
@@ -198,6 +198,18 @@ const ThreadConversation = ({
     [branch.data]
   );
   const latestCommentId = comments.at(-1)?.id ?? rootCommentId;
+
+  // Deep link (?run=): scroll is top-down and there is no auto-scroll on live activity (a
+  // deliberate decision). A thread opened to watch a specific run would therefore leave that
+  // run's card below the fold. Reveal it once, on mount, and only for the run carried by the
+  // URL — in-session dispatches never trigger this.
+  const initialRunRevealed = useRef(false);
+  const revealInitialRun = useCallback((node: HTMLDivElement | null) => {
+    if (node !== null && !initialRunRevealed.current) {
+      initialRunRevealed.current = true;
+      node.scrollIntoView({ block: "start" });
+    }
+  }, []);
 
   const refetchBranch = useCallback(() => {
     void queryClient.invalidateQueries({
@@ -399,12 +411,21 @@ const ThreadConversation = ({
               isRoot={comment.id === rootCommentId}
               key={comment.id}
               nested={
-                comment.id !== rootCommentId && comment.parent.kind === "nested"
+                // One level of social indent: a reply-to-a-reply, never a direct reply to the
+                // root. Every appended comment is stored `nested` (only the opening comment is
+                // `top_level`), so replies whose parent IS the root must stay in the flat column.
+                comment.parent.kind === "nested" &&
+                comment.parent.parentCommentId !== rootCommentId
               }
             />
           ))}
           {activeRuns.map((run) => (
-            <RunCardLive key={run.runId} run={run} />
+            <div
+              key={run.runId}
+              ref={run.runId === initialRunId ? revealInitialRun : undefined}
+            >
+              <RunCardLive run={run} />
+            </div>
           ))}
         </div>
       </div>
