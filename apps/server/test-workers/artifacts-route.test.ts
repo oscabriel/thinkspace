@@ -27,7 +27,10 @@ const contextFor = (input: {
 });
 
 /** Seeds an artifact with two versions straight through the production store (runs, not the browser, write). */
-const seedArtifact = async (context: TenantContext) => {
+const seedArtifact = async (
+  context: TenantContext,
+  homeChannelId = "channel-1"
+) => {
   const store = createR2VirtualFsArtifactStore({
     bucket: env.ARTIFACTS,
     context,
@@ -48,7 +51,7 @@ const seedArtifact = async (context: TenantContext) => {
       data: encoder.encode("# v1"),
     },
     draft: {
-      homeChannelId: channelIdSchema.parse("channel-1"),
+      homeChannelId: channelIdSchema.parse(homeChannelId),
       name: artifactNameSchema.parse("Launch Plan"),
     },
     version: version(),
@@ -77,6 +80,32 @@ const base = (workspaceId: string) =>
   `https://test.local/api/w/${workspaceId}/artifacts`;
 
 describe("GET /api/w/:workspaceId/artifacts", () => {
+  it("scopes channel artifact lists by home channel and returns an empty list", async () => {
+    const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
+      email: "channel-artifacts@example.com",
+      slug: "channel-artifacts-space",
+    });
+    const context = contextFor({ memberId, workspaceId });
+    const first = await seedArtifact(context, "channel-1");
+    await seedArtifact(context, "channel-2");
+
+    const matching = await SELF.fetch(
+      `https://test.local/api/w/${workspaceId}/channels/channel-1/artifacts`,
+      { headers: { cookie } }
+    );
+    expect(matching.status).toBe(200);
+    expect(await matching.json()).toEqual({
+      artifacts: [expect.objectContaining({ id: first.artifactId })],
+    });
+
+    const empty = await SELF.fetch(
+      `https://test.local/api/w/${workspaceId}/channels/channel-3/artifacts`,
+      { headers: { cookie } }
+    );
+    expect(empty.status).toBe(200);
+    expect(await empty.json()).toEqual({ artifacts: [] });
+  });
+
   it("lists head metadata, artifact detail + versions, and version content for a member", async () => {
     const { cookie, memberId, workspaceId } = await signUpWithWorkspace({
       email: "artifacts-happy@example.com",

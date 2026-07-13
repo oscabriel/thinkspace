@@ -7,11 +7,10 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
-import { Skeleton } from "@thinkspace/ui/components/skeleton";
 import { Inbox } from "lucide-react";
 import { useMemo } from "react";
 
-import { ThreadRow } from "@/components/shell/thread-row";
+import { ThreadRow, ThreadRowSkeleton } from "@/components/shell/thread-row";
 import {
   graphQuery,
   homeQuery,
@@ -108,9 +107,9 @@ const HomeFeed = () => {
 };
 
 const FeedSkeleton = () => (
-  <div className="flex flex-col gap-3">
+  <div className="flex flex-col">
     {[0, 1, 2, 3, 4].map((row) => (
-      <Skeleton className="h-12 w-full" key={row} />
+      <ThreadRowSkeleton key={row} />
     ))}
   </div>
 );

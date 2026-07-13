@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Link,
   createFileRoute,
-  useNavigate,
   useParams,
 } from "@tanstack/react-router";
 import {
@@ -13,7 +11,7 @@ import {
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
 import { Skeleton } from "@thinkspace/ui/components/skeleton";
-import { Archive, ArrowLeft, TriangleAlert } from "lucide-react";
+import { Archive, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -54,22 +52,21 @@ const editErrorMessage = (kind: string): string => {
 };
 
 /**
- * The shape-edit surface (E7.5): re-author an existing channel's shape (owner/admin only) via
+ * The channel's Shape tab (E7.5): re-author an existing channel's shape (owner/admin only) via
  * PUT /channels/:channelId/shape. The current structure prefills from GET .../shape so the owner
  * edits from real values rather than blanking the config (ADR 0007). The server re-validates the
  * model against the BYOK gate + live catalog and resnapshots the channel's live threads (ADR 0007
  * explicit update, E5.2) — so existing threads pick up the new shape. A non-owner's PUT 403s and
- * a config conflict 409s; both surface as teaching copy. This route lives on its own file
- * (`$channelId_/shape`) so it merges additively beside the sibling-owned channel/thread surface.
+ * a config conflict 409s; both surface as teaching copy. The channel header, meta, and tab bar
+ * are owned by the parent layout route (`$channelId.tsx`); this tab renders only the form.
  */
 const ShapeEditView = () => {
   const { channelId, workspaceId } = useParams({
-    from: "/w/$workspaceId/channels/$channelId_/shape",
+    from: "/w/$workspaceId/channels/$channelId/shape",
   });
   const channel = useQuery(channelQuery(workspaceId, channelId));
   const shape = useQuery(channelShapeQuery(workspaceId, channelId));
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   const mutation = useMutation({
     mutationFn: (structure: ShapeStructure) =>
@@ -90,27 +87,13 @@ const ShapeEditView = () => {
         queryKey: workspaceKeys.graph(workspaceId),
       });
       toast.success("Shape saved — existing threads pick up the new shape");
-      navigate({
-        params: { channelId, workspaceId },
-        to: "/w/$workspaceId/channels/$channelId",
-      });
+
     },
   });
 
-  const backLink = (
-    <Link
-      className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-sm hover:text-foreground"
-      params={{ channelId, workspaceId }}
-      to="/w/$workspaceId/channels/$channelId"
-    >
-      <ArrowLeft aria-hidden="true" className="size-4" />
-      Back to channel
-    </Link>
-  );
-
   if (channel.isPending || shape.isPending) {
     return (
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-8">
+      <div className="flex flex-col gap-4">
         <Skeleton className="h-6 w-40" />
         <Skeleton className="h-8 w-2/3" />
         <Skeleton className="h-64 w-full" />
@@ -126,8 +109,7 @@ const ShapeEditView = () => {
           ? shape.error.kind
           : "unknown_resource";
     return (
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-8">
-        {backLink}
+      <div className="flex flex-col gap-4">
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -152,19 +134,11 @@ const ShapeEditView = () => {
         : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-8">
-      {backLink}
-
-      <header className="flex flex-col gap-2 border-border border-b pb-5">
-        <h1 className="font-semibold text-foreground text-xl leading-snug tracking-tight">
-          Edit shape
-        </h1>
-        <p className="text-muted-foreground text-sm">{channel.data.goal}</p>
-        <p className="text-muted-foreground text-xs">
-          Saving re-validates the model against your provider keys and updates
-          every live thread in this channel.
-        </p>
-      </header>
+    <div className="flex flex-col gap-6">
+      <p className="text-muted-foreground text-sm">
+        Saving re-validates the model against your provider keys and updates
+        every live thread in this channel.
+      </p>
 
       {archived ? (
         <Empty className="border">
@@ -188,12 +162,7 @@ const ShapeEditView = () => {
           initialSkillSelection={shape.data.structure.skillSelection}
           initialSystemPrompt={shape.data.structure.systemPrompt}
           initialToolSelection={shape.data.structure.toolSelection}
-          onCancel={() =>
-            navigate({
-              params: { channelId, workspaceId },
-              to: "/w/$workspaceId/channels/$channelId",
-            })
-          }
+          onCancel={() => undefined}
           onSubmit={(structure) => mutation.mutate(structure)}
           pending={mutation.isPending}
           pendingLabel="Saving…"
@@ -206,7 +175,7 @@ const ShapeEditView = () => {
 };
 
 export const Route = createFileRoute(
-  "/w/$workspaceId/channels/$channelId_/shape"
+  "/w/$workspaceId/channels/$channelId/shape"
 )({
   component: ShapeEditView,
 });

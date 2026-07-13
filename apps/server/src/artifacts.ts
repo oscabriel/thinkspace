@@ -31,6 +31,21 @@ const versionPathSchema = z.object({
 });
 
 export const artifactRoutes = new Hono<{ Variables: TenantVariables }>()
+  .get("/channels/:channelId/artifacts", async (c) => {
+    const store = buildArtifactStore(c.get("tenantContext"));
+    const listed = await store.list();
+    if (!listed.ok) {
+      return c.json(
+        { error: { kind: listed.error.kind } },
+        domainErrorStatus(listed.error)
+      );
+    }
+    return c.json({
+      artifacts: listed.value.artifacts.filter(
+        (artifact) => artifact.homeChannelId === c.req.param("channelId")
+      ),
+    });
+  })
   .get("/artifacts", async (c) => {
     const store = buildArtifactStore(c.get("tenantContext"));
     const listed = await store.list();
