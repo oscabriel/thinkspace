@@ -88,6 +88,12 @@ _Avoid_: subtree (now only half the story), fork, sub-thread.
 completed run). The core recency behavior (ADR 0016/0017).
 _Avoid_: resurface, ping, surface, refloat.
 
+**Working**: The thread state of having **at least one unsettled run** (queued or running).
+Begins at dispatch/fire, ends when the last unsettled run settles (complete or failed);
+distinct from Bump — a thread starts working without bumping, and a failed run stops working
+without bumping (ADR 0041). Surfaces signal it quietly (brass only while working).
+_Avoid_: busy, active, running (a run lifecycle state, not a thread state), in progress.
+
 **Schedule**: A recurring run definition **bound to one thread**; each fire is a run that appends
 a top-level comment and bumps that thread (ADR 0017).
 _Avoid_: cron, job, recurring task, reminder.
