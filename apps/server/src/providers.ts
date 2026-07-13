@@ -1,6 +1,6 @@
 import {
+  createCloudflareCustomProviderProvisioner,
   createKeyStore,
-  createUnverifiedCustomProviderProvisioner,
 } from "@thinkspace/domain/adapters/production";
 import {
   findAllowEntry,
@@ -64,14 +64,11 @@ const resolveProviderTarget = (provider: string): ResolvedProviderTarget => {
 const buildKeyStore = (context: TenantContext) =>
   createKeyStore({ context, env });
 
-/**
- * ADR 0040 §7 (E11.9): the AI Gateway Custom Provider provisioner. The default production adapter is
- * the honest UNVERIFIED no-op stub — the CF Custom Provider write surface is not yet verified, so
- * provisioning returns a typed `unverified` result the write route logs and proceeds past. A
- * non-native provider is therefore honestly Tier-B "first run confirms" (never a false "provisioned"
- * claim); the real CF-API adapter swaps in here once the surface is verified.
- */
-const customProviderProvisioner = createUnverifiedCustomProviderProvisioner();
+/** ADR 0040 §7: account-scoped, verified Cloudflare Custom Provider management adapter. */
+const customProviderProvisioner = createCloudflareCustomProviderProvisioner({
+  accountId: env.BYOK_CF_ACCOUNT_ID,
+  apiToken: env.BYOK_CF_API_TOKEN,
+});
 
 /**
  * Best-effort Custom Provider provisioning for a non-native (`custom-provider`) entry, run lazily

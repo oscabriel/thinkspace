@@ -80,13 +80,13 @@ describe("genericGatewayBaseUrl — native slug vs Custom Provider route (E11.9)
     );
   });
 
-  test("a non-native provider posts to the /compat Custom Provider route segment", () => {
+  test("a non-native provider posts to the custom-<slug> route segment", () => {
     expect(customEntry).toBeDefined();
     if (customEntry === undefined) {
       return;
     }
     expect(genericGatewayBaseUrl(fakeEnv, customEntry)).toBe(
-      `${fakeEnv.AI_GATEWAY_URL}/compat/${customEntry.gatewaySlug}`
+      `${fakeEnv.AI_GATEWAY_URL}/custom-${customEntry.gatewaySlug}`
     );
   });
 });

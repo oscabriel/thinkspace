@@ -142,19 +142,13 @@ export const gatewayModelFactories = {
   },
 } satisfies Record<string, GatewayModelFactory>;
 
-/**
- * ADR 0040 §7 (E11.9): the AI Gateway path segment a non-native Custom Provider route lives under.
- * UNVERIFIED against a live gateway — the CF Custom Provider API surface is underdocumented, so both
- * the provisioning write (see `custom-provider.ts`) and this route segment are recorded as
- * explicitly-unverified. A wrong segment settles as a visible first-run failure (ADR 0028), which is
- * exactly the Tier-B "first run confirms" contract, never a silent success.
- */
-export const AI_GATEWAY_CUSTOM_PROVIDER_SEGMENT = "compat";
+/** Verified provider-specific route prefix; the bare provider slug follows `custom-`. */
+export const AI_GATEWAY_CUSTOM_PROVIDER_SEGMENT = "custom-";
 
 /**
  * The gateway base URL a generic openai-compatible provider posts to. `native` → the provider's
  * documented native gateway slug (`${GW}/${slug}`); `custom-provider` → the Custom Provider route
- * (`${GW}/compat/${slug}`) whose upstream `base_url` (models.dev's `api`) is provisioned lazily at
+ * (`${GW}/custom-${slug}`) whose upstream `base_url` (models.dev's `api`) is provisioned lazily at
  * key registration. Either way the SDK's `.chat()` model posts `${baseURL}/chat/completions`, the
  * OpenAI-compatible surface the whole long tail speaks.
  */
@@ -164,7 +158,7 @@ export const genericGatewayBaseUrl = (
 ): string =>
   entry.routing === "native"
     ? `${env.AI_GATEWAY_URL}/${entry.gatewaySlug}`
-    : `${env.AI_GATEWAY_URL}/${AI_GATEWAY_CUSTOM_PROVIDER_SEGMENT}/${entry.gatewaySlug}`;
+    : `${env.AI_GATEWAY_URL}/${AI_GATEWAY_CUSTOM_PROVIDER_SEGMENT}${entry.gatewaySlug}`;
 
 /**
  * The single generic openai-compatible factory (E11.9). ~124 of models.dev's 159 providers are one

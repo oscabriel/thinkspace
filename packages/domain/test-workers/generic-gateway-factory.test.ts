@@ -54,14 +54,14 @@ describe("generic openai-compatible gateway factory (E11.9)", () => {
     return { captured, entry };
   };
 
-  test("provider A: routes through /compat and injects the verbatim bearer key", async () => {
+  test("provider A: routes through /custom-<slug> and injects the verbatim bearer key", async () => {
     // 302ai — a plain @ai-sdk/openai-compatible provider, custom-provider routing, bearer auth.
     const { captured, entry } = await captureRequest("302ai", "some-model");
     expect(entry.routing).toBe("custom-provider");
 
     const url = new URL(captured.url);
     // The Custom Provider route segment + the chat-completions surface (NOT /responses).
-    expect(url.pathname).toContain(`/compat/${entry.gatewaySlug}`);
+    expect(url.pathname).toContain(`/custom-${entry.gatewaySlug}`);
     expect(url.pathname).toContain("/chat/completions");
     expect(url.pathname).not.toContain("/responses");
 

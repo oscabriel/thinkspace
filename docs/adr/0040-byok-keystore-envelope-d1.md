@@ -170,23 +170,24 @@ resolves to a factory** — the generic path is the catch-all, so a registrable 
 latent 500 (contract-tested across all ~135 registrable entries).
 
 Routing: `native` → the provider's documented gateway slug (`${GW}/${slug}`); `custom-provider` → an
-AI Gateway Custom Provider route (`${GW}/compat/${slug}`) whose upstream `base_url` is the models.dev
-`api`. Custom Provider configs are **account-level / shared across workspaces** — acceptable, because
-native provider routes are equally shared and **the key, not the route, is the isolation boundary**
-(each workspace's key resolves through its own KeyStore row; the shared route carries no key).
+AI Gateway provider-specific route (`${GW}/custom-${slug}`) whose upstream `base_url` is the
+models.dev `api`. Everything after `custom-${slug}/` is appended to that upstream. This route shape
+and the management API are resolved by `docs/research/cloudflare-custom-provider-api.md`; `compat`
+is instead the unified OpenAI-compatible endpoint, where provider selection belongs in the request
+body's model field. Custom Provider configs are **account-level / shared across workspaces** —
+acceptable, because native provider routes are equally shared and **the key, not the route, is the
+isolation boundary** (each workspace's key resolves through its own KeyStore row; the shared route
+carries no key).
 
-**UNVERIFIED (explicit).** The exact CF AI Gateway Custom Provider API — both the provisioning write
-and the `/compat/<slug>` route segment — is underdocumented and **not verified against a live
-gateway**. Per the "no pretend implementation" rule, provisioning is a narrow seam
-(`CustomProviderProvisioner`, `adapters/production/custom-provider.ts`) whose **default production
-adapter is an honest no-op stub returning the typed `custom_provider_provisioning_unverified`
-result**. The write route calls it **best-effort at key-registration time** (lazy, idempotent, using
-the account-scoped `BYOK_CF_*` creds the write path already holds) and **never fails key registration
-on its result** — the key is already sealed. A non-native provider is therefore honestly Tier-B "first
-run confirms": the first real turn either succeeds or settles as a visible `run_failure`, never a
-false "provisioned" claim. The native slugs for the long tail (groq, mistral, cohere, …) are
-likewise documented-but-unsmoke-tested — a wrong slug settles the same Tier-B way. The real CF-API
-adapter and native-slug verification are follow-up.
+Provisioning remains a narrow seam (`CustomProviderProvisioner`,
+`adapters/production/custom-provider.ts`), now backed in production by the verified Cloudflare
+management API under `POST/GET/PATCH /accounts/{account_id}/ai-gateway/custom-providers[/{id}]`.
+The write route calls it **best-effort at key-registration time**: list, create when absent, and
+PATCH the existing id to re-assert the same route. It uses the account-scoped `BYOK_CF_*` creds and
+**never fails key registration on its result** — the key is already sealed. A non-native provider
+therefore remains honestly Tier-B "first run confirms": the first real turn either succeeds or
+settles as a visible `run_failure`. Native long-tail slugs and live custom-provider behavior remain
+unsmoke-tested until suitable provider keys exist.
 
 ### 8. Write route + UI
 

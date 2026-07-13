@@ -50,8 +50,11 @@ export {
   serializeCuratorEnvelope,
 } from "./curator-agent";
 export {
+  type CloudflareCustomProviderConfig,
+  createCloudflareCustomProviderProvisioner,
   createNoopCustomProviderProvisioner,
   createUnverifiedCustomProviderProvisioner,
+  type CustomProviderFetch,
   type CustomProviderProvisioner,
   type CustomProviderProvisionError,
   type CustomProviderRoute,
