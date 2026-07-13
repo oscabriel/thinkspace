@@ -60,8 +60,8 @@ import {
   decodeThreadAgentAddress,
   encodeThreadAgentAddress,
 } from "../thread-agent-address";
-import { createKeyStore } from './key-store';
-import type { KeyStoreEnv } from './key-store';
+import { createKeyStore } from "./key-store";
+import type { KeyStoreEnv } from "./key-store";
 import { createGatewayModel } from "./model-gateway";
 import {
   createProductionChannelHub,

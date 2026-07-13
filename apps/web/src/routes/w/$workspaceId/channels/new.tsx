@@ -12,8 +12,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { ShapeForm } from "@/components/shape/shape-form";
-import { ApiRequestError, createChannel } from '@/lib/api';
-import type { ShapeStructure, Visibility } from '@/lib/api';
+import { ApiRequestError, createChannel } from "@/lib/api";
+import type { ShapeStructure, Visibility } from "@/lib/api";
 import { workspaceKeys } from "@/lib/workspace-queries";
 
 /** Maps a create-failure kind to teaching copy; falls through to the raw kind for anything else. */

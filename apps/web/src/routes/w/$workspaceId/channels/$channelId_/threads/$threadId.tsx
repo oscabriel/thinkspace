@@ -23,8 +23,14 @@ import { CommentItem } from "@/components/thread/comment-item";
 import { RunCardLive } from "@/components/thread/run-card-live";
 import type { ActiveRun } from "@/components/thread/run-card-live";
 import { ThreadComposer } from "@/components/thread/thread-composer";
-import { ApiRequestError, appendComment, clearThreadUnread, dispatchThread, fetchRun } from '@/lib/api';
-import type { BranchSnapshot, Comment } from '@/lib/api';
+import {
+  ApiRequestError,
+  appendComment,
+  clearThreadUnread,
+  dispatchThread,
+  fetchRun,
+} from "@/lib/api";
+import type { BranchSnapshot, Comment } from "@/lib/api";
 import { useChannelHub } from "@/lib/hub-socket";
 import type { ChannelHubEvent } from "@/lib/hub-socket";
 import { uuidv7 } from "@/lib/ids";
@@ -99,19 +105,21 @@ const ThreadView = () => {
         </h1>
       </header>
 
-      {rootCommentId === null ? threads.isPending ? (
-        <BranchSkeleton />
-      ) : import.meta.env.DEV ? (
-        <MissingRootNotice />
-      ) : (
-        <Empty className="m-6 border">
-          <EmptyHeader>
-            <EmptyTitle>Thread unavailable</EmptyTitle>
-            <EmptyDescription>
-              This thread could not be loaded. Try returning to the channel.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+      {rootCommentId === null ? (
+        threads.isPending ? (
+          <BranchSkeleton />
+        ) : import.meta.env.DEV ? (
+          <MissingRootNotice />
+        ) : (
+          <Empty className="m-6 border">
+            <EmptyHeader>
+              <EmptyTitle>Thread unavailable</EmptyTitle>
+              <EmptyDescription>
+                This thread could not be loaded. Try returning to the channel.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )
       ) : (
         <ThreadConversation
           channelId={channelId}

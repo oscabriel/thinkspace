@@ -18,8 +18,13 @@ import type {
   WorkspaceScope,
 } from "../../seams/realtime-hubs";
 import { parseJsonColumn } from "../helpers";
-import { createHubJwks, HUB_UPGRADE_REJECT_CODE, readHubConnectToken, verifyHubConnectToken } from './hub-auth';
-import type { HubAuthEnv, HubConnectClaims } from './hub-auth';
+import {
+  createHubJwks,
+  HUB_UPGRADE_REJECT_CODE,
+  readHubConnectToken,
+  verifyHubConnectToken,
+} from "./hub-auth";
+import type { HubAuthEnv, HubConnectClaims } from "./hub-auth";
 
 /**
  * ADR 0033's addressing pattern applied to hubs (ADR 0010): the DO name is the

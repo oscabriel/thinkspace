@@ -19,8 +19,8 @@ import {
   Wrench,
 } from "lucide-react";
 
-import { ApiRequestError } from '@/lib/api';
-import type { Model } from '@/lib/api';
+import { ApiRequestError } from "@/lib/api";
+import type { Model } from "@/lib/api";
 import { modelsQuery } from "@/lib/workspace-queries";
 
 /**

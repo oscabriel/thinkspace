@@ -21,16 +21,17 @@ import { channelArtifactsQuery } from "@/lib/workspace-queries";
 const ChannelArtifacts = () => {
   const { channelId, workspaceId } = Route.useParams();
   const artifacts = useQuery(channelArtifactsQuery(workspaceId, channelId));
-  if (artifacts.isPending)
-    {return (
+  if (artifacts.isPending) {
+    return (
       <div className="flex flex-col gap-2">
         {[0, 1, 2].map((i) => (
           <Skeleton className="h-20 w-full rounded-xl" key={i} />
         ))}
       </div>
-    );}
-  if (artifacts.isError)
-    {return (
+    );
+  }
+  if (artifacts.isError) {
+    return (
       <Empty className="border">
         <EmptyHeader>
           <EmptyMedia variant="icon">
@@ -40,9 +41,10 @@ const ChannelArtifacts = () => {
           <EmptyDescription>Try again in a moment.</EmptyDescription>
         </EmptyHeader>
       </Empty>
-    );}
-  if (artifacts.data.length === 0)
-    {return (
+    );
+  }
+  if (artifacts.data.length === 0) {
+    return (
       <Empty className="border">
         <EmptyHeader>
           <EmptyMedia variant="icon">
@@ -54,7 +56,8 @@ const ChannelArtifacts = () => {
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
-    );}
+    );
+  }
   return (
     <div className="flex flex-col gap-2">
       {artifacts.data.map((artifact) => {

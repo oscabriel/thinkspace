@@ -210,9 +210,9 @@ describe("Channel CRUD flow — shape edit (ADR 0007 config-as-data + resnapshot
     expect(edited.shape.structure).toEqual(structure);
     expect(edited.shape.updatedAt).toEqual(crudClock());
     // One resnapshot per thread, each carrying the freshly edited structure.
-    expect(edited.resnapshots.map((snap) => `${snap.threadId}`).toSorted()).toEqual(
-      ["th-a", "th-b"]
-    );
+    expect(
+      edited.resnapshots.map((snap) => `${snap.threadId}`).toSorted()
+    ).toEqual(["th-a", "th-b"]);
     for (const snap of edited.resnapshots) {
       expect(snap.shapeSnapshot.structure).toEqual(structure);
       expect(snap.shapeSnapshot.shapeId).toBe(shapeId("shape-1"));

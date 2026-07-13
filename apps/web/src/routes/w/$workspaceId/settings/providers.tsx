@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useParams } from "@tanstack/react-router";
-import { providerAllowlist } from '@thinkspace/domain/provider-allowlist';
-import type { ProviderAllowEntry, ProviderTier } from '@thinkspace/domain/provider-allowlist';
+import { providerAllowlist } from "@thinkspace/domain/provider-allowlist";
+import type {
+  ProviderAllowEntry,
+  ProviderTier,
+} from "@thinkspace/domain/provider-allowlist";
 import { Button } from "@thinkspace/ui/components/button";
 import {
   Empty,
@@ -23,8 +26,12 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { ApiRequestError, registerProviderKey, removeProviderKey } from '@/lib/api';
-import type { ProviderKeyStatus } from '@/lib/api';
+import {
+  ApiRequestError,
+  registerProviderKey,
+  removeProviderKey,
+} from "@/lib/api";
+import type { ProviderKeyStatus } from "@/lib/api";
 import { providersQuery, workspaceKeys } from "@/lib/workspace-queries";
 
 /**

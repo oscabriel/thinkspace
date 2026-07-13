@@ -29,13 +29,13 @@ import type {
   TenantContext,
 } from "../../seams/tenant-data-access";
 import { shapeStructureSchema } from "../../shape";
-import { decodeCuratorAddress, encodeCuratorAddress } from '../curator-address';
-import type { CuratorAddress } from '../curator-address';
+import { decodeCuratorAddress, encodeCuratorAddress } from "../curator-address";
+import type { CuratorAddress } from "../curator-address";
 import { idKey, parseJsonColumn } from "../helpers";
-import { createKeyStore } from './key-store';
-import type { KeyStoreEnv } from './key-store';
-import { createGatewayModel } from './model-gateway';
-import type { GatewayModelEnv } from './model-gateway';
+import { createKeyStore } from "./key-store";
+import type { KeyStoreEnv } from "./key-store";
+import { createGatewayModel } from "./model-gateway";
+import type { GatewayModelEnv } from "./model-gateway";
 
 const defaultClock = (): Date => new Date();
 

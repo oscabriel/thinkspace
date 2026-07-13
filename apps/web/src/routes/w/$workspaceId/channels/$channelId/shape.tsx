@@ -12,8 +12,8 @@ import { Archive, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { ShapeForm } from "@/components/shape/shape-form";
-import { ApiRequestError, editChannelShape } from '@/lib/api';
-import type { ShapeStructure } from '@/lib/api';
+import { ApiRequestError, editChannelShape } from "@/lib/api";
+import type { ShapeStructure } from "@/lib/api";
 import {
   channelQuery,
   channelShapeQuery,

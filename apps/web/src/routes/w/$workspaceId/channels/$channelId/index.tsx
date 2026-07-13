@@ -68,7 +68,9 @@ const ChannelView = () => {
       });
     },
   });
-  if (!channel.data) {return null;}
+  if (!channel.data) {
+    return null;
+  }
   const archived = channel.data.lifecycle.state !== "active";
   return (
     <div className="flex flex-col gap-6">

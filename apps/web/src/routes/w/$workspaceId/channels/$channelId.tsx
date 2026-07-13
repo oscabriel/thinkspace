@@ -38,19 +38,21 @@ const ChannelLayout = () => {
     },
   });
 
-  if (channel.isPending)
-    {return (
+  if (channel.isPending) {
+    return (
       <div className="mx-auto w-full max-w-2xl px-6 py-8">
         <Skeleton className="h-32 w-full" />
       </div>
-    );}
-  if (channel.isError || !channel.data)
-    {return (
+    );
+  }
+  if (channel.isError || !channel.data) {
+    return (
       <div className="mx-auto w-full max-w-2xl px-6 py-8 text-sm text-muted-foreground">
         <TriangleAlert className="mr-2 inline size-4" />
         Channel unavailable
       </div>
-    );}
+    );
+  }
   const archived = channel.data.lifecycle.state !== "active";
   const Glyph = channel.data.visibility.kind === "private" ? Lock : Hash;
   const tabs = [

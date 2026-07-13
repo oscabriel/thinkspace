@@ -3,8 +3,13 @@ import {
   createProductionThreadAgentDirectory,
 } from "@thinkspace/domain/adapters/production";
 import { channelVisibilityGate } from "@thinkspace/domain/flows/channel-gate";
-import { channelIdSchema, commentIdSchema, runIdSchema, threadIdSchema } from '@thinkspace/domain/ids';
-import type { MemberId } from '@thinkspace/domain/ids';
+import {
+  channelIdSchema,
+  commentIdSchema,
+  runIdSchema,
+  threadIdSchema,
+} from "@thinkspace/domain/ids";
+import type { MemberId } from "@thinkspace/domain/ids";
 import type { DisplayName } from "@thinkspace/domain/primitives";
 import type {
   HomeFeed,
