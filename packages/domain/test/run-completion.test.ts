@@ -45,6 +45,7 @@ const executionTime = new Date("2026-07-03T12:00:00Z");
  */
 const makeCompletionHarness = (input?: {
   readonly comments?: readonly Comment[];
+  readonly nextRunIds?: readonly string[];
   readonly turnScript?: readonly MemoryThreadAgentTurnOutcome[];
 }) => {
   const publishedChannelEvents: ChannelHubEvent[] = [];
@@ -53,10 +54,18 @@ const makeCompletionHarness = (input?: {
   const tenantDataAccess = createMemoryTenantDataAccess({
     channels: [makeChannel({ id: "channel-1" })],
     context: testTenantContext,
-    threads: [makeThread({ channelId: "channel-1", id: "thread-1" })],
+    threads: [
+      makeThread({
+        channelId: "channel-1",
+        commentCount: 1,
+        id: "thread-1",
+        working: { runId: runId("run-1"), since: executionTime },
+      }),
+    ],
     workspace: testWorkspace,
   });
 
+  const nextRunIds = [...(input?.nextRunIds ?? ["run-1"])];
   const agent = createMemoryThreadAgent({
     address: threadAgentAddress,
     clock: () => executionTime,
@@ -74,7 +83,7 @@ const makeCompletionHarness = (input?: {
       }),
     }),
     nextCommentId: () => commentId("comment-run-output"),
-    nextRunId: () => runId("run-1"),
+    nextRunId: () => runId(nextRunIds.shift() ?? "run-unexpected"),
     shapeSnapshot: makeShapeSnapshot(),
     turnScript: input?.turnScript ?? [
       { body: commentBody("agent reply"), kind: "reply" },
@@ -176,6 +185,37 @@ describe("Run completion — completion bumps the thread (ADR 0017/0027)", () =>
     );
     const bumped = index.threads.find((thread) => thread.id === testThreadId);
     expect(bumped?.lastActivityAt).toEqual(executionTime);
+  });
+
+  test("settling one of two live runs keeps the thread Working on the most recently queued run", async () => {
+    const harness = makeCompletionHarness({ nextRunIds: ["run-1", "run-2"] });
+    unwrapOk(
+      await harness.agent.run(
+        makeDispatchTrigger({
+          gestureId: "gesture-first",
+          targetCommentId: "comment-top",
+        })
+      )
+    );
+    unwrapOk(
+      await harness.agent.run(
+        makeDispatchTrigger({
+          gestureId: "gesture-second",
+          targetCommentId: "comment-top",
+        })
+      )
+    );
+
+    unwrapOk(await harness.agent.executeNextRun());
+
+    const thread = unwrapOk(
+      await harness.tenantDataAccess.getThread({ threadId: testThreadId })
+    );
+    expect(thread?.working).toEqual({
+      runId: runId("run-2"),
+      since: executionTime,
+    });
+    expect(thread?.commentCount).toBe(2);
   });
 
   test("every thread participant gets an agent_output unread row, including the dispatcher awaiting the reply", async () => {
@@ -334,6 +374,8 @@ describe("Run completion — a failing run settles without bumping (ADR 0017/002
       (candidate) => candidate.id === testThreadId
     );
     expect(thread?.lastActivityAt).not.toEqual(executionTime);
+    expect(thread?.working).toBeNull();
+    expect(thread?.commentCount).toBe(1);
     expect(
       unwrapOk(
         await harness.tenantDataAccess.listMemberUnread({

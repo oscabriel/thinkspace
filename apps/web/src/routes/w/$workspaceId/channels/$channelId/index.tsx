@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Empty,
   EmptyDescription,
@@ -97,19 +97,13 @@ const ChannelView = () => {
       ) : threads.data && threads.data.threads.length > 0 ? (
         <div className="flex flex-col">
           {threads.data.threads.map((thread) => (
-            <Link
-              className="rounded-md transition-colors hover:bg-muted/50"
+            <ThreadRow
+              authorName={memberLabel(members.data, thread.createdByMemberId)}
               key={thread.id}
-              params={{ channelId, threadId: thread.id, workspaceId }}
-              search={{ root: thread.rootCommentId ?? undefined }}
-              to="/w/$workspaceId/channels/$channelId/threads/$threadId"
-            >
-              <ThreadRow
-                authorName={memberLabel(members.data, thread.createdByMemberId)}
-                thread={thread}
-                unread={false}
-              />
-            </Link>
+              thread={thread}
+              unread={false}
+              workspaceId={workspaceId}
+            />
           ))}
         </div>
       ) : (

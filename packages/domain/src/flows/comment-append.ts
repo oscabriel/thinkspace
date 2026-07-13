@@ -150,6 +150,11 @@ export const createCommentAppendFlow = (
           kind: "put_thread_index",
           thread: { ...thread, lastActivityAt: landed.createdAt },
         },
+        {
+          kind: "update_thread_summary",
+          summary: appended.value.summary,
+          threadId: input.threadId,
+        },
         ...unreadWrites,
       ],
       workspaceId: context.workspaceId,

@@ -55,18 +55,20 @@ export interface Channel {
 export interface Thread {
   readonly channelId: string;
   readonly commentCount: number;
-  readonly openingExcerpt: string;
   readonly createdAt: string;
   readonly createdByMemberId: string;
   readonly id: string;
   readonly lastActivityAt: string;
   readonly lifecycle: ThreadLifecycle;
   readonly name: string;
+  readonly openingExcerpt: string;
   /**
    * E8.4: the thread's opening comment id — the branch anchor a threadId-only surface reads
    * back (ADR 0025). Null for dev rows that predate the column; new threads always carry it.
    */
   readonly rootCommentId: string | null;
+  /** ADR 0041: the most recently queued unsettled run; presence-grade signal only. */
+  readonly working: { readonly runId: string; readonly since: string } | null;
   readonly workspaceId: string;
 }
 

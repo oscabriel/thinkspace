@@ -172,7 +172,12 @@ describe("dispatch→completion round trip (acceptance)", () => {
       })
     );
     expect(threads.threads).toEqual([
-      { ...thread, lastActivityAt: settled.completedAt },
+      {
+        ...thread,
+        commentCount: 2,
+        lastActivityAt: settled.completedAt,
+        working: null,
+      },
     ]);
 
     // …and the dispatching member has an agent_output unread row.

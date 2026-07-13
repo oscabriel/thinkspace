@@ -236,7 +236,13 @@ describe("ThreadAgent turn layer — RunId is the submissionId (ADR 0033)", () =
     );
     expect(branch.subtree.map((comment) => comment.id)).toEqual([target.id]);
 
-    expect(settlements).toEqual([{ kind: "failed", run: settled }]);
+    expect(settlements).toEqual([
+      {
+        kind: "failed",
+        run: settled,
+        summary: { commentCount: 1, working: null },
+      },
+    ]);
   });
 
   /**
@@ -296,7 +302,13 @@ describe("ThreadAgent turn layer — RunId is the submissionId (ADR 0033)", () =
     expect(branch.subtree.map((comment) => comment.id)).toEqual([target.id]);
 
     // The failed settlement fired exactly once — the same fan-out path a completion takes.
-    expect(settlements).toEqual([{ kind: "failed", run: settled }]);
+    expect(settlements).toEqual([
+      {
+        kind: "failed",
+        run: settled,
+        summary: { commentCount: 1, working: null },
+      },
+    ]);
 
     // The server-authoritative read returns the settled failed state (ADR 0028).
     const detail = unwrapOk(

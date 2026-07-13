@@ -34,6 +34,7 @@ export const thread = sqliteTable(
   "thread",
   {
     channelId: text("channel_id").notNull(),
+    commentCount: integer("comment_count").notNull().default(0),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     createdByMemberId: text("created_by_member_id").notNull(),
     id: text("id").primaryKey(),
@@ -42,9 +43,11 @@ export const thread = sqliteTable(
     }).notNull(),
     lifecycle: text("lifecycle").notNull(),
     name: text("name").notNull(),
+    openingExcerpt: text("opening_excerpt").notNull().default(""),
     // E8.4: the thread's opening comment id — the branch anchor a threadId-only surface
     // needs. Nullable for dev rows that predate the column (no backfill; ADR 0025).
     rootCommentId: text("root_comment_id"),
+    working: text("working"),
     workspaceId: text("workspace_id").notNull(),
   },
   (table) => [

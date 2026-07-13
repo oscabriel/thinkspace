@@ -147,6 +147,11 @@ describe("Thread creation flow — D1 row first, initialize second, announce las
     );
     expect(created.thread.createdByMemberId).toBe(testMemberId);
     expect(created.thread.lifecycle).toEqual({ state: "active" });
+    expect(created.thread.openingExcerpt).toBe(
+      "fix the login bug\n\nstack trace below"
+    );
+    expect(created.thread.commentCount).toBe(1);
+    expect(created.thread.working).toBeNull();
 
     const index = unwrapOk(
       await harness.tenantDataAccess.listChannelThreads({

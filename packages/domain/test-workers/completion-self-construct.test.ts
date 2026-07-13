@@ -138,7 +138,12 @@ describe("completion flow self-construction (ADR 0035 §2)", () => {
       })
     );
     expect(index.threads).toEqual([
-      { ...created.thread, lastActivityAt: settled.completedAt },
+      {
+        ...created.thread,
+        commentCount: 2,
+        lastActivityAt: settled.completedAt,
+        working: null,
+      },
     ]);
 
     const unread = unwrapOk(

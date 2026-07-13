@@ -23,6 +23,8 @@ export type ThreadLifecycle = z.infer<typeof threadLifecycleSchema>;
 
 export const threadSchema = z.object({
   channelId: channelIdSchema,
+  /** Cross-branch total copied from the resident ThreadAgent (ADR 0041). */
+  commentCount: z.number().default(0),
   createdAt: z.date(),
   createdByMemberId: memberIdSchema,
   id: threadIdSchema,
@@ -30,12 +32,19 @@ export const threadSchema = z.object({
   lifecycle: threadLifecycleSchema,
   /** Auto-generated at creation from the opening prompt; member-editable (ADR 0020). */
   name: threadNameSchema,
+  /** Derived once from the immutable opening comment body (ADR 0041). */
+  openingExcerpt: z.string().default(""),
   /**
    * E8.4: the thread's opening (top-level) comment id — the branch anchor a `threadId`-only
    * surface needs to render the whole thread (ADR 0025). Populated at creation from the
    * edge-minted opening comment; nullable for dev rows that predate the column (no backfill).
    */
   rootCommentId: commentIdSchema.nullable().default(null),
+  /** Most recently queued unsettled run; advisory and never an authorization gate. */
+  working: z
+    .object({ runId: runIdSchema, since: z.date() })
+    .nullable()
+    .default(null),
   workspaceId: workspaceIdSchema,
 });
 export type Thread = z.infer<typeof threadSchema>;
@@ -44,6 +53,26 @@ export type Thread = z.infer<typeof threadSchema>;
  * ADR 0034 §5's pinned derivation: first non-empty line, whitespace runs collapsed,
  * hard-truncated to 80 characters; whitespace-only bodies fall back to "New thread".
  */
+const MAX_OPENING_EXCERPT_LENGTH = 280;
+
+/**
+ * ADR 0041's pinned derivation: at most 280 characters, preferring a word boundary in the
+ * final fifth of the available space and using an ellipsis when truncated.
+ */
+export const deriveOpeningExcerpt = (openingBody: CommentBody): string => {
+  if (openingBody.length <= MAX_OPENING_EXCERPT_LENGTH) {
+    return openingBody;
+  }
+
+  const candidate = openingBody.slice(0, MAX_OPENING_EXCERPT_LENGTH - 1);
+  const wordBoundary = candidate.lastIndexOf(" ");
+  const cutAt =
+    wordBoundary >= MAX_OPENING_EXCERPT_LENGTH * 0.8
+      ? wordBoundary
+      : candidate.length;
+  return `${candidate.slice(0, cutAt).trimEnd()}…`;
+};
+
 export const deriveThreadName = (openingBody: CommentBody): ThreadName => {
   const firstLine = openingBody
     .split("\n")

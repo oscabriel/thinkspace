@@ -172,6 +172,8 @@ const scopedValueByKind: {
   put_thread_index: (command) => command.thread,
   put_unread: (command) => command.unread,
   put_workspace_tool_disable: (command) => command.toolDisable,
+  update_thread_summary: (command, state) =>
+    state.threads.get(idKey(command.threadId)) ?? null,
 };
 
 const commandScopedValue = (
@@ -314,6 +316,13 @@ const applyCommandByKind: {
       idKey(command.toolDisable.toolId),
       command.toolDisable
     );
+  },
+  update_thread_summary: (command, state) => {
+    const key = idKey(command.threadId);
+    const thread = state.threads.get(key);
+    if (thread !== undefined) {
+      state.threads.set(key, { ...thread, ...command.summary });
+    }
   },
 };
 

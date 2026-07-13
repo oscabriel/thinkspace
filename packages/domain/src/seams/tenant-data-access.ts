@@ -35,6 +35,7 @@ import type { Thread } from "../thread";
 import type { WorkspaceToolDisable } from "../tool";
 import type { Unread } from "../unread";
 import type { Role } from "../workspace";
+import type { ThreadActivitySummary } from "./thread-agent";
 
 export type TenantDataAccessError =
   | AuthzError
@@ -192,6 +193,12 @@ export type TenantWriteCommand =
   | { readonly kind: "put_shape"; readonly shape: Shape }
   | { readonly kind: "put_skill"; readonly skill: Skill }
   | { readonly kind: "put_thread_index"; readonly thread: Thread }
+  | {
+      /** Copies DO truth without changing thread recency (ADR 0041). */
+      readonly kind: "update_thread_summary";
+      readonly summary: ThreadActivitySummary;
+      readonly threadId: ThreadId;
+    }
   | { readonly kind: "put_unread"; readonly unread: Unread }
   | {
       readonly kind: "put_workspace_tool_disable";

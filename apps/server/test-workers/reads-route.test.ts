@@ -1,7 +1,7 @@
+import { deriveOpeningExcerpt } from "@thinkspace/domain/thread";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
-import { openingExcerpt } from "../src/reads";
 import { signUpWithWorkspace } from "./auth-fixtures";
 import { addWorkspaceMember, signUpUser } from "./auth-fixtures";
 import { seedChannel } from "./channel-fixtures";
@@ -14,7 +14,7 @@ const get = (url: string, cookie?: string) =>
 describe("GET /api/w/:workspaceId read surface (E5.1)", () => {
   it("truncates opening excerpts at a word boundary", () => {
     const body = `${"word ".repeat(70)}ending`;
-    const excerpt = openingExcerpt(body);
+    const excerpt = deriveOpeningExcerpt(body);
 
     expect(excerpt.length).toBeLessThanOrEqual(280);
     expect(excerpt.endsWith("…")).toBe(true);

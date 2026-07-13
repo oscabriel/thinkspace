@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CommentItem } from "@/components/thread/comment-item";
+import { PostContentSkeleton } from "@/components/thread/post-content";
 import { RunCardLive } from "@/components/thread/run-card-live";
 import type { ActiveRun } from "@/components/thread/run-card-live";
 import { ThreadComposer } from "@/components/thread/thread-composer";
@@ -91,7 +92,7 @@ const ThreadView = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex shrink-0 flex-col gap-1 border-border border-b px-6 py-4">
+      <header className="flex shrink-0 flex-col gap-1 px-6 py-4">
         <Link
           className="inline-flex w-fit items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
           params={{ channelId, workspaceId }}
@@ -136,23 +137,20 @@ const ThreadView = () => {
 /** The thread-loading placeholder, shared by the root-resolution and branch-read phases. */
 const BranchSkeleton = () => (
   <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-6">
-    <div className="border-border border-b pb-8">
-      <div className="mb-3 flex items-center gap-2">
-        <Skeleton className="size-7 rounded-full" />
-        <Skeleton className="h-3 w-32" />
-      </div>
-      <Skeleton className="mb-2 h-4 w-full" />
-      <Skeleton className="h-4 w-3/4" />
-    </div>
+    <PostContentSkeleton className="border-border border-b pb-8">
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="mt-2 h-4 w-3/4" />
+    </PostContentSkeleton>
     <div className="flex flex-col gap-7 pt-7">
-      <div>
-        <Skeleton className="mb-3 h-3 w-36" />
+      <PostContentSkeleton headerWidth="w-36">
         <Skeleton className="h-4 w-2/3" />
-      </div>
-      <div className="ms-8 border-border border-s ps-4">
-        <Skeleton className="mb-3 h-3 w-28" />
+      </PostContentSkeleton>
+      <PostContentSkeleton
+        className="ms-8 border-border border-s ps-4"
+        headerWidth="w-28"
+      >
         <Skeleton className="h-4 w-1/2" />
-      </div>
+      </PostContentSkeleton>
     </div>
   </div>
 );
@@ -418,6 +416,9 @@ const ThreadConversation = ({
                 // `top_level`), so replies whose parent IS the root must stay in the flat column.
                 comment.parent.kind === "nested" &&
                 comment.parent.parentCommentId !== rootCommentId
+              }
+              pending={
+                reply.isPending && comment.id === reply.variables?.commentId
               }
             />
           ))}

@@ -1,5 +1,8 @@
 import { createNotImplementedError } from "../../errors";
-import { collectThreadParticipants } from "../../flows/run-completion";
+import {
+  collectThreadParticipants,
+  summarizeThreadActivity,
+} from "../../flows/run-completion";
 import type {
   RunCompletionFlow,
   RunCompletionFlowError,
@@ -181,6 +184,10 @@ export const createMemoryThreadAgent = (
       const settled = await config.completionFlow.settle({
         kind: "failed",
         run: failedRun,
+        summary: summarizeThreadActivity({
+          comments: [...state.comments.values()],
+          runs: [...state.runs.values()],
+        }),
       });
       if (!settled.ok) {
         return settled;
@@ -228,6 +235,10 @@ export const createMemoryThreadAgent = (
         runs: [...state.runs.values()],
       }),
       run: completeRun,
+      summary: summarizeThreadActivity({
+        comments: [...state.comments.values()],
+        runs: [...state.runs.values()],
+      }),
     });
     if (!settled.ok) {
       return settled;
@@ -267,6 +278,10 @@ export const createMemoryThreadAgent = (
       return ok({
         comment: existing ?? input.comment,
         participants: collectThreadParticipants({
+          comments: [...state.comments.values()],
+          runs: [...state.runs.values()],
+        }),
+        summary: summarizeThreadActivity({
           comments: [...state.comments.values()],
           runs: [...state.runs.values()],
         }),
@@ -355,6 +370,10 @@ export const createMemoryThreadAgent = (
           return ok({
             queuedRun: queuedReceiptRun(existing),
             runId: existing.id,
+            summary: summarizeThreadActivity({
+              comments: [...state.comments.values()],
+              runs: [...state.runs.values()],
+            }),
             threadId: config.address.threadId,
           });
         }
@@ -376,6 +395,10 @@ export const createMemoryThreadAgent = (
       return ok({
         queuedRun,
         runId,
+        summary: summarizeThreadActivity({
+          comments: [...state.comments.values()],
+          runs: [...state.runs.values()],
+        }),
         threadId: config.address.threadId,
       });
     },
