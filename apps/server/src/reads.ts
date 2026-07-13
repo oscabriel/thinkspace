@@ -92,6 +92,18 @@ const homeFeedQuerySchema = z.object({
 
 const DEFAULT_HOME_FEED_LIMIT = 50;
 
+const enrichThreads = async <T extends { readonly threads: readonly { readonly channelId: any; readonly id: any; readonly rootCommentId: any }[]; readonly workspaceId: any }>(index: T) => ({
+  ...index,
+  threads: await Promise.all(index.threads.map(async (thread) => {
+    if (!thread.rootCommentId) return { ...thread, commentCount: 0, openingExcerpt: "" };
+    const branch = await createProductionThreadAgentDirectory({ namespace: env.THREAD_AGENT }).get({ channelId: thread.channelId, threadId: thread.id, workspaceId: index.workspaceId }).loadBranch({ rootCommentId: thread.rootCommentId });
+    if (!branch.ok) return { ...thread, commentCount: 0, openingExcerpt: "" };
+    const comments = [...branch.value.ancestors, ...branch.value.subtree];
+    const opening = comments.find((comment) => comment.id === thread.rootCommentId);
+    return { ...thread, commentCount: comments.length, openingExcerpt: opening?.body ?? "" };
+  })),
+});
+
 /**
  * ADR 0035 §4: read visibility fails closed at the domain layer, so the edge re-runs the
  * same channelVisibilityGate pin the write flows use before exposing a channel's threads or
@@ -173,7 +185,7 @@ export const readRoutes = new Hono<{ Variables: TenantVariables }>()
     if (!feed.ok) {
       return c.json({ error: feed.error }, domainErrorStatus(feed.error));
     }
-    return c.json(feed.value, 200);
+    return c.json(await enrichThreads(feed.value), 200);
   })
   .get("/members", async (c) => {
     /**
@@ -293,7 +305,7 @@ export const readRoutes = new Hono<{ Variables: TenantVariables }>()
     if (!index.ok) {
       return c.json({ error: index.error }, domainErrorStatus(index.error));
     }
-    return c.json(index.value, 200);
+    return c.json(await enrichThreads(index.value), 200);
   })
   .get(
     "/channels/:channelId/threads/:threadId/branches/:rootCommentId",

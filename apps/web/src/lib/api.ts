@@ -52,6 +52,8 @@ export interface Channel {
 
 export interface Thread {
   readonly channelId: string;
+  readonly commentCount: number;
+  readonly openingExcerpt: string;
   readonly createdAt: string;
   readonly createdByMemberId: string;
   readonly id: string;
