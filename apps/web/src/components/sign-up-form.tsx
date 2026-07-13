@@ -12,8 +12,10 @@ import Loader from "./loader";
 
 export default function SignUpForm({
   onSwitchToSignIn,
+  redirectTo,
 }: {
   onSwitchToSignIn: () => void;
+  redirectTo?: string;
 }) {
   const navigate = useNavigate({
     from: "/",
@@ -39,9 +41,13 @@ export default function SignUpForm({
           },
           onSuccess: () => {
             // "/" routes a signed-in user into their workspace shell (or onboarding).
-            navigate({
-              to: "/",
-            });
+            if (redirectTo) {
+              window.location.assign(redirectTo);
+            } else {
+              navigate({
+                to: "/",
+              });
+            }
             toast.success("Account created");
           },
         }
