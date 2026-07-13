@@ -11,14 +11,13 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@thinkspace/ui/components/empty";
-import { Skeleton } from "@thinkspace/ui/components/skeleton";
 import {
   MessagesSquare,
   TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { ThreadRow } from "@/components/shell/thread-row";
+import { ThreadRow, ThreadRowSkeleton } from "@/components/shell/thread-row";
 import { ThreadComposer } from "@/components/thread/thread-composer";
 import { ApiRequestError, createThread } from "@/lib/api";
 import { uuidv7 } from "@/lib/ids";
@@ -31,9 +30,11 @@ import {
 } from "@/lib/workspace-queries";
 
 /**
- * The channel container (E7.4, owning the E7.3 read-only scaffold wholesale): the channel
- * header + archive affordance, the recency-sorted thread index (ADR 0020, "the same feed scoped
- * to one channel"), and the "start a thread" composer. Creating a thread is a create-and-ask
+ * The channel's Threads tab (E7.4): the recency-sorted thread index (ADR 0020, "the same feed
+ * scoped to one channel") rendered as posts, plus the "start a thread" composer. The channel
+ * header, meta, archive affordance, and tab bar live in the parent layout route
+ * (`$channelId.tsx`), so they persist across the Threads/Artifacts/Shape tabs. Creating a thread
+ * is a create-and-ask
  * gesture (ADR 0034 §6): one PUT mints the opening comment *and* dispatches the channel agent
  * at it, so a member's first message and the agent's first turn are one atomic, replayable
  * action. On success we navigate into the thread view carrying the just-minted root comment id
@@ -65,9 +66,9 @@ const ChannelView = () => {
 };
 
 const FeedSkeleton = () => (
-  <div className="flex flex-col gap-3">
+  <div className="flex flex-col">
     {[0, 1, 2].map((row) => (
-      <Skeleton className="h-12 w-full" key={row} />
+      <ThreadRowSkeleton key={row} />
     ))}
   </div>
 );

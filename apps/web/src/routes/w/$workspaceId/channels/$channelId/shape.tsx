@@ -52,13 +52,13 @@ const editErrorMessage = (kind: string): string => {
 };
 
 /**
- * The shape-edit surface (E7.5): re-author an existing channel's shape (owner/admin only) via
+ * The channel's Shape tab (E7.5): re-author an existing channel's shape (owner/admin only) via
  * PUT /channels/:channelId/shape. The current structure prefills from GET .../shape so the owner
  * edits from real values rather than blanking the config (ADR 0007). The server re-validates the
  * model against the BYOK gate + live catalog and resnapshots the channel's live threads (ADR 0007
  * explicit update, E5.2) — so existing threads pick up the new shape. A non-owner's PUT 403s and
- * a config conflict 409s; both surface as teaching copy. This route lives on its own file
- * (`$channelId_/shape`) so it merges additively beside the sibling-owned channel/thread surface.
+ * a config conflict 409s; both surface as teaching copy. The channel header, meta, and tab bar
+ * are owned by the parent layout route (`$channelId.tsx`); this tab renders only the form.
  */
 const ShapeEditView = () => {
   const { channelId, workspaceId } = useParams({
@@ -91,11 +91,9 @@ const ShapeEditView = () => {
     },
   });
 
-  const backLink = null;
-
   if (channel.isPending || shape.isPending) {
     return (
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-8">
+      <div className="flex flex-col gap-4">
         <Skeleton className="h-6 w-40" />
         <Skeleton className="h-8 w-2/3" />
         <Skeleton className="h-64 w-full" />
@@ -111,8 +109,7 @@ const ShapeEditView = () => {
           ? shape.error.kind
           : "unknown_resource";
     return (
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-8">
-        {backLink}
+      <div className="flex flex-col gap-4">
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -138,18 +135,10 @@ const ShapeEditView = () => {
 
   return (
     <div className="flex flex-col gap-6">
-      {backLink}
-
-      <header className="flex flex-col gap-2 border-border border-b pb-5">
-        <h1 className="font-semibold text-foreground text-xl leading-snug tracking-tight">
-          Edit shape
-        </h1>
-        <p className="text-muted-foreground text-sm">{channel.data.goal}</p>
-        <p className="text-muted-foreground text-xs">
-          Saving re-validates the model against your provider keys and updates
-          every live thread in this channel.
-        </p>
-      </header>
+      <p className="text-muted-foreground text-sm">
+        Saving re-validates the model against your provider keys and updates
+        every live thread in this channel.
+      </p>
 
       {archived ? (
         <Empty className="border">

@@ -489,7 +489,7 @@ const MissingRootNotice = () => (
 );
 
 export const Route = createFileRoute(
-  "/w/$workspaceId/channels/$channelId/threads/$threadId"
+  "/w/$workspaceId/channels/$channelId_/threads/$threadId"
 )({
   component: ThreadView,
   validateSearch: (

@@ -45,7 +45,7 @@ const ChannelLayout = () => {
       <div className="flex gap-2 pl-7 text-xs text-muted-foreground"><span>{channel.data.visibility.kind}</span><span>·</span><span>{archived ? "archived" : "active"}</span><span>·</span><span>owner {memberLabel(members.data, channel.data.ownerMemberId)}</span></div>
     </header>
     <nav aria-label="Channel" className="mt-5 flex gap-1 border-b pb-2">
-      {tabs.map((tab) => <Link activeOptions={{ exact: true }} activeProps={{ className: "text-primary bg-primary/10" }} className="rounded-lg px-3 py-2 text-xs font-medium transition-colors duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" key={tab.label} params={{ channelId, workspaceId }} to={tab.to}>{tab.label}</Link>)}
+      {tabs.map((tab) => <Link activeOptions={{ exact: true }} activeProps={{ "aria-current": "page", className: "text-primary bg-primary/10" }} className="rounded-md px-3 py-2 text-xs font-medium transition-colors duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" key={tab.label} params={{ channelId, workspaceId }} to={tab.to}>{tab.label}</Link>)}
     </nav>
     <div className="pt-6"><Outlet /></div>
   </div>;
