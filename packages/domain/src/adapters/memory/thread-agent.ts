@@ -145,6 +145,20 @@ export const createMemoryThreadAgent = (
     shapeSnapshot: config.shapeSnapshot ?? null,
   };
 
+  /** The activity projection carried on every receipt (ADR 0041). */
+  const currentSummary = () =>
+    summarizeThreadActivity({
+      comments: [...state.comments.values()],
+      runs: [...state.runs.values()],
+    });
+
+  /** Unread recipients on bump — creator plus everyone who commented or dispatched (ADR 0027). */
+  const currentParticipants = () =>
+    collectThreadParticipants({
+      comments: [...state.comments.values()],
+      runs: [...state.runs.values()],
+    });
+
   /** Executes the oldest queued run per the next scripted turn (queued → running → settled). */
   const executeNextRun = async (): AsyncResult<
     Run | null,
@@ -184,10 +198,7 @@ export const createMemoryThreadAgent = (
       const settled = await config.completionFlow.settle({
         kind: "failed",
         run: failedRun,
-        summary: summarizeThreadActivity({
-          comments: [...state.comments.values()],
-          runs: [...state.runs.values()],
-        }),
+        summary: currentSummary(),
       });
       if (!settled.ok) {
         return settled;
@@ -230,15 +241,9 @@ export const createMemoryThreadAgent = (
     const settled = await config.completionFlow.settle({
       kind: "complete",
       outputComment,
-      participants: collectThreadParticipants({
-        comments: [...state.comments.values()],
-        runs: [...state.runs.values()],
-      }),
+      participants: currentParticipants(),
       run: completeRun,
-      summary: summarizeThreadActivity({
-        comments: [...state.comments.values()],
-        runs: [...state.runs.values()],
-      }),
+      summary: currentSummary(),
     });
     if (!settled.ok) {
       return settled;
@@ -277,14 +282,8 @@ export const createMemoryThreadAgent = (
       }
       return ok({
         comment: existing ?? input.comment,
-        participants: collectThreadParticipants({
-          comments: [...state.comments.values()],
-          runs: [...state.runs.values()],
-        }),
-        summary: summarizeThreadActivity({
-          comments: [...state.comments.values()],
-          runs: [...state.runs.values()],
-        }),
+        participants: currentParticipants(),
+        summary: currentSummary(),
       });
     },
     executeNextRun,
@@ -370,10 +369,7 @@ export const createMemoryThreadAgent = (
           return ok({
             queuedRun: queuedReceiptRun(existing),
             runId: existing.id,
-            summary: summarizeThreadActivity({
-              comments: [...state.comments.values()],
-              runs: [...state.runs.values()],
-            }),
+            summary: currentSummary(),
             threadId: config.address.threadId,
           });
         }
@@ -395,10 +391,7 @@ export const createMemoryThreadAgent = (
       return ok({
         queuedRun,
         runId,
-        summary: summarizeThreadActivity({
-          comments: [...state.comments.values()],
-          runs: [...state.runs.values()],
-        }),
+        summary: currentSummary(),
         threadId: config.address.threadId,
       });
     },

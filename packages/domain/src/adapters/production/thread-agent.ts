@@ -14,7 +14,7 @@ import type {
   RunCompletionFlow,
   RunSettlement,
 } from "../../flows/run-completion";
-import type { GestureId, McpServerId } from "../../ids";
+import type { GestureId, McpServerId, MemberId } from "../../ids";
 import { commentIdSchema, runIdSchema } from "../../ids";
 import type { McpServer } from "../../mcp";
 import { commentBodySchema, failureReasonSchema } from "../../primitives";
@@ -47,6 +47,7 @@ import type {
   ThreadAgentResnapshotRequest,
   ThreadAgentRunReceipt,
   ThreadAgentSnapshot,
+  ThreadActivitySummary,
 } from "../../seams/thread-agent";
 import type {
   ToolResolutionError,
@@ -328,16 +329,29 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     }
   }
 
+  /** The activity projection copied onto the D1 index row with every receipt (ADR 0041). */
+  private currentSummary(): ThreadActivitySummary {
+    return summarizeThreadActivity({
+      comments: [...this.loadComments().values()],
+      runs: this.readRuns(),
+    });
+  }
+
+  /** Unread recipients on bump — creator plus everyone who commented or dispatched (ADR 0027). */
+  private currentParticipants(): readonly MemberId[] {
+    return collectThreadParticipants({
+      comments: [...this.loadComments().values()],
+      runs: this.readRuns(),
+    });
+  }
+
   /** Reconstruct a settlement from resident state (ADR 0035 §2: no member acts at wake). */
   private settlementFor(run: Run): RunSettlement | null {
     if (run.lifecycle === "failed") {
       return {
         kind: "failed",
         run,
-        summary: summarizeThreadActivity({
-          comments: [...this.loadComments().values()],
-          runs: this.readRuns(),
-        }),
+        summary: this.currentSummary(),
       };
     }
     if (run.lifecycle !== "complete") {
@@ -350,15 +364,9 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     return {
       kind: "complete",
       outputComment,
-      participants: collectThreadParticipants({
-        comments: [...this.loadComments().values()],
-        runs: this.readRuns(),
-      }),
+      participants: this.currentParticipants(),
       run,
-      summary: summarizeThreadActivity({
-        comments: [...this.loadComments().values()],
-        runs: this.readRuns(),
-      }),
+      summary: this.currentSummary(),
     };
   }
 
@@ -528,14 +536,8 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     }
     return ok({
       comment: existing ?? input.comment,
-      participants: collectThreadParticipants({
-        comments: [...this.loadComments().values()],
-        runs: this.readRuns(),
-      }),
-      summary: summarizeThreadActivity({
-        comments: [...this.loadComments().values()],
-        runs: this.readRuns(),
-      }),
+      participants: this.currentParticipants(),
+      summary: this.currentSummary(),
     });
   }
 
@@ -658,10 +660,7 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
         return ok({
           queuedRun: queuedReceiptRun(existing),
           runId: existing.id,
-          summary: summarizeThreadActivity({
-            comments: [...this.loadComments().values()],
-            runs: this.readRuns(),
-          }),
+          summary: this.currentSummary(),
           threadId: address.threadId,
         });
       }
@@ -707,10 +706,7 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     return ok({
       queuedRun,
       runId,
-      summary: summarizeThreadActivity({
-        comments: [...this.loadComments().values()],
-        runs: this.readRuns(),
-      }),
+      summary: this.currentSummary(),
       threadId: address.threadId,
     });
   }
@@ -1053,15 +1049,9 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     await this.settle({
       kind: "complete",
       outputComment,
-      participants: collectThreadParticipants({
-        comments: [...this.loadComments().values()],
-        runs: this.readRuns(),
-      }),
+      participants: this.currentParticipants(),
       run: completeRun,
-      summary: summarizeThreadActivity({
-        comments: [...this.loadComments().values()],
-        runs: this.readRuns(),
-      }),
+      summary: this.currentSummary(),
     });
   }
 
@@ -1078,10 +1068,7 @@ export class ThreadAgentDurableObject extends Think<Cloudflare.Env> {
     await this.settle({
       kind: "failed",
       run: failedRun,
-      summary: summarizeThreadActivity({
-        comments: [...this.loadComments().values()],
-        runs: this.readRuns(),
-      }),
+      summary: this.currentSummary(),
     });
   }
 

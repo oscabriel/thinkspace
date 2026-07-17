@@ -50,6 +50,12 @@ const listEnvelopeSchema = z.object({
     .optional(),
 });
 
+/** Outcome of the paginated provider-list walk: found on some page, absent, or a failed read. */
+type ProviderLookup =
+  | { readonly kind: "absent" }
+  | { readonly kind: "error"; readonly status: number }
+  | { readonly existing: { id: string; slug: string }; readonly kind: "found" };
+
 const failure = (status: number): CustomProviderProvisionError => ({
   kind: "custom_provider_provisioning_failed",
   message:
@@ -83,32 +89,30 @@ export const createCloudflareCustomProviderProvisioner = (
       try {
         const findProvider = async (
           pageUrl: string
-        ): Promise<
-          | { existing: { id: string; slug: string }; status?: never }
-          | { existing?: never; status: number }
-          | { existing?: never; status?: never }
-        > => {
+        ): Promise<ProviderLookup> => {
           const listed = await fetchImpl(pageUrl, {
             headers: authHeaders,
             method: "GET",
           });
           if (!listed.ok) {
-            return { status: listed.status };
+            return { kind: "error", status: listed.status };
           }
           const parsed = listEnvelopeSchema.safeParse(await listed.json());
           if (!parsed.success) {
-            return { status: listed.status };
+            return { kind: "error", status: listed.status };
           }
           const existing = (parsed.data.result ?? []).find(
             (provider) => provider.slug === route.slug
           );
+          if (existing !== undefined) {
+            return { existing, kind: "found" };
+          }
           const resultInfo = parsed.data.result_info;
           if (
-            existing !== undefined ||
             resultInfo === undefined ||
             resultInfo.page * resultInfo.per_page >= resultInfo.total_count
           ) {
-            return existing === undefined ? {} : { existing };
+            return { kind: "absent" };
           }
           const nextPage = resultInfo.page + 1;
           return findProvider(
@@ -117,17 +121,17 @@ export const createCloudflareCustomProviderProvisioner = (
         };
 
         const listed = await findProvider(providersUrl);
-        if (listed.status !== undefined) {
+        if (listed.kind === "error") {
           return err(failure(listed.status));
         }
         const response = await fetchImpl(
-          listed.existing === undefined
+          listed.kind === "absent"
             ? providersUrl
             : `${providersUrl}/${encodeURIComponent(listed.existing.id)}`,
           {
             body: JSON.stringify(body),
             headers: { ...authHeaders, "content-type": "application/json" },
-            method: listed.existing === undefined ? "POST" : "PATCH",
+            method: listed.kind === "absent" ? "POST" : "PATCH",
           }
         );
         return response.ok ? ok() : err(failure(response.status));
