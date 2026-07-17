@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import type { Thread } from "./api";
 import {
   fetchApprovedHosts,
   fetchArtifact,
@@ -27,11 +28,22 @@ import {
  *   - graph (sidebar): stale-while-focused; refetched on window focus and on channel
  *     create/archive mutations (invalidated below). No timer — channel sets change on human
  *     action, which we already invalidate on.
- *   - home + unread ("what moved while I was away", ADR 0020): a 30s poll plus focus refetch,
- *     since agent bumps have no shell-side socket until the thread surface (#28) lands.
+ *   - home + unread ("what moved while I was away", ADR 0020) and the channel thread index:
+ *     a 30s poll plus focus refetch, since agent bumps have no shell-side socket until the
+ *     thread surface (#28) lands. While any visible thread shows a working run, the feed
+ *     polls at 5s instead — runs usually settle within seconds, and a brass chip that
+ *     appears or lingers for a full 30s tick reads as stale, not calm. Hidden tabs never
+ *     poll (TanStack default); the feed converges on the focus refetch when the user returns.
  * The full-fidelity live feed is #28's WS integration; the shell converges on a timer.
  */
 const HOME_POLL_MS = 30_000;
+const WORKING_POLL_MS = 5000;
+
+/** Feed poll cadence: tighten while brass is on screen so run settle clears the chip promptly. */
+const feedPollMs = (threads: readonly Thread[] | undefined): number =>
+  threads?.some((thread) => thread.working !== null)
+    ? WORKING_POLL_MS
+    : HOME_POLL_MS;
 
 export const workspaceKeys = {
   all: (workspaceId: string) => ["workspace", workspaceId] as const,
@@ -90,7 +102,7 @@ export const homeQuery = (workspaceId: string) =>
   queryOptions({
     queryFn: () => fetchHomeFeed(workspaceId),
     queryKey: workspaceKeys.home(workspaceId),
-    refetchInterval: HOME_POLL_MS,
+    refetchInterval: (query) => feedPollMs(query.state.data?.threads),
   });
 
 export interface MemberDirectory {
@@ -164,7 +176,7 @@ export const channelThreadsQuery = (workspaceId: string, channelId: string) =>
   queryOptions({
     queryFn: () => fetchChannelThreads(workspaceId, channelId),
     queryKey: workspaceKeys.channelThreads(workspaceId, channelId),
-    refetchInterval: HOME_POLL_MS,
+    refetchInterval: (query) => feedPollMs(query.state.data?.threads),
   });
 
 /**

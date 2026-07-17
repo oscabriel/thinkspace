@@ -9,6 +9,33 @@ import {
 import type { Thread } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
 
+const collapseWhitespace = (text: string): string =>
+  text.replaceAll(/\s+/gu, " ").trim();
+
+/**
+ * What the post body actually shows. The thread name derives from the opening body's first
+ * line (ADR 0034 §5) and the excerpt from the whole body (ADR 0041), so a short post would
+ * read twice — the same sentence as heading and body. Presentation decision, deliberately
+ * NOT in the domain derivation: when the excerpt's first line IS the name, that line is
+ * already the heading, so only what follows it renders (nothing, for a one-line post). A
+ * member-edited name or a first line past the 80-char name cap no longer matches, and the
+ * full excerpt shows.
+ */
+const feedExcerpt = (name: string, openingExcerpt: string): string => {
+  const lines = openingExcerpt.split("\n");
+  const firstIndex = lines.findIndex((line) => line.trim().length > 0);
+  if (
+    firstIndex === -1 ||
+    collapseWhitespace(lines[firstIndex] ?? "") !== name
+  ) {
+    return openingExcerpt;
+  }
+  return lines
+    .slice(firstIndex + 1)
+    .join("\n")
+    .trim();
+};
+
 /** A thread rendered as a scan-friendly post; channelLabel keeps the same unit coherent on Home. */
 export const ThreadRow = ({
   thread,
@@ -26,6 +53,7 @@ export const ThreadRow = ({
   const archived = thread.lifecycle.state === "archived";
   const author = authorName || "Member";
   const replyCount = Math.max(0, thread.commentCount - 1);
+  const excerpt = feedExcerpt(thread.name, thread.openingExcerpt);
   const route = {
     params: {
       channelId: thread.channelId,
@@ -80,14 +108,14 @@ export const ThreadRow = ({
             />
           )}
         </div>
-        {thread.openingExcerpt && (
+        {excerpt && (
           <p
             className={cn(
               "mt-2 line-clamp-3 max-w-[70ch] text-[0.9375rem] leading-6",
               archived ? "text-muted-foreground" : "text-foreground/90"
             )}
           >
-            {thread.openingExcerpt}
+            {excerpt}
           </p>
         )}
         <div className="relative z-10 mt-3 flex flex-wrap items-center gap-2 text-meta text-muted-foreground">
