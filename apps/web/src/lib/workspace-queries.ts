@@ -30,10 +30,12 @@ import {
  *     action, which we already invalidate on.
  *   - home + unread ("what moved while I was away", ADR 0020) and the channel thread index:
  *     a 30s poll plus focus refetch, since agent bumps have no shell-side socket until the
- *     thread surface (#28) lands. While any visible thread shows a working run, the feed
- *     polls at 5s instead — runs usually settle within seconds, and a brass chip that
- *     appears or lingers for a full 30s tick reads as stale, not calm. Hidden tabs never
- *     poll (TanStack default); the feed converges on the focus refetch when the user returns.
+ *     thread surface (#28) lands. While any visible thread shows a working run, home and the
+ *     channel thread index poll at 5s instead — runs usually settle within seconds, and a
+ *     brass chip that appears or lingers for a full 30s tick reads as stale, not calm.
+ *     unread stays flat at 30s: it renders no working state, so there is no chip to clear.
+ *     Hidden tabs never poll (TanStack default); the feed converges on the focus refetch
+ *     when the user returns.
  * The full-fidelity live feed is #28's WS integration; the shell converges on a timer.
  */
 const HOME_POLL_MS = 30_000;
